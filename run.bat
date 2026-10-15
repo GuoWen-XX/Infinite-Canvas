@@ -18,7 +18,7 @@ echo Visit: http://127.0.0.1:3000/
 echo Press Ctrl+C to stop.
 echo.
 
-start /b cmd /c "timeout /t 3 /nobreak >nul && start http://127.0.0.1:3000/"
+start /b powershell -NoProfile -WindowStyle Hidden -Command "$url = 'http://127.0.0.1:3000/'; for ($i = 0; $i -lt 60; $i++) { Start-Sleep -Milliseconds 500; if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { Start-Process $url; break } }"
 "%PYEXE%" main.py
 
 echo.
