@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>Angle Control | 视角重塑</title>
     <script>
         (function(){
@@ -17,26 +19,27 @@
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <script src="/static/js/image-preview.js?v=2026.07.29.1785292584"></script>
-    <script src="/static/js/history-bulk-manager.js?v=2026.07.29.1785292584"></script>
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <script src="/static/js/image-preview.js?v=2026.10.04.1787932356"></script>
+    <script src="/static/js/history-bulk-manager.js?v=2026.10.04.1790800008"></script>
     <script type="importmap">
         {
             "imports": {
-                "three": "/static/vendor/js/three-0.160.0.module.js?v=2026.07.29"
+                "three": "/static/vendor/js/three-0.160.0.module.js?v=2026.10.04"
             }
         }
     </script>
     <style>
-        @import url('/static/vendor/css/fonts.css?v=2026.07.29.1785292593');
+        @import url('/static/vendor/css/fonts.css?v=2026.10.04.1790813007');
 
         :root {
-            --accent: #111827;
-            --bg: #f9fafb;
-            --card: #ffffff;
+            --accent: var(--strong, #111827);
+            --bg: var(--bg, #f9fafb);
+            --card: var(--card, #ffffff);
             --easing: cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -53,16 +56,15 @@
         }
 
         *::-webkit-scrollbar-thumb {
-            background-color: #d8d8d8 !important;
+            background-color: var(--line-2, #d8d8d8) !important;
             border: 3px solid transparent !important;
             border-right-width: 5px !important;
-            /* 增加右侧间距，使滚动条向左位移 */
             background-clip: padding-box !important;
             border-radius: 10px !important;
         }
 
         *::-webkit-scrollbar-thumb:hover {
-            background-color: #c0c0c0 !important;
+            background-color: var(--ink-secondary, #c0c0c0) !important;
         }
 
         *::-webkit-scrollbar-corner {
@@ -71,56 +73,39 @@
 
         * {
             scrollbar-width: thin !important;
-            scrollbar-color: #d8d8d8 transparent !important;
+            scrollbar-color: var(--line-2, #d8d8d8) transparent !important;
         }
 
         body {
             background-color: var(--bg);
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: var(--accent);
+            font-family: 'Montserrat', 'Space Grotesk', 'Source Han Sans SC', '思源黑体', -apple-system, sans-serif;
+            color: var(--text, #111827);
             -webkit-font-smoothing: antialiased;
         }
 
         .container-box {
             max-width: 1280px;
             margin: 0 auto;
-            padding: 0 40px;
-            margin-top: 50px;
-        }
-
-        /* 统一组件风格 */
-        .glass-btn {
-            background: #111827;
-            transition: all 0.3s var(--easing);
-        }
-
-        .glass-btn:hover {
-            background: #000;
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-        }
-
-        .glass-btn:active {
-            transform: scale(0.98);
+            padding: 32px 40px;
         }
 
         .upload-item {
             background: var(--card);
-            border: 1px dashed #e2e8f0;
-            transition: all 0.4s var(--easing);
+            border: 1px dashed var(--line-2, #cbd5e1);
+            border-radius: 18px;
+            transition: all 0.3s var(--easing);
         }
 
         .upload-item:hover {
-            border-color: #000;
-            background: #fff;
+            border-color: var(--text);
             transform: translateY(-2px);
         }
 
         .result-frame {
-            background: #ffffff;
-            border-radius: 32px;
-            border: 1px solid #f1f5f9;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.02);
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            box-shadow: 0 4px 20px var(--shadow, rgba(0, 0, 0, 0.02));
         }
 
         .masonry-grid {
@@ -137,30 +122,31 @@
 
         .masonry-item {
             aspect-ratio: 1 / 1;
-            background: #fff;
-            border: 1px solid #f1f5f9;
-            border-radius: 24px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
             overflow: hidden;
-            transition: all 0.5s var(--easing);
+            transition: all 0.3s var(--easing);
             position: relative;
         }
 
         .masonry-item:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px var(--shadow, rgba(0, 0, 0, 0.08));
         }
 
         .nano-input {
-            background: #ffffff;
-            border-radius: 16px;
-            transition: all 0.3s ease;
-            border: 1px solid #e5e7eb;
+            background: var(--card);
+            border-radius: 14px;
+            transition: all 0.2s ease;
+            border: 1px solid var(--line);
+            color: var(--text);
         }
 
         .nano-input:focus {
-            background: #ffffff;
-            box-shadow: 0 0 0 2px #000;
-            border-color: transparent;
+            background: var(--card);
+            border-color: var(--strong);
+            box-shadow: 0 0 0 1px var(--strong);
         }
 
         @keyframes b-loading {
@@ -203,7 +189,7 @@
             padding: 8px 0;
             text-align: center;
             font-size: 11px;
-            font-weight: 800;
+            font-weight: 700;
             text-transform: uppercase;
             color: #999;
             transition: color 0.3s ease;
@@ -259,253 +245,335 @@
         html.studio-theme-dark #rotate-h,
         html.studio-theme-dark #rotate-v,
         html.studio-theme-dark #distance {
-            background: #2a3444 !important;
+            background: #2a2c33 !important;
         }
         html.studio-theme-dark #rotate-h::-webkit-slider-thumb,
         html.studio-theme-dark #rotate-v::-webkit-slider-thumb,
         html.studio-theme-dark #distance::-webkit-slider-thumb {
-            background: #d8dee9;
-            border-color: #0f141d;
+            background: #f3f4f6;
+            border-color: #141517;
         }
         html.studio-theme-dark #rotate-h::-moz-range-thumb,
         html.studio-theme-dark #rotate-v::-moz-range-thumb,
         html.studio-theme-dark #distance::-moz-range-thumb {
-            background: #d8dee9;
-            border-color: #0f141d;
+            background: #f3f4f6;
+            border-color: #141517;
+        }
+
+        /* --- Studio Page Header & Typography --- */
+        .studio-page-head {
+            display: flex !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            gap: 20px !important;
+            margin-bottom: 32px !important;
+            padding-bottom: 22px !important;
+            border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.07)) !important;
+        }
+        .studio-title-group {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        .studio-title-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 14px !important;
+            flex-wrap: wrap !important;
+        }
+        .studio-title {
+            margin: 0 !important;
+            font-size: 34px !important;
+            font-weight: 600 !important;
+            line-height: 1.18 !important;
+            letter-spacing: -0.01em !important;
+            color: var(--text, var(--ink-primary, #0f172a)) !important;
+            font-style: normal !important;
+            font-feature-settings: "palt" 1, "kern" 1 !important;
+        .studio-desc {
+            margin: 0 !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.6 !important;
+            letter-spacing: 0.025em !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-style: normal !important;
+        }
+        .studio-head-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            flex-shrink: 0 !important;
+        }
+        .studio-status-pill {
+            height: 34px !important;
+            padding: 0 14px !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--line, rgba(0, 0, 0, 0.08)) !important;
+            background: var(--card, #ffffff) !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            box-shadow: 0 1px 3px var(--shadow, rgba(0,0,0,0.04)) !important;
+            font-style: normal !important;
+        }
+        .studio-status-dot {
+            width: 7px !important;
+            height: 7px !important;
+            border-radius: 50% !important;
+            background: #10b981 !important;
+            display: inline-block !important;
         }
     </style>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
 </head>
 
 <body class="selection:bg-black selection:text-white">
 
-    <div class="container-box">
-        <header class="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
-            <div class="space-y-1">
-                <h1 class="text-4xl font-extrabold tracking-[-0.05em] flex items-center">
-                    ANGLE CONTROL<span class="text-base mt-3 ml-1">®</span>
-                </h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400" data-i18n="studio.cameraPerspective">Camera & Perspective Control
-                </p>
+    <div class="container-box max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        <header class="studio-page-head flex items-end justify-between gap-5 mb-8 pb-6 border-b border-[var(--line,rgba(0,0,0,0.07))]">
+            <div class="studio-title-group flex flex-col gap-2">
+                <div class="studio-title-row flex items-center gap-3.5 flex-wrap">
+                    <h1 class="studio-title text-3xl lg:text-4xl font-semibold tracking-normal text-[var(--text,#0f172a)]" data-i18n="studio.angleTitle">角度控制</h1>
+                </div>
+                <p class="studio-desc text-xs md:text-sm text-[var(--ink-secondary,#64748b)]" data-i18n="studio.angleDesc">三维空间视角实时调整与多机位运镜姿态引导控制。</p>
             </div>
-            <nav class="flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                <span class="text-black border-b-2 border-black pb-1" data-i18n="nav.angle">Angle</span>
-            </nav>
+            <div class="studio-head-actions flex items-center gap-2.5 flex-shrink-0">
+                <div id="studioStatus" class="studio-status-pill inline-flex items-center gap-2 h-8 px-3.5 rounded-full border border-[var(--line,rgba(0,0,0,0.08))] bg-[var(--card,#ffffff)] text-[11px] font-semibold text-[var(--ink-secondary,#64748b)] shadow-sm">
+                    <span class="studio-status-dot"></span>
+                    <span id="statusText" data-i18n="studio.systemReady">系统就绪</span>
+                </div>
+            </div>
         </header>
 
-        <main class="space-y-12">
-            <!-- Row 1: Upload and 3D Control -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
-                <section class="group w-full">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] mb-5 text-gray-400">01. <span data-i18n="studio.inputSource">Input Source</span>
-                    </h3>
+        <main class="studio-workbench items-start">
+            <!-- Left Column: Input Source & Prompt/Engine -->
+            <div class="studio-workbench-left">
+                <!-- 01. Input Source -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <span class="flex items-center gap-1.5"><i data-lucide="image" class="w-3.5 h-3.5"></i> <span data-i18n="studio.inputSource">输入图像</span></span>
+                        <span class="text-[10px] text-[var(--ink-tertiary)]">JPG / PNG / WEBP</span>
+                    </div>
                     <div id="dropzone"
-                        class="upload-item relative overflow-hidden rounded-2xl aspect-[4/3] flex flex-col items-center justify-center cursor-pointer">
+                        class="upload-item relative overflow-hidden rounded-xl h-44 flex flex-col items-center justify-center cursor-pointer">
                         <input type="file" id="fileInput" class="hidden" accept="image/*">
 
-                        <div id="uploadContent" class="text-center space-y-4">
+                        <div id="uploadContent" class="text-center p-4 space-y-2">
                             <div
-                                class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mx-auto group-hover:bg-black group-hover:text-white group-hover:border-black transition-all duration-500">
-                                <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                                class="w-9 h-9 rounded-full border border-[var(--line)] bg-[var(--card)] flex items-center justify-center mx-auto shadow-sm text-[var(--ink-secondary)]">
+                                <i data-lucide="arrow-up" class="w-4 h-4"></i>
                             </div>
-                            <p class="text-[11px] font-bold uppercase tracking-tight" data-i18n="studio.dropImage">Drop image here</p>
+                            <p class="text-xs font-medium text-[var(--text)]" data-i18n="studio.dropImage">拖拽图片至此或点击上传</p>
+                            <p class="text-[10px] text-[var(--ink-tertiary)]" data-i18n="studio.suggestedResolution">建议分辨率 1024px ~ 4096px</p>
                         </div>
 
                         <img id="previewImg" class="hidden absolute inset-0 w-full h-full object-cover">
 
                         <div id="changeOverlay"
-                            class="hidden absolute inset-0 bg-black/10 backdrop-blur-sm items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            class="hidden absolute inset-0 bg-black/30 backdrop-blur-xs items-center justify-center transition-opacity">
                             <span
-                                class="bg-white px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl" data-i18n="studio.change">Change</span>
+                                class="bg-[var(--card)] text-[var(--text)] px-4 py-1.5 rounded-full text-[11px] font-semibold shadow-md tracking-wider uppercase border border-[var(--line)]" data-i18n="studio.change">更换图片</span>
                         </div>
                     </div>
                 </section>
 
-                <section id="cameraControl" class="space-y-6 w-full">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">02. <span data-i18n="studio.cameraControl">Camera Control</span></h3>
-                    <div
-                        class="w-full aspect-[4/3] flex flex-col md:flex-row bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <!-- 3D View -->
-                        <div id="threeContainer" class="relative flex-1 bg-[#222] h-full min-h-0"></div>
+                <!-- 02. Parameters & Engine -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+                        <span data-i18n="studio.parameters">运镜参数与引擎</span>
+                    </div>
 
-                        <!-- Controls -->
-                        <div
-                            class="w-full md:w-64 flex-shrink-0 p-5 flex flex-col justify-center gap-4 border-l border-gray-100 bg-white overflow-y-auto">
-                            <!-- Horizontal -->
-                            <div class="space-y-3">
-                                <div
-                                    class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                    <div class="flex items-center gap-2">
-                                        <i data-lucide="move-horizontal" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.rotation">Rotation</span>
-                                    </div>
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between text-xs font-semibold">
+                            <span class="text-[var(--ink-secondary)]" data-i18n="studio.anglePrompt">运镜指令 Prompt</span>
+                        </div>
+                        <textarea id="promptInput" rows="3"
+                            class="nano-input w-full p-3.5 rounded-xl text-sm outline-none resize-none placeholder-[var(--ink-tertiary)] bg-[var(--card-subtle)] border border-[var(--line)] text-[var(--text)] transition-colors leading-relaxed"
+                            placeholder="请通过右侧控制器调整，或输入提示词" data-i18n-placeholder="studio.anglePromptPlaceholder"></textarea>
+                    </div>
+
+                    <!-- Engine Switcher -->
+                    <div class="space-y-2">
+                        <span class="text-[11px] font-semibold text-[var(--ink-secondary)] uppercase tracking-wider block" data-i18n="studio.engineSource">推理引擎</span>
+                        <div class="mode-switcher" style="width: 100%; max-width: 320px;">
+                            <div id="modeLocal" class="mode-btn active flex items-center justify-center gap-1.5"
+                                onclick="switchEngine('local')">
+                                <i data-lucide="monitor" class="w-3 h-3"></i>
+                                <span data-i18n="studio.local">本地 ComfyUI</span>
+                            </div>
+                            <div id="modeCloud" class="mode-btn flex items-center justify-center gap-1.5"
+                                onclick="switchEngine('cloud')">
+                                <i data-lucide="cloud" class="w-3 h-3"></i>
+                                <span data-i18n="studio.modelscopeCloud">ModelScope 云端</span>
+                            </div>
+                            <div id="glider" class="mode-glider"></div>
+                        </div>
+                    </div>
+
+                    <button id="genBtn" onclick="handleGenerate()"
+                        class="studio-btn-primary w-full h-12 text-white rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="sparkles" id="btnIcon" class="w-4 h-4"></i>
+                        <span id="btnText" data-i18n="studio.generateAngle">开始运镜生成</span>
+                    </button>
+                </section>
+            </div>
+
+            <!-- Right Column: 3D Camera Control & Canvas Stage -->
+            <div class="studio-workbench-right">
+                <!-- 03. 3D Camera Controller -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <span class="flex items-center gap-1.5"><i data-lucide="camera" class="w-3.5 h-3.5"></i> <span data-i18n="studio.cameraControl">三维相机控制器</span></span>
+                        <span class="text-[10px] text-[var(--ink-tertiary)]">3D SPATIAL CONTROL</span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center;">
+                        <!-- 3D Viewport -->
+                        <div id="threeContainer" class="h-44 bg-[#1a1c23] rounded-xl overflow-hidden border border-[var(--line)] shadow-inner"></div>
+
+                        <!-- Sliders Controls -->
+                        <div class="flex flex-col justify-center gap-3">
+                            <!-- Horizontal (Rotation) -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-center text-[11px] font-semibold text-[var(--ink-secondary)]">
+                                    <span class="flex items-center gap-1.5"><i data-lucide="move-horizontal" class="w-3 h-3"></i> <span data-i18n="studio.rotation">旋转角度</span></span>
                                     <div class="flex items-center gap-1.5">
-                                        <button onclick="resetControl('h')"
-                                            class="text-gray-300 hover:text-black transition-colors p-1" title="Reset">
-                                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                        <button onclick="resetControl('h')" class="text-[var(--ink-tertiary)] hover:text-[var(--text)] transition-colors p-0.5" title="复位">
+                                            <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i>
                                         </button>
-                                        <div class="flex items-center bg-gray-100 rounded-md px-2">
+                                        <div class="flex items-center bg-[var(--card-subtle)] border border-[var(--line)] rounded-md px-1.5">
                                             <input type="number" id="val-horizontal" value="0"
-                                                class="w-10 bg-transparent py-1 text-black text-center outline-none border-none p-0 text-[10px] font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                class="w-8 bg-transparent py-0.5 text-[var(--text)] text-center outline-none border-none text-[10px] font-semibold"
                                                 oninput="syncInput('h')">
-                                            <span class="text-gray-400 select-none text-[10px]">°</span>
+                                            <span class="text-[var(--ink-tertiary)] text-[10px]">°</span>
                                         </div>
                                     </div>
                                 </div>
                                 <input type="range" id="rotate-h" min="-90" max="90" value="0"
-                                    class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black">
+                                    class="w-full h-1.5 rounded-lg appearance-none cursor-pointer">
                             </div>
 
-                            <!-- Vertical -->
-                            <div class="space-y-3">
-                                <div
-                                    class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                    <div class="flex items-center gap-2">
-                                        <i data-lucide="move-vertical" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.pitch">Pitch</span>
-                                    </div>
+                            <!-- Vertical (Pitch) -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-center text-[11px] font-semibold text-[var(--ink-secondary)]">
+                                    <span class="flex items-center gap-1.5"><i data-lucide="move-vertical" class="w-3 h-3"></i> <span data-i18n="studio.pitch">俯仰角度</span></span>
                                     <div class="flex items-center gap-1.5">
-                                        <button onclick="resetControl('v')"
-                                            class="text-gray-300 hover:text-black transition-colors p-1" title="Reset">
-                                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                        <button onclick="resetControl('v')" class="text-[var(--ink-tertiary)] hover:text-[var(--text)] transition-colors p-0.5" title="复位">
+                                            <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i>
                                         </button>
-                                        <div class="flex items-center bg-gray-100 rounded-md px-2">
+                                        <div class="flex items-center bg-[var(--card-subtle)] border border-[var(--line)] rounded-md px-1.5">
                                             <input type="number" id="val-vertical" value="0"
-                                                class="w-10 bg-transparent py-1 text-black text-center outline-none border-none p-0 text-[10px] font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                class="w-8 bg-transparent py-0.5 text-[var(--text)] text-center outline-none border-none text-[10px] font-semibold"
                                                 oninput="syncInput('v')">
-                                            <span class="text-gray-400 select-none text-[10px]">°</span>
+                                            <span class="text-[var(--ink-tertiary)] text-[10px]">°</span>
                                         </div>
                                     </div>
                                 </div>
                                 <input type="range" id="rotate-v" min="-90" max="90" value="0"
-                                    class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black">
+                                    class="w-full h-1.5 rounded-lg appearance-none cursor-pointer">
                             </div>
 
                             <!-- Distance -->
-                            <div class="space-y-3">
-                                <div
-                                    class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                                    <div class="flex items-center gap-2">
-                                        <i data-lucide="zoom-in" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.distance">Distance</span>
-                                    </div>
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-center text-[11px] font-semibold text-[var(--ink-secondary)]">
+                                    <span class="flex items-center gap-1.5"><i data-lucide="zoom-in" class="w-3 h-3"></i> <span data-i18n="studio.distance">镜头距离</span></span>
                                     <div class="flex items-center gap-1.5">
-                                        <button onclick="resetControl('d')"
-                                            class="text-gray-300 hover:text-black transition-colors p-1" title="Reset">
-                                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                        <button onclick="resetControl('d')" class="text-[var(--ink-tertiary)] hover:text-[var(--text)] transition-colors p-0.5" title="复位">
+                                            <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i>
                                         </button>
-                                        <div class="flex items-center bg-gray-100 rounded-md px-2">
+                                        <div class="flex items-center bg-[var(--card-subtle)] border border-[var(--line)] rounded-md px-1.5">
                                             <input type="number" id="val-distance" value="4.0" step="0.1"
-                                                class="w-10 bg-transparent py-1 text-black text-center outline-none border-none p-0 text-[10px] font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                class="w-8 bg-transparent py-0.5 text-[var(--text)] text-center outline-none border-none text-[10px] font-semibold"
                                                 oninput="syncInput('d')">
                                         </div>
                                     </div>
                                 </div>
                                 <input type="range" id="distance" min="0.1" max="8" value="4" step="0.1"
-                                    class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black">
+                                    class="w-full h-1.5 rounded-lg appearance-none cursor-pointer">
                             </div>
                         </div>
                     </div>
                 </section>
-            </div>
 
-            <!-- Row 2: Parameters & Result -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
-                <section class="flex flex-col space-y-6">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">03. <span data-i18n="studio.parameters">Parameters</span></h3>
-
-                    <div class="space-y-3 flex-1 flex flex-col">
-                        <div class="flex items-center gap-2 text-gray-800 ml-1">
-                            <i data-lucide="text-quote" class="w-3 h-3"></i>
-                            <span class="text-[10px] font-bold uppercase tracking-widest">Prompt</span>
+                <!-- 04. Canvas Stage -->
+                <div id="resultBox"
+                    class="studio-stage-frame min-h-[420px] group">
+                    <!-- Stage Header Bar -->
+                    <div class="absolute top-0 inset-x-0 h-11 px-5 flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)]/80 backdrop-blur-md z-10">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+                            <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                            <span class="uppercase tracking-wider">CANVAS STAGE</span>
                         </div>
-                        <textarea id="promptInput"
-                            class="nano-input w-full flex-1 p-5 text-sm outline-none resize-none placeholder-gray-300"
-                            placeholder="请通过右侧控制器调整，或输入提示词"></textarea>
-                    </div>
-
-                    <!-- Engine Switcher -->
-                    <div class="mode-switcher">
-                        <div id="modeLocal" class="mode-btn active flex items-center justify-center gap-1.5"
-                            onclick="switchEngine('local')">
-                            <i data-lucide="monitor" class="w-3 h-3"></i>
-                            <span>Local</span>
-                        </div>
-                        <div id="modeCloud" class="mode-btn flex items-center justify-center gap-1.5"
-                            onclick="switchEngine('cloud')">
-                            <i data-lucide="cloud" class="w-3 h-3"></i>
-                            <span>ModelScope</span>
-                        </div>
-                        <div id="glider" class="mode-glider"></div>
-                    </div>
-
-                    <button id="genBtn" onclick="handleGenerate()"
-                        class="glass-btn w-full py-5 text-white rounded-xl font-bold text-[11px] uppercase tracking-[0.4em] flex items-center justify-center gap-3 shadow-xl shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                        <span id="btnText" data-i18n="studio.generateAngle">Generate New Angle</span>
-                    </button>
-                </section>
-
-                <section class="space-y-6 flex flex-col">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">04. <span data-i18n="studio.resultPreview">Result Preview</span></h3>
-                    <div id="resultBox"
-                        class="result-frame relative aspect-[4/3] w-full flex items-center justify-center overflow-hidden group">
-                        <div id="emptyState" class="text-center space-y-4 opacity-20">
-                            <i data-lucide="camera" class="w-12 h-12 mx-auto stroke-[1px]"></i>
-                            <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.canvasReady">Canvas Ready</p>
-                        </div>
-
-                        <div id="loadingState" class="hidden flex flex-col items-center gap-5 w-full max-w-[80%]">
-                            <div class="loading-box"></div>
-                            <p class="text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse" data-i18n="studio.processing">Processing...</p>
-                            <!-- Progress Bar -->
-                            <div id="cloud-progress-container" class="hidden w-full mt-4">
-                                <div class="flex justify-between text-[9px] font-bold text-gray-400 mb-1 uppercase tracking-widest">
-                                    <span id="cloud-status-text">Pending...</span>
-                                    <span id="cloud-percent">0%</span>
-                                </div>
-                                <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                    <div id="cloud-progress-bar" class="bg-black h-full rounded-full transition-all duration-300" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="textResult"
-                            class="hidden w-full h-full p-12 flex flex-col items-center justify-center text-center space-y-8">
-                            <i data-lucide="terminal" class="w-12 h-12 text-gray-300 mx-auto"></i>
-                            <div class="space-y-4 max-w-md">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400" data-i18n="studio.generatedCommand">Generated
-                                    Command
-                                </p>
-                                <h2 id="generatedText" class="text-2xl font-bold leading-relaxed text-gray-900"></h2>
-                            </div>
-                            <button onclick="copyText()"
-                                class="px-8 py-3 bg-gray-100 hover:bg-black hover:text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2">
-                                <i data-lucide="copy" class="w-3 h-3"></i><span data-i18n="studio.copy">Copy</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="zoomImage()" class="p-1.5 rounded-lg hover:bg-[var(--soft)] text-[var(--ink-secondary)] transition-colors" title="全屏对比">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
-
-                        <img id="outputImg"
-                            class="hidden w-full h-full object-contain p-8 cursor-zoom-in transition-all duration-700 hover:scale-[1.02]"
-                            onclick="zoomImage()">
-
-                        <a id="downloadBtn" href="#" download
-                            class="hidden absolute bottom-8 right-8 w-14 h-14 bg-white shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white transition-all duration-500 border border-gray-100">
-                            <i data-lucide="download" class="w-5 h-5"></i>
-                        </a>
                     </div>
-                </section>
+
+                    <div id="emptyState" class="text-center space-y-3 opacity-30 py-20">
+                        <div class="w-14 h-14 rounded-2xl border border-dashed border-[var(--line-2,#94a3b8)] flex items-center justify-center mx-auto">
+                            <i data-lucide="camera" class="w-6 h-6 stroke-[1.5]"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold uppercase tracking-[0.2em]" data-i18n="studio.canvasReady">CANVAS READY</p>
+                            <p class="text-[11px] text-[var(--ink-tertiary)]">配置左侧图片与上方运镜参数，点击开始生成</p>
+                        </div>
+                    </div>
+
+                    <div id="loadingState" class="hidden flex flex-col items-center gap-5 w-full max-w-[80%] py-20">
+                        <div class="loading-box"></div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse" data-i18n="studio.processing">Processing...</p>
+                        <!-- Progress Bar -->
+                        <div id="cloud-progress-container" class="hidden w-full mt-4">
+                            <div class="flex justify-between text-[9px] font-bold text-gray-400 mb-1 uppercase tracking-widest">
+                                <span id="cloud-status-text">Pending...</span>
+                                <span id="cloud-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-[var(--card-subtle)] rounded-full h-1.5 overflow-hidden border border-[var(--line)]">
+                                <div id="cloud-progress-bar" class="bg-[var(--strong)] h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="textResult"
+                        class="hidden w-full h-full p-12 flex flex-col items-center justify-center text-center space-y-8">
+                        <i data-lucide="terminal" class="w-12 h-12 text-[var(--ink-tertiary)] mx-auto"></i>
+                        <div class="space-y-4 max-w-md">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-[var(--ink-secondary)]" data-i18n="studio.generatedCommand">Generated Command</p>
+                            <h2 id="generatedText" class="text-2xl font-bold leading-relaxed text-[var(--text)]"></h2>
+                        </div>
+                        <button onclick="copyText()"
+                            class="px-8 py-3 bg-[var(--card-subtle)] hover:bg-[var(--strong)] hover:text-[var(--strong-text)] border border-[var(--line)] rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2">
+                            <i data-lucide="copy" class="w-3 h-3"></i><span data-i18n="studio.copy">Copy</span>
+                        </button>
+                    </div>
+
+                    <img id="outputImg"
+                        class="hidden w-full h-full object-contain p-6 pt-14 cursor-zoom-in transition-all duration-500 hover:scale-[1.01]"
+                        onclick="zoomImage()">
+
+                    <a id="downloadBtn" href="#" download
+                        class="hidden absolute bottom-6 right-6 w-11 h-11 bg-[var(--card)] shadow-lg rounded-xl flex items-center justify-center hover:bg-[var(--strong)] hover:text-[var(--strong-text)] transition-all border border-[var(--line)] z-20">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                    </a>
+                </div>
             </div>
         </main>
 
-        <section class="mt-32">
-            <div class="flex items-center gap-6 mb-10">
-                <h2 class="text-[11px] font-black uppercase tracking-[0.5em]">Archive</h2>
-                <div class="h-px flex-1 bg-black/5"></div>
+        <section class="mt-16">
+            <div class="flex items-center gap-6 mb-8">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ink-secondary)]" data-i18n="studio.archives">Archives</h2>
+                <div class="h-px flex-1 bg-[var(--line)]"></div>
             </div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger"
-                class="py-16 text-center opacity-20 text-[10px] font-bold uppercase tracking-widest">
+                class="py-16 text-center opacity-40 text-xs font-medium uppercase tracking-wider text-[var(--ink-tertiary)]" data-i18n="studio.endOfArchive">
                 End of Archive
             </div>
         </section>
@@ -527,7 +595,7 @@
             </div>
             <div class="mt-8">
                 <button onclick="downloadLightboxImage()"
-                    class="px-10 py-4 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-xl">
+                    class="px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-3 shadow-xl">
                     <i data-lucide="save" class="w-4 h-4"></i> Save Master
                 </button>
             </div>
@@ -539,6 +607,7 @@
 
         // Initialize WebSocket Listener for Cloud Progress
         window.addEventListener('message', function(event) {
+            if (event.origin && event.origin !== location.origin) return;
             const data = event.data;
             if (data && data.type === 'cloud_status') {
                 updateCloudProgress(data);
@@ -763,8 +832,7 @@
                 });
                 cube.material.needsUpdate = true;
 
-                // Show control panel (already visible, but keep logic safe)
-                document.getElementById('cameraControl').classList.remove('hidden');
+
 
                 // Force resize check after texture load
                 setTimeout(() => {
@@ -788,6 +856,7 @@
             if(btnText && !document.getElementById('genBtn')?.disabled) btnText.textContent = tr('studio.generateAngle');
         }
         window.addEventListener('message', event => {
+            if (event.origin && event.origin !== location.origin) return;
             if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.angle'); });
@@ -901,14 +970,19 @@
             formData.append('files', file);
             try {
                 const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    throw new Error(errJson.detail || '未连接到本地 ComfyUI 服务 (127.0.0.1:8188)');
+                }
                 const data = await res.json();
                 uploadedPath = data.files[0].comfy_name;
                 btn.disabled = false;
                 btnText.innerText = tr('studio.generateAngle');
             } catch (err) {
-                console.error("Upload error");
-                btnText.innerText = tr('studio.uploadFailed');
+                console.error("Upload error:", err);
+                btnText.innerText = '未连接ComfyUI';
                 btn.disabled = false;
+                alert('【本地生图提示】\n' + (err.message || '图片上传失败') + '\n\n说明：角度控制等本地功能依赖本地电脑启动的 ComfyUI 后台 (127.0.0.1:8188)。');
             }
         }
 
@@ -1120,8 +1194,7 @@
             const btnText = document.getElementById('btnText');
 
             btn.disabled = true;
-            btn.style.backgroundColor = '#333';
-            btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.4em] text-[11px] uppercase">${tr('studio.processing')}</span>`;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">${tr('studio.processing')}</span>`;
             lucide.createIcons();
 
             document.getElementById('emptyState').classList.add('hidden');
@@ -1170,7 +1243,7 @@
                 downloadBtn.download = `Angle-${Date.now()}.png`;
 
                 btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span id="btnText">${tr('studio.generateAngle')}</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span id="btnText">${tr('studio.generateAngle')}</span>`;
                 btn.disabled = false;
                 lucide.createIcons();
 
@@ -1185,7 +1258,7 @@
             } catch (err) {
                 console.error(err);
                 btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span id="btnText">Generation Failed</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span id="btnText">${tr('studio.generateAngle')}</span>`;
                 lucide.createIcons();
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
@@ -1212,7 +1285,8 @@
         // History Management
         function renderImageCard(data, isNew = false) {
             const masonry = document.getElementById('masonry');
-            const imgUrl = data.images ? data.images[0] : '';
+            const rawImgUrl = data.images ? data.images[0] : '';
+            const imgUrl = (typeof safeMediaUrl === 'function') ? safeMediaUrl(rawImgUrl) : (rawImgUrl || '');
             if (!imgUrl) return;
 
             const card = document.createElement('div');
@@ -1222,18 +1296,20 @@
             card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(imgUrl); };
             
             // ModelScope Badge
-            const isCloud = data.is_cloud || (imgUrl && imgUrl.includes('cloud_angle'));
+            const isCloud = data.is_cloud || (rawImgUrl && rawImgUrl.includes('cloud_angle'));
             const badgeHtml = isCloud ? `
                 <div class="absolute top-3 left-3 z-10">
                     <img src="/static/images/modelscope.gif" class="h-4 w-auto object-contain bg-white/90 rounded-full p-0.5 shadow-sm">
                 </div>
             ` : '';
 
+            const safePrompt = (typeof escapeHtml === 'function') ? escapeHtml(data.prompt || "Angle Control") : (data.prompt || "Angle Control");
+
             card.innerHTML = `
                 <img src="${imgUrl}" class="w-full h-full object-cover block transform group-hover:scale-105 transition-transform duration-[1.5s]">
                 ${badgeHtml}
                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 p-6 flex flex-col justify-end pointer-events-none">
-                    <p class="text-white text-[10px] font-bold uppercase tracking-widest line-clamp-2">${data.prompt || "Angle Control"}</p>
+                    <p class="text-white text-[10px] font-bold uppercase tracking-widest line-clamp-2">${safePrompt}</p>
                 </div>
             `;
 

@@ -48,6 +48,14 @@ const rhAppsCount = document.getElementById('rhAppsCount');
 const rhWorkflowsCount = document.getElementById('rhWorkflowsCount');
 const settingsContent = document.getElementById('settingsContent');
 const recommendContent = document.getElementById('recommendContent');
+const extToolsContent = document.getElementById('extToolsContent');
+const extToolsGrid = document.getElementById('extToolsGrid');
+let extToolsViewOpen = false;
+const modulesContent = document.getElementById('modulesContent');
+const modulesGrid = document.getElementById('modulesGrid');
+let modulesViewOpen = false;
+const aboutContent = document.getElementById('aboutContent');
+let aboutViewOpen = false;
 const recommendPanel = document.getElementById('recommendPanel');
 const providerOnboardingCard = document.getElementById('providerOnboardingCard');
 const rhWorkflowEditorOverlay = document.getElementById('rhWorkflowEditorOverlay');
@@ -78,7 +86,9 @@ const MS_BUILTIN_IMAGE_MODELS = [
     'black-forest-labs/FLUX.2-klein-9B'
 ];
 const MS_DEFAULT_BASE_URL = 'https://api-inference.modelscope.cn/v1';
-const RH_DEFAULT_BASE_URL = 'https://www.runninghub.cn';
+const RH_CN_BASE_URL = 'https://www.runninghub.cn';
+const RH_AI_BASE_URL = 'https://www.runninghub.ai';
+const RH_DEFAULT_BASE_URL = RH_CN_BASE_URL;
 const LINGJING_DEFAULT_BASE_URL = 'https://apistudio.vip';
 const LINGJING_REGISTER_URL = 'https://apistudio.vip/register?aff=g1CT';
 const VIP_GPT_DEFAULT_BASE_URL = 'https://www.vip-gpt.net';
@@ -93,7 +103,7 @@ const CODEX_DEFAULT_CHAT_MODELS = ['gpt-5.5'];
 const GEMINI_CLI_DEFAULT_IMAGE_MODELS = ['auto'];
 const GEMINI_CLI_DEFAULT_CHAT_MODELS = ['auto'];
 const CLI_PROTOCOLS = new Set(['jimeng', 'codex', 'gemini-cli']);
-const API_PROTOCOLS = ['openai', 'apimart', 'gemini', 'volcengine', 'runninghub', 'jimeng', 'codex', 'gemini-cli'];
+const API_PROTOCOLS = ['openai', 'apimart', 'gemini', 'volcengine', 'runninghub', 'pollinations', 'jimeng', 'codex', 'gemini-cli'];
 const CLI_PROVIDER_PRESETS = {
     jimeng:{id:'jimeng', name:'即梦 CLI', protocol:'jimeng'},
     codex:{id:'codex', name:'GPT CLI', protocol:'codex'},
@@ -112,13 +122,17 @@ const ONBOARDING_GUIDES = {
         titleKey:'api.rhOnboardingTitle',
         descKey:'api.rhOnboardingDesc',
         primaryLabelKey:'api.rhGetKeyCn',
-        secondaryLabelKey:'api.rhGetKeyGlobal',
         primaryUrl:'https://www.runninghub.cn/enterprise-api/consumerApi?inviteCode=rh-v1331',
-        secondaryUrl:'https://www.runninghub.ai/enterprise-api/consumerApi?inviteCode=rh-v1331',
         walletPrimaryLabelKey:'api.rhGetWalletKeyCn',
-        walletSecondaryLabelKey:'api.rhGetWalletKeyGlobal',
-        walletPrimaryUrl:'https://www.runninghub.cn/enterprise-api/sharedApi?inviteCode=rh-v1331',
-        walletSecondaryUrl:'https://www.runninghub.ai/enterprise-api/sharedApi?inviteCode=rh-v1331'
+        walletPrimaryUrl:'https://www.runninghub.cn/enterprise-api/sharedApi?inviteCode=rh-v1331'
+    },
+    'runninghub-ai':{
+        titleKey:'api.rhAiOnboardingTitle',
+        descKey:'api.rhAiOnboardingDesc',
+        primaryLabelKey:'api.rhGetKeyGlobal',
+        primaryUrl:'https://www.runninghub.ai/enterprise-api/consumerApi?inviteCode=rh-v1331',
+        walletPrimaryLabelKey:'api.rhGetWalletKeyGlobal',
+        walletPrimaryUrl:'https://www.runninghub.ai/enterprise-api/sharedApi?inviteCode=rh-v1331'
     },
     lingjing:{
         titleKey:'api.lingjingOnboardingTitle',
@@ -127,6 +141,11 @@ const ONBOARDING_GUIDES = {
         primaryUrl:LINGJING_REGISTER_URL
     }
 };
+function normalizeRunningHubBaseUrl(value, id=''){
+    const url = String(value || '').trim().replace(/\/+$/, '');
+    if(url) return url;
+    return id === 'runninghub-ai' ? RH_AI_BASE_URL : RH_CN_BASE_URL;
+}
 function applyCliProtocolDefaults(item, protocol){
     if(!item) return;
     const value = String(protocol || item.protocol || '').toLowerCase();
@@ -154,42 +173,6 @@ let providerDragId = '';
 // category: 'allround'（全能）| 'value'（性价比）| 'free'（免费），推荐面板按分组分节展示
 const RECOMMENDED_APIS = [
     {
-        id:'tudou',
-        name:'土豆API',
-        category:'value',
-        base_url:'https://api.ai-tudou.net',
-        protocol:'openai',
-        image_request_mode:'tudou-async',
-        register_url:'https://api.ai-tudou.net/register?aff=GmBu',
-        tagKeys:['api.tagImageModels','api.tagVideoModels','api.tagLlmModels'],
-        icons:['IMG','VID','LLM'],
-        summaryKey:'api.recommendTudouSummary',
-        advantages:['支持 LLM、图像和视频模型', 'Grok 图像专属图生图协议', '异步视频模型已预设'],
-        image_models:['gpt-image-2-1k', 'gpt-image-2-2k', 'gpt-image-2-4k', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'grok-imagine-image', 'grok-imagine-image-pro', 'grok-imagine-image-edit'],
-        chat_models:['gpt-5.5'],
-        video_models:['grok-imagine-video', 'grok-imagine-video-1.5', 'sora2', 'veo3.1', 'kling-v3', 'pixverse-v6', 'seedance-2.0-fast'],
-        model_protocols:{'gemini-3.1-flash-image-preview':'gemini', 'gemini-3-pro-image-preview':'gemini'}
-    },
-    {
-        id:'exellome',
-        name:'EXELLOME',
-        category:'value',
-        base_url:'https://new.exellome.online',
-        // 异步协议 + 异步生图模式：提交 /v1/videos、轮询 /v1/videos/{id}，本地参考图走 multipart 直传
-        protocol:'apimart',
-        image_request_mode:'openai-video-proxy',
-        register_url:'https://new.exellome.online/register?aff=r2dZ',
-        tagKeys:['GPT-Image2','Nano-Banana'],
-        icons:['IMG'],
-        summaryKey:'api.recommendExellomeSummary',
-        perks:[{key:'api.recommendExellome2k4k'}],
-        keyHint:'使用 VIP 分组',
-        advantages:['稳定输出 GPT-Image2 和 Nano Banana 的 2K/4K', '异步协议适合长任务', '预填全系图像模型'],
-        image_models:['gpt-image2-2k', 'gpt-image2-4k', 'Nano-Banana-2-2k', 'Nano-Banana-2-4k', 'Nano-Banana-Pro-2k', 'Nano-Banana-Pro-4k'],
-        chat_models:[],
-        video_models:[]
-    },
-    {
         id:'fhl',
         name:'FHL',
         category:'value',
@@ -207,31 +190,48 @@ const RECOMMENDED_APIS = [
         video_models:[]
     },
     {
-        id:'vip-gpt',
-        name:'VIP-GPT',
-        category:'value',
-        base_url:VIP_GPT_DEFAULT_BASE_URL,
+        id:'gemini',
+        name:'Google Gemini (AI Studio)',
+        category:'allround',
+        base_url:'https://generativelanguage.googleapis.com/v1beta/openai',
         protocol:'openai',
-        register_url:VIP_GPT_REGISTER_URL,
-        tagKeys:['Codex','Claude','GPT-image-2','Nano-banana'],
-        icons:['GPT','LLM'],
-        summaryKey:'api.recommendVipGptSummary',
-        advantages:['OpenAI 兼容接入', '预填官方请求地址', '保存 Key 后可拉取模型'],
-        empty_models_on_save:true
+        image_request_mode:'openai',
+        register_url:'https://aistudio.google.com/apikey',
+        tagKeys:['Google','Gemini 3.5','api.tagLlmModels','api.tagImageModels','Vision'],
+        icons:['LLM','IMG'],
+        summaryKey:'api.recommendGeminiSummary',
+        perkKey:'api.recommendGeminiFree',
+        perkClass:'recommend-free-tag',
+        advantages:['Google AI Studio 官方直连', '支持 gemini-3.5-flash-lite 极速图像识别', '丰富免费额度，多模态视觉直通'],
+        chat_models:['gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'],
+        image_models:['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'imagen-3.0-generate-002'],
+        video_models:[]
     },
     {
         id:'runninghub',
-        name:'RunningHub',
+        name:'RunningHub (国内站)',
         category:'allround',
-        base_url:RH_DEFAULT_BASE_URL,
+        base_url:RH_CN_BASE_URL,
         protocol:'runninghub',
         image_request_mode:'openai',
-        register_url:ONBOARDING_GUIDES.runninghub.secondaryUrl,
-        register_url_cn:ONBOARDING_GUIDES.runninghub.primaryUrl,
+        register_url:ONBOARDING_GUIDES.runninghub.primaryUrl,
         tagKeys:['api.tagImageModels','api.tagVideoModels','api.tagLlmModels','api.tagSeedance'],
         icons:['IMG','VID','LLM'],
         summaryKey:'api.recommendRunninghubSummary',
-        advantages:['覆盖图像、视频和 LLM', 'RunningHub OpenAPI 工作流', 'Seedance 视频模型可用']
+        advantages:['覆盖图像、视频和 LLM', 'RunningHub 国内站 OpenAPI', 'ComfyUI 工作流生态']
+    },
+    {
+        id:'runninghub-ai',
+        name:'RunningHub (国际站)',
+        category:'allround',
+        base_url:RH_AI_BASE_URL,
+        protocol:'runninghub',
+        image_request_mode:'openai',
+        register_url:ONBOARDING_GUIDES['runninghub-ai'].primaryUrl,
+        tagKeys:['api.tagImageModels','api.tagVideoModels','api.tagLlmModels'],
+        icons:['IMG','VID','LLM'],
+        summaryKey:'api.recommendRunninghubSummary',
+        advantages:['全球节点直连', 'RunningHub 国际站 OpenAPI', '支持海外支付与算力']
     },
     {
         name:'APIMART',
@@ -294,6 +294,170 @@ const RECOMMENDED_APIS = [
         image_models:['agnes-image-2.1-flash', 'agnes-image-2.0-flash'],
         chat_models:[],
         video_models:['agnes-video-v2.0']
+    },
+    {
+        id:'pollinations',
+        name:'Pollinations (免Key)',
+        category:'free',
+        base_url:'https://image.pollinations.ai',
+        protocol:'pollinations',
+        image_request_mode:'pollinations',
+        keyless:true,
+        register_url:'https://pollinations.ai',
+        tagKeys:['api.tagImageModels','api.tagKeyless','Flux','SDXL'],
+        icons:['IMG'],
+        summaryKey:'api.recommendPollinationsSummary',
+        perkKey:'api.recommendPollinationsFree',
+        perkClass:'recommend-free-tag',
+        advantages:['完全免费免注册免Key', '直接出图快速稳定', '支持 Flux / sana / zimage 等基础开源生图模型'],
+        image_models:['flux', 'sana', 'zimage', 'nanobanana-2-lite', 'qwen-image-3', 'seedream5-pro'],
+        chat_models:[],
+        video_models:[]
+    },
+    {
+        id:'pollinations-api',
+        name:'Pollinations (API Key)',
+        category:'allround',
+        base_url:'https://gen.pollinations.ai/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        keyless:false,
+        register_url:'https://enter.pollinations.ai',
+        tagKeys:['api.tagImageModels','api.tagLlmModels','250+模型','Flux/GPT/Claude'],
+        icons:['IMG','LLM'],
+        summaryKey:'api.recommendPollinationsApiSummary',
+        perkKey:'api.recommendPollinationsApiPerk',
+        perkClass:'recommend-perk-tag',
+        advantages:['解锁 257 款全球前沿模型', '包含 29 款高质量生图与 227 款 LLM 对话模型', '标准 OpenAI 协议规范完全兼容'],
+        image_models:['flux', 'gpt-image-2', 'sdxl-lightning', 'kontext', 'dreamshaper', 'nova-canvas', 'klein', 'qwen-image-3.0-pro'],
+        chat_models:['openai', 'deepseek', 'claude-3.5-sonnet', 'glm-5.3', 'grok-4.6'],
+        video_models:['nova-reel']
+    },
+    {
+        id:'aihubmix',
+        name:'AIHubMix',
+        category:'allround',
+        base_url:'https://aihubmix.com/v1',
+        protocol:'openai',
+        register_url:'https://aihubmix.com/',
+        tagKeys:['api.tagImageModels','api.tagLlmModels','api.tagVideoModels'],
+        icons:['IMG','VID','LLM'],
+        summaryKey:'api.recommendAihubmixSummary',
+        advantages:['一站式主流模型聚合', '全球百余款顶尖 LLM 直连', '高可用 OpenAI 标准接口中转']
+    },
+    {
+        id:'omniakey',
+        name:'OmniaKey',
+        category:'value',
+        base_url:'https://omniakey.com/v1',
+        protocol:'openai',
+        register_url:'https://omniakey.com/',
+        tagKeys:['api.tagLlmModels','api.tagImageModels'],
+        icons:['LLM','IMG'],
+        summaryKey:'api.recommendOmniakeySummary',
+        advantages:['高性价比编码与对话网关', '路由聚合分发', 'OpenAI 协议无缝兼容']
+    },
+    {
+        id:'eachlabs',
+        name:'EachLabs',
+        category:'allround',
+        base_url:'https://api.eachlabs.ai/v1',
+        protocol:'openai',
+        register_url:'https://www.eachlabs.ai/',
+        tagKeys:['api.tagImageModels','api.tagVideoModels'],
+        icons:['IMG','VID'],
+        summaryKey:'api.recommendEachlabsSummary',
+        advantages:['专注于多模态视觉生成', '支持图像与视频生成接口', '高并发推理加速']
+    },
+    {
+        id:'apikey-fun',
+        name:'ApiKey.fun',
+        category:'value',
+        base_url:'https://apikey.fun/v1',
+        protocol:'openai',
+        register_url:'https://apikey.fun/',
+        tagKeys:['api.tagLlmModels','api.tagImageModels'],
+        icons:['LLM','IMG'],
+        summaryKey:'api.recommendApikeyFunSummary',
+        advantages:['高性价比 AI 接口分发', '多节点负载均衡', '简单快捷接入']
+    },
+    {
+        id:'merge-gateway',
+        name:'Merge Gateway',
+        category:'allround',
+        base_url:'https://gateway.merge.dev/v1',
+        protocol:'openai',
+        register_url:'https://gateway.merge.dev/',
+        tagKeys:['api.tagLlmModels','api.tagImageModels'],
+        icons:['LLM','IMG'],
+        summaryKey:'api.recommendMergeGatewaySummary',
+        advantages:['企业级统一 AI API 网关', '配额与权限集中管控', '支持多种上游模型']
+    },
+    {
+        id:'siliconflow-cn',
+        name:'硅基流动 (国内站)',
+        category:'value',
+        base_url:'https://api.siliconflow.cn/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        register_url:'https://cloud.siliconflow.cn/i/register',
+        tagKeys:['SiliconFlow','国内低延迟','FLUX','DeepSeek R1','api.tagImageModels','api.tagLlmModels','api.tagVideoModels'],
+        icons:['IMG','LLM','VID'],
+        summaryKey:'api.recommendSiliconflowCnSummary',
+        perkKey:'api.recommendSiliconflowCnPerk',
+        perkClass:'recommend-free-tag',
+        advantages:['国内低延迟高速直连，无需代理', '新用户赠送丰富免费算力，性价比极高', '覆盖 FLUX、DeepSeek R1/V3、SD 3.5 与 LTX-Video'],
+        image_models:['black-forest-labs/FLUX.1-schnell', 'black-forest-labs/FLUX.1-dev', 'stabilityai/stable-diffusion-3-5-large', 'stabilityai/stable-diffusion-3-medium', 'Kwai-Kolors/Kolors'],
+        chat_models:['deepseek-ai/DeepSeek-V3', 'deepseek-ai/DeepSeek-R1', 'Qwen/Qwen2.5-72B-Instruct', 'THUDM/glm-4-9b-chat'],
+        video_models:['Lightricks/LTX-Video']
+    },
+    {
+        id:'siliconflow-com',
+        name:'SiliconFlow (国际站)',
+        category:'allround',
+        base_url:'https://api.siliconflow.com/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        register_url:'https://cloud.siliconflow.com/',
+        tagKeys:['SiliconFlow','国际直连','美元结算','FLUX','DeepSeek','api.tagImageModels','api.tagLlmModels','api.tagVideoModels'],
+        icons:['IMG','LLM','VID'],
+        summaryKey:'api.recommendSiliconflowComSummary',
+        advantages:['国际骨干网络节点，全球网络无阻', '支持海外信用卡与国际结算', '全量 FLUX、DeepSeek 与 LTX 多模态生成'],
+        image_models:['black-forest-labs/FLUX.1-schnell', 'black-forest-labs/FLUX.1-dev', 'stabilityai/stable-diffusion-3-5-large', 'stabilityai/stable-diffusion-3-medium'],
+        chat_models:['deepseek-ai/DeepSeek-V3', 'deepseek-ai/DeepSeek-R1', 'Qwen/Qwen2.5-72B-Instruct'],
+        video_models:['Lightricks/LTX-Video']
+    },
+    {
+        id:'bfl',
+        name:'FLUX 官方 (BFL)',
+        category:'allround',
+        base_url:'https://api.bfl.ml/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        register_url:'https://api.bfl.ml/',
+        tagKeys:['BFL','Flux 1.1 Pro','Ultra','官方直连','api.tagImageModels'],
+        icons:['IMG'],
+        summaryKey:'api.recommendBflSummary',
+        advantages:['Black Forest Labs 官方直连', '支持 FLUX 1.1 Pro 与 Ultra 原生最高画质', '支持 Fill / Canny / Depth 官方控制'],
+        image_models:['flux-pro-1.1-ultra', 'flux-pro-1.1', 'flux-pro', 'flux-dev', 'flux-pro-1.0-fill', 'flux-pro-1.0-canny', 'flux-pro-1.0-depth'],
+        chat_models:[],
+        video_models:[]
+    },
+    {
+        id:'ltx-official',
+        name:'LTX 官方 (Lightricks)',
+        category:'allround',
+        base_url:'https://api.lightricks.com/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        register_url:'https://docs.ltx.video/',
+        tagKeys:['Lightricks','LTX Video','影视级运镜','官方直连','api.tagVideoModels'],
+        icons:['VID'],
+        summaryKey:'api.recommendLtxSummary',
+        advantages:['Lightricks LTX Video 官方影视级视频生成', '高帧率与空间运镜一致性', '直连 LTX Director 镜头时间线'],
+        image_models:[],
+        chat_models:[],
+        video_models:['ltx-video', 'ltx-video-0.9.1', 'ltx-2.3-22b-dev']
     }
 ];
 const RECOMMEND_GROUPS = [
@@ -301,7 +465,9 @@ const RECOMMEND_GROUPS = [
     {key:'value', titleKey:'api.recommendGroupValue', icon:'badge-percent'},
     {key:'free', titleKey:'api.recommendGroupFree', icon:'gift'}
 ];
-const LOCKED_RECOMMENDED_PROTOCOL_IDS = new Set(['exellome', 'fhl']);
+// Exellome keeps APIMart as its recommended default, but users may switch the
+// provider to another compatible protocol when the upstream configuration changes.
+const LOCKED_RECOMMENDED_PROTOCOL_IDS = new Set(['fhl']);
 function lockedRecommendedApi(itemOrId){
     const id = typeof itemOrId === 'string' ? itemOrId : itemOrId?.id;
     const name = typeof itemOrId === 'string' ? '' : itemOrId?.name;
@@ -348,8 +514,8 @@ function setStatus(text){ statusEl.textContent = text || ''; }
 function broadcastStudioApiChange(type='providers-changed'){
     const message = { type, updated_at:Date.now() };
     try { new BroadcastChannel('studio-api').postMessage(message); } catch(e) {}
-    try { window.parent?.postMessage(message, '*'); } catch(e) {}
-    try { window.top?.postMessage(message, '*'); } catch(e) {}
+    try { window.parent?.postMessage(message, window.location.origin); } catch(e) {}
+    try { window.top?.postMessage(message, window.location.origin); } catch(e) {}
 }
 function rhEditorSideScrollEl(){
     return rhWorkflowEditorNodeList?.closest?.('.rh-workflow-editor-side') || rhWorkflowEditorNodeList;
@@ -600,11 +766,11 @@ function rhWalletKeyHintText(item){
     return item?.has_wallet_key ? `${tr('api.rhWalletKeySaved')}${item.wallet_key_env || 'API/.env'} ${item.wallet_key_preview || ''}` : tr('api.rhNoWalletKey');
 }
 function volcengineArkKeyHintText(item){
-    return item?.has_key ? `方舟 API Key 已保存：${item.key_env || 'API/.env'} ${item.key_preview || ''}` : '还没有保存方舟 API Key。';
+    return item?.has_key ? `${tr('api.volcArkKeySaved')}${item.key_env || 'API/.env'} ${item.key_preview || ''}` : tr('api.volcArkNoKey');
 }
 function volcengineAssetKeyHintText(item){
-    const ak = item?.has_volcengine_access_key ? `AK 已保存：${item.volcengine_access_key_env || 'API/.env'} ${item.volcengine_access_key_preview || ''}` : 'AK 未保存';
-    const sk = item?.has_volcengine_secret_key ? `SK 已保存：${item.volcengine_secret_key_env || 'API/.env'} ${item.volcengine_secret_key_preview || ''}` : 'SK 未保存';
+    const ak = item?.has_volcengine_access_key ? `${tr('api.volcAkSaved')}${item.volcengine_access_key_env || 'API/.env'} ${item.volcengine_access_key_preview || ''}` : tr('api.volcAkNoKey');
+    const sk = item?.has_volcengine_secret_key ? `${tr('api.volcSkSaved')}${item.volcengine_secret_key_env || 'API/.env'} ${item.volcengine_secret_key_preview || ''}` : tr('api.volcSkNoKey');
     return `${ak} · ${sk}`;
 }
 function isNewUserProvider(item){
@@ -693,7 +859,6 @@ function renderProviderOnboarding(item){
                             <div class="onboarding-rh-source-label">${escapeHtml(tr('api.rhCoinKey'))}</div>
                             <div class="onboarding-key-actions onboarding-rh-key-actions">
                                 <a class="onboarding-key-btn" href="${escapeAttr(guide.primaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="coins" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.primaryLabelKey))}</span></a>
-                                <a class="onboarding-key-btn" href="${escapeAttr(guide.secondaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="globe-2" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.secondaryLabelKey))}</span></a>
                             </div>
                         </div>
                         <div class="recommend-flow-arrow onboarding-flow-arrow onboarding-rh-row-arrow" aria-hidden="true"><span></span><b></b></div>
@@ -707,7 +872,6 @@ function renderProviderOnboarding(item){
                             <div class="onboarding-rh-source-label">${escapeHtml(tr('api.rhWalletKey'))}</div>
                             <div class="onboarding-key-actions onboarding-rh-key-actions">
                                 <a class="onboarding-key-btn" href="${escapeAttr(guide.walletPrimaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="wallet" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.walletPrimaryLabelKey))}</span></a>
-                                <a class="onboarding-key-btn" href="${escapeAttr(guide.walletSecondaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="globe-2" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.walletSecondaryLabelKey))}</span></a>
                             </div>
                         </div>
                         <div class="recommend-flow-arrow onboarding-flow-arrow onboarding-rh-row-arrow" aria-hidden="true"><span></span><b></b></div>
@@ -753,7 +917,7 @@ function applyProviderOnboardingDefaults(id){
         item.chat_models = unique([...(item.chat_models || [])]);
         item.ms_defaults_version = Math.max(3, Number(item.ms_defaults_version || 0));
     } else if(id === 'runninghub'){
-        item.base_url = RH_DEFAULT_BASE_URL;
+        item.base_url = normalizeRunningHubBaseUrl(item.base_url);
         item.protocol = 'runninghub';
         item.image_models = unique(item.image_models || []);
         item.chat_models = unique(item.chat_models || []);
@@ -807,7 +971,11 @@ function syncEditor(){
         : item.id === 'volcengine'
         ? 'volcengine'
         : (protocolInput?.value || 'openai');
-    item.base_url = CLI_PROTOCOLS.has(selectedProtocol) ? '' : baseInput.value.trim();
+    item.base_url = CLI_PROTOCOLS.has(selectedProtocol)
+        ? ''
+        : selectedProtocol === 'runninghub'
+        ? normalizeRunningHubBaseUrl(baseInput.value)
+        : baseInput.value.trim();
     // 固定平台不从协议下拉读取
     item.protocol = selectedProtocol;
     item.image_request_mode = normalizeImageRequestMode(
@@ -1536,7 +1704,7 @@ function renderRhPreviewControl(field){
         const media = previewState.url
             ? renderRhPreviewMedia(previewState.url, kind, previewState.name || value)
             : `<i data-lucide="${icon}" class="w-5 h-5"></i><span>点击上传</span>`;
-        return `<div class="rh-preview-field"><div class="rh-preview-label">${label}${slot}</div><button class="rh-preview-media ${previewState.url ? 'has-media' : ''}" type="button" onclick="pickRhPreviewMedia('${escapeAttr(key)}','${kind}')">${media}</button></div>`;
+        return `<div class="rh-preview-field"><div class="rh-preview-label">${label}${slot}</div><button class="rh-preview-media ${previewState.url ? 'has-media' : ''}" type="button" data-field-key="${escapeAttr(key)}" data-kind="${escapeAttr(kind)}" onclick="pickRhPreviewMedia(this.dataset.fieldKey, this.dataset.kind)">${media}</button></div>`;
     }
     if(kind === 'BOOLEAN'){
         const on = String(value).toLowerCase() === 'true';
@@ -1547,16 +1715,16 @@ function renderRhPreviewControl(field){
         const max = Number.isFinite(Number(field.max)) && Number(field.max) > min ? Number(field.max) : 1;
         const step = Number.isFinite(Number(field.step)) && Number(field.step) > 0 ? Number(field.step) : 0.01;
         const numericValue = Number.isFinite(Number(value)) ? Number(value) : min;
-        return `<div class="rh-preview-field"><div class="rh-preview-label"><span>${label}</span><span class="rh-preview-slider-val">${escapeHtml(numericValue)}</span></div><input class="rh-preview-slider" type="range" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(numericValue)}" oninput="updateRhPreviewValue('${escapeAttr(key)}', this.value); const val=this.closest('.rh-preview-field')?.querySelector('.rh-preview-slider-val'); if(val) val.textContent=this.value;"></div>`;
+        return `<div class="rh-preview-field"><div class="rh-preview-label"><span>${label}</span><span class="rh-preview-slider-val">${escapeHtml(numericValue)}</span></div><input class="rh-preview-slider" type="range" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(numericValue)}" data-field-key="${escapeAttr(key)}" oninput="updateRhPreviewValue(this.dataset.fieldKey, this.value); const val=this.closest('.rh-preview-field')?.querySelector('.rh-preview-slider-val'); if(val) val.textContent=this.value;"></div>`;
     }
     if(options.length || kind === 'SELECT'){
         return `<div class="rh-preview-field"><div class="rh-preview-label">${label}</div><select disabled>${(options.length ? options : [value || '选项']).map(option => `<option>${escapeHtml(option)}</option>`).join('')}</select></div>`;
     }
     const randomButton = kind === 'NUMBER' && field.random_enabled
-        ? `<button class="random-btn rh-preview-random-btn ${randomActive ? 'active' : ''}" type="button" onclick="toggleRhPreviewRandom('${escapeAttr(key)}')" title="${randomActive ? '使用随机数' : '使用固定数'}"><i data-lucide="dice-5" class="w-4 h-4"></i></button>`
+        ? `<button class="random-btn rh-preview-random-btn ${randomActive ? 'active' : ''}" type="button" data-field-key="${escapeAttr(key)}" onclick="toggleRhPreviewRandom(this.dataset.fieldKey)" title="${randomActive ? '使用随机数' : '使用固定数'}"><i data-lucide="dice-5" class="w-4 h-4"></i></button>`
         : '';
     const readonly = randomActive ? 'disabled' : '';
-    return `<div class="rh-preview-field"><div class="rh-preview-label">${label}</div><div class="rh-preview-random-row" style="${randomButton ? '' : 'grid-template-columns:1fr'}"><input ${readonly} type="${kind === 'NUMBER' ? 'number' : 'text'}" value="${escapeAttr(value)}" placeholder="${kind === 'NUMBER' && randomActive ? '随机数' : ''}" oninput="updateRhPreviewValue('${escapeAttr(key)}', this.value)">${randomButton}</div></div>`;
+    return `<div class="rh-preview-field"><div class="rh-preview-label">${label}</div><div class="rh-preview-random-row" style="${randomButton ? '' : 'grid-template-columns:1fr'}"><input ${readonly} type="${kind === 'NUMBER' ? 'number' : 'text'}" value="${escapeAttr(value)}" placeholder="${kind === 'NUMBER' && randomActive ? '随机数' : ''}" data-field-key="${escapeAttr(key)}" oninput="updateRhPreviewValue(this.dataset.fieldKey, this.value)">${randomButton}</div></div>`;
 }
 function renderRhPreviewMedia(url, kind, name=''){
     const safe = escapeAttr(url || '');
@@ -1895,8 +2063,8 @@ function renderRhAppFieldCard(field){
     const key = rhWorkflowFieldKey(field);
     const checked = field.enabled === true;
     return `
-        <div class="rh-app-field-card ${checked ? 'active' : ''}" data-field-key="${escapeAttr(key)}" onclick="openRhAppFieldPopover('${escapeAttr(key)}', this)">
-            <button class="rh-editor-check ${checked ? 'checked' : ''}" type="button" onclick="event.stopPropagation();toggleRhWorkflowEditorField('${escapeAttr(key)}')">${checked ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}</button>
+        <div class="rh-app-field-card ${checked ? 'active' : ''}" data-field-key="${escapeAttr(key)}" onclick="openRhAppFieldPopover(this.dataset.fieldKey, this)">
+            <button class="rh-editor-check ${checked ? 'checked' : ''}" type="button" onclick="event.stopPropagation();toggleRhWorkflowEditorField(this.closest('[data-field-key]').dataset.fieldKey)">${checked ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}</button>
             <div>
                 <strong>${escapeHtml(field.label || field.fieldName)}</strong>
                 <span>${escapeHtml(field.fieldName)} · ${escapeHtml(rhWorkflowFieldKind(field))}</span>
@@ -2008,7 +2176,7 @@ function renderRhWorkflowEditorGraph(){
         const cat = workflowNodeCategory(node);
         const count = (config.fields || []).filter(field => field.enabled === true && String(field.nodeId) === String(id)).length;
         return `
-            <g class="rh-editor-gnode cat-${cat} ${activeNodes.has(String(id)) ? 'has-exposed' : ''} ${String(id) === rhWorkflowEditorState.activeNodeId ? 'is-active' : ''}" data-node-id="${escapeAttr(id)}" transform="translate(${pos.x},${pos.y})" onclick="openRhWorkflowNodePopover('${escapeAttr(id)}', this)">
+            <g class="rh-editor-gnode cat-${cat} ${activeNodes.has(String(id)) ? 'has-exposed' : ''} ${String(id) === rhWorkflowEditorState.activeNodeId ? 'is-active' : ''}" data-node-id="${escapeAttr(id)}" transform="translate(${pos.x},${pos.y})" onclick="openRhWorkflowNodePopover(this.getAttribute('data-node-id'), this)">
                 <rect width="${NODE_W}" height="${NODE_H}" rx="8"></rect>
                 <text class="rh-editor-gtitle" x="10" y="20">${escapeHtml(title.length > 15 ? title.slice(0, 15) + '...' : title)}</text>
                 <text class="rh-editor-gsub" x="10" y="36">${escapeHtml(klass.length > 18 ? klass.slice(0, 18) + '...' : klass)}</text>
@@ -2181,7 +2349,13 @@ function renderRhEntryList(target, list, kind){
 }
 function openRecommendApi(){
     recommendInlineOpen = true;
+    extToolsViewOpen = false;
+    modulesViewOpen = false;
+    aboutViewOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
     syncRecommendView();
+    syncExtToolsView();
+    syncModulesView();
     renderRecommendApi();
     renderProviderOnboarding(provider());
 }
@@ -2189,18 +2363,707 @@ function closeRecommendApi(){
     if(recommendApiOverlay) recommendApiOverlay.style.display = 'none';
     recommendInlineOpen = false;
     syncRecommendView();
+    syncExtToolsView();
+    syncModulesView();
     renderRecommendApi();
     renderEditor();
 }
+function syncSidebarNavState(){
+    const recBtn = document.getElementById('recommendNavBtn');
+    const extBtn = document.getElementById('extToolsNavBtn');
+    const modBtn = document.getElementById('modulesNavBtn');
+    const abtBtn = document.getElementById('aboutNavBtn');
+    const netBtn = document.getElementById('networkNavBtn');
+    if(recBtn) recBtn.classList.toggle('active', !!recommendInlineOpen);
+    if(extBtn) extBtn.classList.toggle('active', !!extToolsViewOpen);
+    if(modBtn) modBtn.classList.toggle('active', !!modulesViewOpen);
+    if(abtBtn) abtBtn.classList.toggle('active', !!aboutViewOpen);
+    if(netBtn) netBtn.classList.toggle('active', !!(typeof networkViewOpen !== 'undefined' && networkViewOpen));
+    renderProviderList();
+}
 function syncRecommendView(){
-    if(settingsContent) settingsContent.hidden = recommendInlineOpen;
+    const isNetOpen = typeof networkViewOpen !== 'undefined' && networkViewOpen;
+    if(settingsContent) settingsContent.hidden = recommendInlineOpen || extToolsViewOpen || modulesViewOpen || aboutViewOpen || isNetOpen;
     if(recommendContent) recommendContent.hidden = !recommendInlineOpen;
+    if(extToolsContent) extToolsContent.hidden = !extToolsViewOpen;
+    if(modulesContent) modulesContent.hidden = !modulesViewOpen;
+    if(aboutContent) aboutContent.hidden = !aboutViewOpen;
+    const netContent = document.getElementById('networkContent');
+    if(netContent) netContent.hidden = !isNetOpen;
     const recommendTitle = recommendContent?.querySelector('.editor-title');
     const recommendSub = recommendContent?.querySelector('.editor-sub');
     if(recommendTitle) recommendTitle.textContent = tr('api.recommendPanelTitle');
     if(recommendSub) recommendSub.textContent = tr('api.recommendPanelSub');
     document.body.classList.toggle('show-recommend-mode', recommendInlineOpen);
+    syncSidebarNavState();
 }
+function syncExtToolsView(){
+    const isNetOpen = typeof networkViewOpen !== 'undefined' && networkViewOpen;
+    if(settingsContent) settingsContent.hidden = extToolsViewOpen || recommendInlineOpen || modulesViewOpen || aboutViewOpen || isNetOpen;
+    if(recommendContent) recommendContent.hidden = !recommendInlineOpen;
+    if(extToolsContent) extToolsContent.hidden = !extToolsViewOpen;
+    if(modulesContent) modulesContent.hidden = !modulesViewOpen;
+    if(aboutContent) aboutContent.hidden = !aboutViewOpen;
+    const netContent = document.getElementById('networkContent');
+    if(netContent) netContent.hidden = !isNetOpen;
+    syncSidebarNavState();
+}
+function syncModulesView(){
+    const isNetOpen = typeof networkViewOpen !== 'undefined' && networkViewOpen;
+    if(settingsContent) settingsContent.hidden = modulesViewOpen || extToolsViewOpen || recommendInlineOpen || aboutViewOpen || isNetOpen;
+    if(recommendContent) recommendContent.hidden = !recommendInlineOpen;
+    if(extToolsContent) extToolsContent.hidden = !extToolsViewOpen;
+    if(modulesContent) modulesContent.hidden = !modulesViewOpen;
+    if(aboutContent) aboutContent.hidden = !aboutViewOpen;
+    const netContent = document.getElementById('networkContent');
+    if(netContent) netContent.hidden = !isNetOpen;
+    syncSidebarNavState();
+}
+
+const EXT_TOOLS_DEFS = [
+    { id: "mai" },
+    { id: "copilot" },
+    { id: "arena" },
+    { id: "reve" },
+    { id: "gflow" },
+    { id: "grok" },
+    { id: "qianwen" },
+    { id: "chatgpt" },
+    { id: "rh-canvas" },
+    { id: "rh-user" },
+    { id: "cloudcb" },
+    { id: "ascii" },
+    { id: "ladybug" },
+    { id: "boardmix" },
+    { id: "canva" },
+    { id: "longcat" },
+    { id: "dola" },
+    { id: "agnes-wb" },
+    { id: "lovart" },
+    { id: "topaz" },
+    { id: "tooootem" },
+    { id: "feralui" },
+    { id: "valessa" },
+    { id: "google-pics" },
+    { id: "mindvideo" },
+    { id: "gen-design" },
+    { id: "shadergpt" },
+    { id: "sensenova" },
+    { id: "fal-ai" },
+    { id: "aihubmix" },
+    { id: "omniakey" },
+    { id: "eachlabs" },
+    { id: "apikey-fun" },
+    { id: "merge-gateway" },
+    { id: "animos" },
+    { id: "brand-gen" },
+    { id: "adam" },
+    { id: "cutia" },
+    { id: "opencut" },
+    { id: "motion-dev" },
+    { id: "minimax-h3" },
+    { id: "openprocessing" },
+    { id: "gen-gestaltung" },
+    { id: "recent-design" },
+    { id: "codrops-gsap" },
+    { id: "artificial-lab" },
+    { id: "brik-space" },
+    { id: "asc11" },
+    { id: "design-arena" },
+    { id: "snitscanner" },
+    { id: "spinespine" },
+    { id: "intr-pattern" },
+    { id: "tooooools" },
+    { id: "effect-app" },
+    { id: "gianluca-sketches" },
+    { id: "digitiles" },
+    { id: "pixelsynth" },
+    { id: "fontbox" },
+    { id: "pixel-perfect" },
+    { id: "divisare" },
+    { id: "kontextur" },
+    { id: "gradient-lab" },
+    { id: "bg-freebies" },
+    { id: "ascii-magic" },
+    { id: "dotforge" },
+    { id: "duck-ai" },
+    { id: "flux-tools" },
+    { id: "flux-precise" },
+    { id: "brik-editor" },
+    { id: "brik-mousegrid" },
+    { id: "aholo3d" },
+    { id: "artcraft" }
+];
+const EXT_TABS_STORAGE_KEY = "dx_ext_tabs_enabled";
+const EXT_TOOLS_LAYOUT_KEY = "dx_ext_tools_custom_layout";
+
+let _draggedToolId = null;
+let _draggedSourceCat = null;
+
+function getExtToolsLayout() {
+    try {
+        const raw = localStorage.getItem(EXT_TOOLS_LAYOUT_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                const existingTools = new Set();
+                parsed.forEach(g => (g.tools || []).forEach(tid => existingTools.add(tid)));
+                const missing = EXT_TOOLS_DEFS.filter(t => !existingTools.has(t.id));
+                if (missing.length > 0) {
+                    const meta = window.EXT_TOOL_META || {};
+                    missing.forEach(t => {
+                        const defaultCat = meta[t.id]?.category;
+                        let targetGroup = parsed.find(g => g.category === defaultCat);
+                        if (!targetGroup) targetGroup = parsed[0];
+                        if (targetGroup && !targetGroup.tools.includes(t.id)) {
+                            targetGroup.tools.push(t.id);
+                        }
+                    });
+                }
+                return parsed;
+            }
+        }
+    } catch(e) {}
+
+    if (window.EXT_DEFAULT_GROUPS && Array.isArray(window.EXT_DEFAULT_GROUPS)) {
+        return JSON.parse(JSON.stringify(window.EXT_DEFAULT_GROUPS));
+    }
+    return [
+        { category: "AI 生图与设计", tools: ["copilot", "reve", "grok", "agnes-wb", "qianwen", "topaz", "cloudcb", "canva", "brand-gen", "feralui", "gradient-lab", "flux-tools", "flux-precise", "artcraft"] },
+        { category: "视频与动效", tools: ["mindvideo", "minimax-h3", "cutia", "opencut", "codrops-gsap", "effect-app", "animos", "motion-dev"] },
+        { category: "建筑与空间灵感", tools: ["divisare", "kontextur", "recent-design", "brik-space", "brik-editor", "aholo3d", "intr-pattern", "tooooools", "digitiles", "pixel-perfect", "adam", "google-pics", "lovart", "bg-freebies"] },
+        { category: "创意编程与实验", tools: ["gflow", "asc11", "ascii", "tooootem", "ladybug", "shadergpt", "valessa", "gen-design", "openprocessing", "gen-gestaltung", "snitscanner", "spinespine", "gianluca-sketches", "pixelsynth", "ascii-magic", "dotforge", "brik-mousegrid"] },
+        { category: "大模型与评测", tools: ["chatgpt", "longcat", "dola", "mai", "sensenova", "arena", "artificial-lab", "design-arena", "boardmix", "fontbox", "duck-ai"] },
+        { category: "工作流与 API", tools: ["rh-canvas", "rh-user", "fal-ai", "aihubmix", "omniakey", "apikey-fun", "eachlabs", "merge-gateway"] }
+    ];
+}
+
+function saveExtToolsLayout(layout) {
+    localStorage.setItem(EXT_TOOLS_LAYOUT_KEY, JSON.stringify(layout));
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'dx_ext_layout_updated' }, '*');
+            if (typeof window.parent.applyExternalTabVisibility === 'function') {
+                window.parent.applyExternalTabVisibility();
+            }
+        }
+    } catch(e) {}
+}
+
+function resetExtToolsToDefaultLayout() {
+    if (!confirm('确定要恢复官方默认的 6 大类外部工具分组和排序吗？')) return;
+    const defaultLayout = window.EXT_DEFAULT_GROUPS
+        ? JSON.parse(JSON.stringify(window.EXT_DEFAULT_GROUPS))
+        : getExtToolsLayout();
+    saveExtToolsLayout(defaultLayout);
+    renderExtToolsSettings();
+}
+
+function promptCreateExtCategory() {
+    const name = prompt('请输入新大类名称（例如：常用收藏、项目工具）：');
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    const layout = getExtToolsLayout();
+    if (layout.some(g => g.category === trimmed)) {
+        alert('该分类名称已存在！');
+        return;
+    }
+    layout.push({ category: trimmed, tools: [] });
+    saveExtToolsLayout(layout);
+    renderExtToolsSettings();
+}
+
+function promptRenameExtCategory(oldName) {
+    const newName = prompt(`请输入「${oldName}」的新名称：`, oldName);
+    if (!newName || !newName.trim()) return;
+    const trimmed = newName.trim();
+    if (trimmed === oldName) return;
+    const layout = getExtToolsLayout();
+    if (layout.some(g => g.category === trimmed)) {
+        alert('该分类名称已存在！');
+        return;
+    }
+    const targetGroup = layout.find(g => g.category === oldName);
+    if (!targetGroup) return;
+
+    targetGroup.category = trimmed;
+
+    try {
+        const collapsedState = JSON.parse(localStorage.getItem('ext_categories_collapsed') || '{}');
+        if (collapsedState[oldName] !== undefined) {
+            collapsedState[trimmed] = collapsedState[oldName];
+            delete collapsedState[oldName];
+            localStorage.setItem('ext_categories_collapsed', JSON.stringify(collapsedState));
+        }
+    } catch(e) {}
+
+    saveExtToolsLayout(layout);
+    renderExtToolsSettings();
+}
+
+function deleteExtCategory(catName) {
+    if (!confirm(`确定要删除分类「${catName}」吗？组内的工具将被移入第一个分类。`)) return;
+    const layout = getExtToolsLayout();
+    const idx = layout.findIndex(g => g.category === catName);
+    if (idx === -1) return;
+    const removedTools = layout[idx].tools || [];
+    layout.splice(idx, 1);
+    if (layout.length > 0 && removedTools.length > 0) {
+        layout[0].tools.push(...removedTools);
+    }
+    saveExtToolsLayout(layout);
+    renderExtToolsSettings();
+}
+
+function getExtToolsState() {
+    try {
+        const raw = localStorage.getItem(EXT_TABS_STORAGE_KEY);
+        if(raw) return JSON.parse(raw);
+    } catch(e) {}
+    const defaults = {};
+    EXT_TOOLS_DEFS.forEach(t => { defaults[t.id] = true; });
+    return defaults;
+}
+
+function setExtToolsState(state) {
+    localStorage.setItem(EXT_TABS_STORAGE_KEY, JSON.stringify(state));
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'dx_ext_layout_updated' }, '*');
+            if (typeof window.parent.applyExternalTabVisibility === 'function') {
+                window.parent.applyExternalTabVisibility();
+            }
+        }
+    } catch(e) {}
+}
+
+function openExtToolsSettings() {
+    extToolsViewOpen = true;
+    modulesViewOpen = false;
+    aboutViewOpen = false;
+    recommendInlineOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
+    syncExtToolsView();
+    syncRecommendView();
+    syncModulesView();
+    renderExtToolsSettings();
+}
+
+function closeExtToolsSettings() {
+    extToolsViewOpen = false;
+    syncExtToolsView();
+    syncRecommendView();
+    syncModulesView();
+    renderEditor();
+}
+
+function toggleExtToolItem(id, enabled) {
+    const state = getExtToolsState();
+    state[id] = !!enabled;
+    setExtToolsState(state);
+    renderExtToolsSettings();
+}
+
+function toggleAllExtTools(enabled) {
+    const state = getExtToolsState();
+    EXT_TOOLS_DEFS.forEach(t => { state[t.id] = !!enabled; });
+    setExtToolsState(state);
+    renderExtToolsSettings();
+}
+
+function bindExtToolsDragDrop(container) {
+    const items = container.querySelectorAll('.ext-tool-item');
+    const blocks = container.querySelectorAll('.ext-settings-category-block');
+
+    items.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            _draggedToolId = item.getAttribute('data-tool-id');
+            _draggedSourceCat = item.getAttribute('data-category');
+            item.classList.add('is-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', _draggedToolId);
+        });
+
+        item.addEventListener('dragend', () => {
+            items.forEach(el => {
+                el.classList.remove('is-dragging');
+                el.classList.remove('drag-target-before');
+            });
+            blocks.forEach(b => b.classList.remove('drag-over'));
+            _draggedToolId = null;
+            _draggedSourceCat = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+            item.classList.add('drag-target-before');
+        });
+
+        item.addEventListener('dragleave', (e) => {
+            item.classList.remove('drag-target-before');
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            item.classList.remove('drag-target-before');
+            const targetToolId = item.getAttribute('data-tool-id');
+            const targetCat = item.getAttribute('data-category');
+            if (!_draggedToolId || _draggedToolId === targetToolId) return;
+
+            const layout = getExtToolsLayout();
+            // Remove dragged tool from source
+            layout.forEach(g => {
+                g.tools = (g.tools || []).filter(tid => tid !== _draggedToolId);
+            });
+
+            // Insert before targetToolId in targetCat
+            const targetGroup = layout.find(g => g.category === targetCat);
+            if (targetGroup) {
+                const targetIdx = (targetGroup.tools || []).indexOf(targetToolId);
+                if (targetIdx !== -1) {
+                    targetGroup.tools.splice(targetIdx, 0, _draggedToolId);
+                } else {
+                    targetGroup.tools.push(_draggedToolId);
+                }
+            }
+            saveExtToolsLayout(layout);
+            renderExtToolsSettings();
+        });
+    });
+
+    blocks.forEach(block => {
+        block.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            block.classList.add('drag-over');
+        });
+
+        block.addEventListener('dragleave', (e) => {
+            if (!block.contains(e.relatedTarget)) {
+                block.classList.remove('drag-over');
+            }
+        });
+
+        block.addEventListener('drop', (e) => {
+            e.preventDefault();
+            block.classList.remove('drag-over');
+            const targetCat = block.getAttribute('data-category');
+            if (!_draggedToolId) return;
+
+            const layout = getExtToolsLayout();
+            const targetGroup = layout.find(g => g.category === targetCat);
+            if (!targetGroup) return;
+
+            // Remove from source
+            layout.forEach(g => {
+                g.tools = (g.tools || []).filter(tid => tid !== _draggedToolId);
+            });
+            // Append to target category if not already in it
+            if (!targetGroup.tools.includes(_draggedToolId)) {
+                targetGroup.tools.push(_draggedToolId);
+            }
+            saveExtToolsLayout(layout);
+            renderExtToolsSettings();
+        });
+    });
+}
+
+function renderExtToolsSettings() {
+    const container = document.getElementById('extToolsGroupContainer');
+    if (!container || !extToolsViewOpen) return;
+    const state = getExtToolsState();
+    const layout = getExtToolsLayout();
+    const toolsMap = new Map(EXT_TOOLS_DEFS.map(t => [t.id, t]));
+
+    const defaultCatNames = new Set((window.EXT_DEFAULT_GROUPS || []).map(g => g.category));
+
+    container.innerHTML = layout.map(group => {
+        const isCustom = !defaultCatNames.has(group.category);
+        const toolsHtml = (group.tools || []).map(tid => {
+            const t = toolsMap.get(tid);
+            if (!t) return '';
+            const meta = window.EXT_TOOL_META?.[t.id] || {};
+            const url = meta.url || '';
+            const name = meta.nameZh || meta.name || t.id;
+            const checked = state[t.id] !== false;
+            let domain = meta.domain || '';
+            if (!domain && url) {
+                try { domain = new URL(url).hostname; } catch(e) { domain = url; }
+            }
+            const safeHref = /^https?:\/\//i.test(url) ? url : '';
+            return `
+                <div class="ext-tool-item" draggable="true" data-tool-id="${escapeAttr(t.id)}" data-category="${escapeAttr(group.category)}">
+                    <span class="ext-tool-drag-handle" title="按住拖拽跨组移动或组内排序">
+                        <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
+                    </span>
+                    <div class="ext-tool-item-info">
+                        <div class="ext-tool-item-title">${escapeHtml(name)}</div>
+                        <div class="ext-tool-item-desc">${escapeHtml(domain)}</div>
+                    </div>
+                    <div class="ext-tool-item-action">
+                        ${safeHref ? `<a class="ext-tool-link-btn" href="${escapeAttr(safeHref)}" target="_blank" rel="noopener noreferrer" title="打开网址">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </a>` : ''}
+                        <label class="ext-tool-switch" title="${checked ? '已显示' : '已隐藏'}">
+                            <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleExtToolItem('${escapeAttr(t.id)}', this.checked)">
+                            <span class="ext-tool-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const emptyPlaceholder = (!group.tools || group.tools.length === 0)
+            ? `<div class="ext-settings-empty-zone">暂无工具，从其他大类拖拽卡片至此</div>`
+            : '';
+
+        return `
+            <div class="ext-settings-category-block" data-category="${escapeAttr(group.category)}">
+                <div class="ext-settings-cat-header">
+                    <div class="ext-settings-cat-title" title="双击快速改名" ondblclick="promptRenameExtCategory('${escapeAttr(group.category)}')">
+                        <i data-lucide="folder" class="w-4 h-4 text-muted"></i>
+                        <span>${escapeHtml(group.category)}</span>
+                        <span class="ext-settings-cat-badge">${(group.tools || []).length} 款工具</span>
+                    </div>
+                    <div class="ext-settings-cat-actions">
+                        <button class="action-btn" type="button" style="padding: 2px 8px; font-size: 11px;" onclick="promptRenameExtCategory('${escapeAttr(group.category)}')" title="重命名分类">
+                            <i data-lucide="edit-3" class="w-3 h-3"></i><span>改名</span>
+                        </button>
+                        ${isCustom ? `
+                        <button class="action-btn danger-btn" type="button" style="padding: 2px 8px; font-size: 11px;" onclick="deleteExtCategory('${escapeAttr(group.category)}')" title="删除分类">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i><span>删除</span>
+                        </button>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="ext-settings-cat-grid" data-category="${escapeAttr(group.category)}">
+                    ${toolsHtml}
+                    ${emptyPlaceholder}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    bindExtToolsDragDrop(container);
+    refreshIcons();
+}
+
+const MODULES_DEFS = [
+    {
+        id: "zimage",
+        titleKey: "api.moduleZimage",
+        name: "本地文生图 (Z-Image)",
+        tagKey: "api.badgeComfy",
+        tag: "本地 ComfyUI",
+        tagType: "comfy",
+        descKey: "api.moduleZimageDesc",
+        desc: "极简文生图单页，依赖本地 ComfyUI Z-Image 工作流。",
+        default: true
+    },
+    {
+        id: "enhance",
+        titleKey: "api.moduleEnhance",
+        name: "细节增强与放大",
+        tagKey: "api.badgeComfy",
+        tag: "本地 ComfyUI",
+        tagType: "comfy",
+        descKey: "api.moduleEnhanceDesc",
+        desc: "单图细节重塑与高清放大，依赖本地 ComfyUI Enhance 工作流。",
+        default: true
+    },
+    {
+        id: "klein",
+        titleKey: "api.moduleKlein",
+        name: "图片编辑 (Klein)",
+        tagKey: "api.badgeComfy",
+        tag: "本地 ComfyUI",
+        tagType: "comfy",
+        descKey: "api.moduleKleinDesc",
+        desc: "多图合成与重绘编辑，依赖本地 ComfyUI Klein 工作流。",
+        default: true
+    },
+    {
+        id: "angle",
+        titleKey: "api.moduleAngle",
+        name: "3D 角度与视角控制",
+        tagKey: "api.badgeComfy",
+        tag: "本地 / MS",
+        tagType: "comfy",
+        descKey: "api.moduleAngleDesc",
+        desc: "单图 3D 旋转与多视角控制生成。",
+        default: true
+    },
+    {
+        id: "online",
+        titleKey: "api.moduleOnline",
+        name: "独立在线生图",
+        tagKey: "api.badgeOnline",
+        tag: "在线 API",
+        tagType: "online",
+        descKey: "api.moduleOnlineDesc",
+        desc: "传统表单式单页在线生图，支持 ModelScope、Pollinations 等多平台。",
+        default: true
+    },
+    {
+        id: "gpt_chat",
+        titleKey: "api.moduleGptChat",
+        name: "LLM 独立对话",
+        tagKey: "api.badgeLlm",
+        tag: "大语言模型",
+        tagType: "llm",
+        descKey: "api.moduleGptChatDesc",
+        desc: "独立的多轮 AI 文本与视觉对话助手界面。",
+        default: true
+    },
+    {
+        id: "asset_manager",
+        titleKey: "api.moduleAssetManager",
+        name: "素材资产库",
+        tagKey: "api.badgeCore",
+        tag: "核心功能",
+        tagType: "core",
+        descKey: "api.moduleAssetManagerDesc",
+        desc: "本地生成与云端导入素材的分类、打标与检索中心。",
+        default: true
+    },
+    {
+        id: "task_center",
+        titleKey: "api.moduleTaskCenter",
+        name: "任务中心",
+        tagKey: "api.badgeCore",
+        tag: "核心功能",
+        tagType: "core",
+        descKey: "api.moduleTaskCenterDesc",
+        desc: "生成历史记录、实时任务进度监控与算力费用面板。",
+        default: true
+    }
+];
+const MODULE_TOGGLES_STORAGE_KEY = "dx_module_toggles";
+
+function getModulesState() {
+    try {
+        const raw = localStorage.getItem(MODULE_TOGGLES_STORAGE_KEY);
+        if(raw) return JSON.parse(raw);
+    } catch(e) {}
+    const defaults = {};
+    MODULES_DEFS.forEach(m => { defaults[m.id] = m.default !== false; });
+    return defaults;
+}
+
+function setModulesState(state) {
+    localStorage.setItem(MODULE_TOGGLES_STORAGE_KEY, JSON.stringify(state));
+    try {
+        new BroadcastChannel('studio-api').postMessage({ type: 'modules-changed', state });
+    } catch(e) {}
+    try {
+        if(window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'modules-changed', state }, window.location.origin);
+        }
+    } catch(e) {}
+}
+
+function openModulesSettings() {
+    modulesViewOpen = true;
+    extToolsViewOpen = false;
+    aboutViewOpen = false;
+    recommendInlineOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
+    syncModulesView();
+    syncExtToolsView();
+    syncRecommendView();
+    renderModulesSettings();
+}
+
+function closeModulesSettings() {
+    modulesViewOpen = false;
+    syncModulesView();
+    syncExtToolsView();
+    syncRecommendView();
+    renderEditor();
+}
+
+function openAboutSettings() {
+    aboutViewOpen = true;
+    modulesViewOpen = false;
+    extToolsViewOpen = false;
+    recommendInlineOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
+    syncModulesView();
+    syncExtToolsView();
+    syncRecommendView();
+}
+
+function closeAboutSettings() {
+    aboutViewOpen = false;
+    syncModulesView();
+    syncExtToolsView();
+    syncRecommendView();
+    renderEditor();
+}
+
+function toggleModuleItem(id, enabled) {
+    const state = getModulesState();
+    state[id] = !!enabled;
+    if(['zimage','enhance','klein','angle'].includes(id)) {
+        state.local_suite = (state.zimage !== false || state.enhance !== false || state.klein !== false || state.angle !== false);
+    }
+    setModulesState(state);
+    renderModulesSettings();
+}
+
+function applyModulesPreset(preset) {
+    const state = getModulesState();
+    if(preset === 'pure_canvas') {
+        state.local_suite = false;
+        state.zimage = false;
+        state.enhance = false;
+        state.klein = false;
+        state.angle = false;
+        state.online = false;
+        state.gpt_chat = true;
+        state.asset_manager = true;
+        state.task_center = true;
+    } else if(preset === 'full_studio') {
+        state.local_suite = true;
+        MODULES_DEFS.forEach(m => { state[m.id] = true; });
+    }
+    setModulesState(state);
+    renderModulesSettings();
+}
+
+function renderModulesSettings() {
+    if(!modulesGrid || !modulesViewOpen) return;
+    const state = getModulesState();
+    modulesGrid.innerHTML = MODULES_DEFS.map(m => {
+        const checked = state[m.id] !== false;
+        const title = (typeof tr === 'function' ? tr(m.titleKey) : '') || m.name;
+        const desc = (typeof tr === 'function' ? tr(m.descKey) : '') || m.desc;
+        const tag = (typeof tr === 'function' ? tr(m.tagKey) : '') || m.tag;
+        return `
+            <div class="module-item">
+                <div class="module-item-left">
+                    <div class="module-item-header">
+                        <span class="module-item-title">${escapeHtml(title)}</span>
+                        <span class="module-badge module-badge-${escapeAttr(m.tagType)}">${escapeHtml(tag)}</span>
+                    </div>
+                    <div class="module-item-desc">${escapeHtml(desc)}</div>
+                </div>
+                <div class="ext-tool-item-action" style="margin-top: 2px;">
+                    <label class="ext-tool-switch" title="${checked ? '已开启' : '已隐藏'}">
+                        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleModuleItem('${escapeAttr(m.id)}', this.checked)">
+                        <span class="ext-tool-slider"></span>
+                    </label>
+                </div>
+            </div>
+        `;
+    }).join('');
+    if(typeof refreshIcons === 'function') refreshIcons();
+    if(window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+}
+
 function focusRecommendKey(event, index){
     if(event?.target?.closest?.('a,button,input,textarea,select,label')) return;
     const input = recommendPanel?.querySelector(`[data-recommend-key="${index}"]`);
@@ -2221,6 +3084,10 @@ function renderRecommendApi(){
         ? 'ModelScope'
         : api.protocol === 'apimart'
         ? 'APIMart'
+        : api.id === 'pollinations-api'
+        ? 'OpenAI API'
+        : api.protocol === 'pollinations'
+        ? 'Pollinations'
         : 'OpenAI';
     const recommendCardHtml = (api, index) => `
         <section class="recommend-card recommend-platform-card" style="--recommend-index:${index}" onclick="focusRecommendKey(event, ${index})">
@@ -2243,6 +3110,18 @@ function renderRecommendApi(){
             <div class="recommend-platform-setup">
                 <div class="recommend-setup-title">${escapeHtml(tr('api.recommendQuickSetup'))}</div>
                 <div class="recommend-quick-stack recommend-setup-flow">
+                    ${(api.keyless || api.protocol === 'pollinations') ? `
+                    <div class="recommend-guide-source onboarding-rh-source-group">
+                        <div class="onboarding-rh-source-label">免注册免Key</div>
+                        <div class="onboarding-key-actions recommend-single-action">
+                            <a class="onboarding-key-btn recommend-guide-key-btn" href="${escapeAttr(api.register_url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="globe" class="w-3.5 h-3.5"></i><span>官网</span></a>
+                        </div>
+                    </div>
+                    <div class="recommend-flow-arrow onboarding-flow-arrow recommend-guide-arrow" aria-hidden="true"><span></span><b></b></div>
+                    <div class="recommend-guide-save">
+                        <button class="onboarding-save-btn recommend-guide-save-btn" type="button" onclick="saveRecommendedApi(${index})" style="min-width:110px"><span>一键启用</span></button>
+                    </div>
+                    ` : `
                     <div class="recommend-guide-source onboarding-rh-source-group">
                         <div class="onboarding-rh-source-label">${escapeHtml(tr('api.getKey'))}</div>
                         <div class="onboarding-key-actions onboarding-rh-key-actions ${api.register_url_cn ? 'recommend-guide-key-stack' : 'recommend-single-action'}">
@@ -2262,6 +3141,7 @@ function renderRecommendApi(){
                         </label>
                         <button class="onboarding-save-btn recommend-guide-save-btn" type="button" onclick="saveRecommendedApi(${index})"><span>${escapeHtml(tr('api.save'))}</span></button>
                     </div>
+                    `}
                 </div>
             </div>
         </section>
@@ -2350,11 +3230,13 @@ async function saveRecommendedApi(index){
     if(!api) return;
     const input = recommendPanel?.querySelector(`[data-recommend-key="${index}"]`);
     const key = input?.value.trim() || '';
-    if(!key){ alert(tr('api.enterApiKey')); return; }
+    if(!key && !api.keyless && api.protocol !== 'pollinations'){ alert(tr('api.enterApiKey')); return; }
     const item = recommendedProviderForApi(api);
     selectedId = item.id;
     recommendInlineOpen = false;
+    extToolsViewOpen = false;
     syncRecommendView();
+    syncExtToolsView();
     renderProviderList();
     renderEditor();
     keyInput.value = key;
@@ -2371,7 +3253,7 @@ async function saveRecommendedApi(index){
     if(ok) setStatus(trf('api.recommendSaved', {name:api.name}));
 }
 function sortedProviders(){
-    const order = ['modelscope', 'runninghub', 'volcengine'];
+    const order = ['modelscope', 'runninghub', 'runninghub-ai', 'volcengine'];
     return visibleProviders().sort((a, b) => {
         const ai = order.indexOf(a.id);
         const bi = order.indexOf(b.id);
@@ -2384,17 +3266,18 @@ function sortedProviders(){
 function providerDragAttrs(item){
     if(isFixedProvider(item)) return '';
     const id = escapeAttr(item.id);
-    return ` draggable="true" data-provider-id="${id}" ondragstart="handleProviderDragStart(event,'${id}')" ondragover="handleProviderDragOver(event,'${id}')" ondrop="handleProviderDrop(event,'${id}')" ondragend="handleProviderDragEnd()"`;
+    return ` draggable="true" data-provider-id="${id}" ondragstart="handleProviderDragStart(event, this.dataset.providerId)" ondragover="handleProviderDragOver(event, this.dataset.providerId)" ondrop="handleProviderDrop(event, this.dataset.providerId)" ondragend="handleProviderDragEnd()"`;
 }
 function renderProviderList(){
+    const isSpecialViewOpen = !!(recommendInlineOpen || extToolsViewOpen || modulesViewOpen || aboutViewOpen);
     providerList.innerHTML = sortedProviders().map(item => {
-        const active = item.id === selectedId ? 'active' : '';
+        const active = (!isSpecialViewOpen && item.id === selectedId) ? 'active' : '';
         const itemProtocol = String(item.protocol || 'openai').toLowerCase();
-        const stateClass = item.enabled === false ? 'is-disabled' : (item.has_key || item.has_wallet_key || CLI_PROTOCOLS.has(itemProtocol) ? 'has-key' : 'missing-key');
-        const protocolLabel = item.id === 'runninghub' ? 'RH' : String(item.protocol || 'openai').toUpperCase();
+        const stateClass = item.enabled === false ? 'is-disabled' : (item.has_key || item.has_wallet_key || CLI_PROTOCOLS.has(itemProtocol) || itemProtocol === 'pollinations' ? 'has-key' : 'missing-key');
+        const protocolLabel = (item.id === 'runninghub' || item.id === 'runninghub-ai') ? 'RH' : String(item.protocol || 'openai').toUpperCase();
         if(item.id === 'modelscope'){
             return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
+                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" data-provider-id="${escapeAttr(item.id)}">
                     <span class="provider-banner-inner">
                         <span class="provider-logo-wrap">
                             <img src="/static/images/modelscope.gif" alt="ModelScope" class="ms-icon-light">
@@ -2406,23 +3289,23 @@ function renderProviderList(){
                 </button>
             `;
         }
-        if(item.id === 'runninghub'){
+        if(item.id === 'runninghub' || item.id === 'runninghub-ai'){
             return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
+                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" data-provider-id="${escapeAttr(item.id)}">
                     <span class="provider-banner-inner">
                         <span class="provider-logo-wrap">
                             <img src="/static/images/RunningHub-B.png" alt="RunningHub" class="runninghub-icon ms-icon-light">
                             <img src="/static/images/RunningHub-W.png" alt="RunningHub" class="runninghub-icon ms-icon-dark">
-                            <span class="provider-logo-fallback">RunningHub</span>
+                            <span class="provider-logo-fallback">${escapeHtml(item.name || 'RunningHub')}</span>
                         </span>
-                        <span class="provider-protocol-pill">RH</span>
+                        <span class="provider-protocol-pill">${item.id === 'runninghub-ai' ? 'RH · AI' : 'RH'}</span>
                     </span>
                 </button>
             `;
         }
         if(item.id === 'volcengine'){
             return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
+                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" data-provider-id="${escapeAttr(item.id)}">
                     <span class="provider-banner-inner">
                         <span class="provider-logo-wrap">
                             <img src="/static/images/volcengine-theme-light.svg" alt="火山引擎" class="volcengine-icon ms-icon-light">
@@ -2435,7 +3318,7 @@ function renderProviderList(){
             `;
         }
         return `
-            <button class="provider-card provider-card-sortable ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')"${providerDragAttrs(item)}>
+            <button class="provider-card provider-card-sortable ${active} ${stateClass}" type="button" data-provider-id="${escapeAttr(item.id)}"${providerDragAttrs(item)}>
                 <span class="provider-drag-handle" aria-hidden="true"><i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i></span>
                 <span class="provider-mark"><i data-lucide="${item.has_key ? 'key-round' : 'key'}" class="w-4 h-4"></i></span>
                 <span class="provider-info">
@@ -2504,7 +3387,7 @@ function renderEditor(){
     if(lockedApi) applyLockedRecommendedProtocol(item);
     if(protocolInput){
         const protocolValue = String(item.protocol || 'openai').toLowerCase();
-        protocolInput.value = item.id === 'runninghub'
+        protocolInput.value = (item.id === 'runninghub' || item.id === 'runninghub-ai')
             ? 'runninghub'
             : item.id === 'volcengine'
             ? 'volcengine'
@@ -2517,18 +3400,18 @@ function renderEditor(){
     if(imageRequestModeInput){
         const requestedMode = normalizeImageRequestMode(item.image_request_mode);
         imageRequestModeInput.value = requestedMode;
-        imageRequestModeInput.disabled = Boolean(lockedApi) || item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine' || CLI_PROTOCOLS.has(String(protocolInput?.value || item.protocol || '').toLowerCase());
+        imageRequestModeInput.disabled = Boolean(lockedApi) || item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'runninghub-ai' || item.id === 'volcengine' || CLI_PROTOCOLS.has(String(protocolInput?.value || item.protocol || '').toLowerCase());
         imageRequestModeInput.title = lockedApi ? '推荐平台使用固定图片协议' : '';
     }
     if(imageEditRouteInput){
         imageEditRouteInput.value = normalizeImageEditRoute(item.image_edit_route);
-        imageEditRouteInput.disabled = item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine' || CLI_PROTOCOLS.has(String(protocolInput?.value || item.protocol || '').toLowerCase());
+        imageEditRouteInput.disabled = item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'runninghub-ai' || item.id === 'volcengine' || CLI_PROTOCOLS.has(String(protocolInput?.value || item.protocol || '').toLowerCase());
     }
     keyInput.value = '';
     keyInput.placeholder = item.has_key ? `${tr('api.keepCurrentKey')} ${item.key_preview || ''}` : tr('api.enterKey');
     keyHint.textContent = item.has_key ? `${tr('api.keySaved')}${item.key_env || 'API/.env'}` : tr('api.noKey');
     const isModelScope = item.id === 'modelscope';
-    const isRunningHub = item.id === 'runninghub';
+    const isRunningHub = item.id === 'runninghub' || item.id === 'runninghub-ai';
     const isVolcengine = item.id === 'volcengine' || String(protocolInput?.value || item.protocol || '').toLowerCase() === 'volcengine';
     const isStandaloneVolcengine = item.id === 'volcengine';
     const isJimeng = String(protocolInput?.value || item.protocol || '').toLowerCase() === 'jimeng';
@@ -2593,6 +3476,15 @@ function renderEditor(){
     document.body.classList.toggle('show-jimeng', isJimeng);
     document.body.classList.toggle('show-codex', isCodex);
     document.body.classList.toggle('show-gemini-cli', isGeminiCli);
+    const isPollinationsFree = item?.id === 'pollinations' || String(item?.protocol || '').toLowerCase() === 'pollinations';
+    const isPollinationsApi = item?.id === 'pollinations-api' || String(item?.base_url || '').toLowerCase().includes('gen.pollinations.ai');
+    const isPollinations = isPollinationsFree || isPollinationsApi || String(item?.base_url || '').toLowerCase().includes('pollinations.ai');
+    document.body.classList.toggle('show-pollinations', isPollinations);
+    if(isPollinationsFree && !item?.has_key && !keyInput.value){
+        keyInput.placeholder = '免 API Key 模式（可直接使用基础生图，留空即可）';
+    } else if(isPollinationsApi && !item?.has_key && !keyInput.value){
+        keyInput.placeholder = '粘贴从 enter.pollinations.ai 获取的 API Key (sk_...)';
+    }
     updateApimartDomesticHint(item);
     renderProviderOnboarding(item);
     renderRecommendApi();
@@ -2632,7 +3524,7 @@ function renderEditor(){
     else if(msLoraList) msLoraList.innerHTML = '';
     renderProviderList();
 }
-function showVerifyResult(html){ const el = document.getElementById('verifyResult'); if(el){ el.style.display = 'block'; el.innerHTML = html; } }
+function showVerifyResult(html){ const el = document.getElementById('verifyResult'); if(el){ el.style.display = 'block'; el.innerHTML = html; if(window.lucide) lucide.createIcons(); } }
 function clearVerifyResult(){ const el = document.getElementById('verifyResult'); if(el){ el.style.display = 'none'; el.innerHTML = ''; } }
 function prettyJson(value){
     try { return JSON.stringify(value, null, 2); } catch(_) { return String(value || ''); }
@@ -2679,7 +3571,7 @@ async function refreshJimengStatus(showCredit=true){
         const data = await fetch('/api/jimeng/status').then(r => r.json());
         setJimengStatus(data.logged_in ? '已登录' : (data.installed ? '未登录' : '未安装'), data.logged_in === true);
         if(data.installed && data.version_ok === false && jimengCredit){
-            jimengCredit.textContent = `⚠ 检测到 dreamina CLI 版本 ${data.cli_version || '未知'}，低于推荐的 ${data.min_version || '1.4.2'}。旧版本任务状态可能无法更新，请升级 CLI。`;
+            jimengCredit.textContent = `检测到 dreamina CLI 版本 ${data.cli_version || '未知'}，低于推荐的 ${data.min_version || '1.4.2'}。旧版本任务状态可能无法更新，请升级 CLI。`;
         } else if(showCredit && data.raw && jimengCredit){
             jimengCredit.textContent = jimengCreditText(data.raw);
         }
@@ -2895,7 +3787,7 @@ function currentProviderApiKey(item){
 }
 function normalizeImageRequestMode(value){
     const mode = String(value || '').trim().toLowerCase();
-    return ['openai', 'openai-json', 'openai-video-proxy', 'openai-responses', 'tudou-async'].includes(mode) ? mode : 'openai';
+    return ['openai', 'openai-json', 'openai-video-proxy', 'openai-responses', 'tudou-async', 'pollinations'].includes(mode) ? mode : 'openai';
 }
 function normalizeImageEditRoute(value){
     const route = String(value || '').trim().toLowerCase();
@@ -2903,6 +3795,7 @@ function normalizeImageEditRoute(value){
 }
 function imageRequestModeLabel(mode){
     const normalized = normalizeImageRequestMode(mode);
+    if(normalized === 'pollinations') return 'Pollinations 直接出图';
     if(normalized === 'openai-json') return 'OpenAI JSON';
     if(normalized === 'openai-video-proxy') return 'OpenAI 中转';
     if(normalized === 'openai-responses') return 'OpenAI RS';
@@ -2950,7 +3843,7 @@ function applyDetectedProtocol(protocol){
         item.volcengine_region = item.volcengine_region || VOLCENGINE_DEFAULT_REGION;
     }
     if(detected === 'runninghub'){
-        item.base_url = item.base_url || RH_DEFAULT_BASE_URL;
+        item.base_url = normalizeRunningHubBaseUrl(item.base_url);
         item.image_models = unique(item.image_models || []);
         item.chat_models = unique(item.chat_models || []);
         item.video_models = unique(item.video_models || []);
@@ -2981,6 +3874,20 @@ function runninghubModelSourceNote(data){
     const text = parts.join(' · ');
     const warning = source === 'fallback' ? ' · 官方模型列表未拉到完整数据' : '';
     return text ? ` · ${text}${warning}` : '';
+}
+
+async function responseErrorDetail(r, fallback='请求失败'){
+    try {
+        const data = await r.json();
+        return data?.detail || data?.message || fallback;
+    } catch(_) {
+        try {
+            const txt = await r.text();
+            return (txt && txt.length < 300) ? txt : fallback;
+        } catch(__) {
+            return fallback;
+        }
+    }
 }
 
 async function probeAsync(){
@@ -3019,14 +3926,14 @@ async function probeAsync(){
                     image_request_mode:'openai'
                 })
             }).then(async r => {
-                if(!r.ok) throw new Error((await r.json()).detail || '请求失败');
+                if(!r.ok) throw new Error(await responseErrorDetail(r, '请求失败'));
                 return r.json();
             });
             applyDetectedProtocol('runninghub');
             setFetchedModelState(data);
             const openBtn = document.getElementById('openPickerBtn');
             if(openBtn){ openBtn.disabled = false; openBtn.style.opacity = '1'; }
-            showVerifyResult(`<span style="color:#15803d;font-size:11px;font-weight:800">✓ RunningHub OpenAPI 验证通过 · 找到 ${data.model_count || data.total || 0} 个模型${runninghubModelSourceNote(data)}</span>`);
+            showVerifyResult(`<span style="color:#15803d;font-size:11px;font-weight:700"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>RunningHub OpenAPI 验证通过 · 找到 ${data.model_count || data.total || 0} 个模型${runninghubModelSourceNote(data)}</span>`);
             return;
         }
         const data = await fetch('/api/providers/probe-async', {
@@ -3056,7 +3963,7 @@ async function probeAsync(){
         const probeMessage = String(data.message || '');
         const hideTasksEndpointTip = probeMessage.includes('/v1/tasks/');
         const color = (isAsync || isOpenAiCompat || data.ok === true) ? '#15803d' : data.ok === null ? '#b45309' : '#64748b';
-        const icon = (isAsync || isOpenAiCompat || data.ok === true) ? '✓' : '⚠';
+        const icon = (isAsync || isOpenAiCompat || data.ok === true) ? '<i data-lucide="check-circle-2" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>' : '<i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>';
         const proto = detectedProtocol === 'volcengine'
             ? '方舟/Ark 任务协议'
             : isAsync
@@ -3067,17 +3974,16 @@ async function probeAsync(){
                     ? (currentProtocol === 'gemini' ? 'Gemini' : currentProtocol.toUpperCase())
                     : 'OpenAI 兼容';
         showVerifyResult(`
-            ${hideTasksEndpointTip ? '' : `<div style="font-size:11px;font-weight:800;color:${color}">${icon} ${escapeHtml(probeMessage)}</div>`}
+            ${hideTasksEndpointTip ? '' : `<div style="font-size:11px;font-weight:700;color:${color}">${icon} ${escapeHtml(probeMessage)}</div>`}
             <div style="font-size:11px;color:var(--muted);font-weight:700;margin-top:2px">${keepManualProtocol ? '协议已验证为' : '协议已自动设置为'}：<strong style="color:var(--text)">${proto}</strong> · 图片接口：<strong style="color:var(--text)">${imageRequestModeLabel(imageRequestModeInput?.value || item.image_request_mode)}</strong></div>
             <details style="margin-top:6px">
-                <summary style="font-size:10.5px;color:var(--muted);cursor:pointer;font-weight:700;user-select:none">▸ 查看原始响应 (HTTP ${data.status_code})</summary>
+                <summary style="font-size:10.5px;color:var(--muted);cursor:pointer;font-weight:700;user-select:none"><i data-lucide="chevron-right" class="w-3 h-3 inline-block mr-1 align-middle"></i>查看原始响应 (HTTP ${data.status_code})</summary>
                 <pre style="margin-top:6px;padding:10px 12px;border-radius:10px;background:var(--soft);border:1px solid var(--line-2);font-size:10.5px;font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;color:var(--text);max-height:200px;overflow:auto">${escapeHtml(rawJson)}</pre>
             </details>`);
     } catch(e){
         const keepManualProtocol = ['gemini', 'volcengine', 'jimeng', 'codex', 'gemini-cli'].includes(String(protocolInput?.value || item.protocol || '').toLowerCase());
         if(protocolInput && !keepManualProtocol){ protocolInput.value = 'openai'; protocolInput.dispatchEvent(new Event('change')); }
-        const suffix = keepManualProtocol ? '，已保留当前手动选择的协议' : '，协议已设为 OpenAI 兼容';
-        showVerifyResult(`<div style="font-size:11px;font-weight:800;color:#b45309">⚠ ${escapeHtml(e.message || String(e))}${suffix}</div>`);
+        showVerifyResult(`<div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--accent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${escapeHtml(e.message || String(e))}</span></div>`);
     } finally {
         if(btn){ btn.disabled = false; btn.querySelector('span').textContent = '验证协议'; refreshIcons(); }
     }
@@ -3107,7 +4013,7 @@ async function testConnection(){
                 image_request_mode: imageRequestModeInput?.value || item.image_request_mode || 'openai'
             })
         }).then(async r => {
-            if(!r.ok) throw new Error((await r.json()).detail || (tr('api.urlInvalid') || '验证失败'));
+            if(!r.ok) throw new Error(await responseErrorDetail(r, tr('api.urlInvalid') || '验证失败'));
             return r.json();
         });
         if(data.ok){
@@ -3138,14 +4044,14 @@ async function testConnection(){
             const runninghubNote = isRunningHubNow
                 ? ` · RunningHub OpenAPI${runninghubModelSourceNote(data)}`
                 : imageModeNote;
-            showVerifyResult(`<span style="color:#15803d;font-size:11px;font-weight:800">✓ 地址验证通过 · 找到 ${data.model_count} 个模型${runninghubNote}</span>${volcengineNote}${jimengNote}${codexNote}${geminiCliNote}`);
+            showVerifyResult(`<span style="color:#15803d;font-size:11px;font-weight:700"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>地址验证通过 · 找到 ${data.model_count} 个模型${runninghubNote}</span>${volcengineNote}${jimengNote}${codexNote}${geminiCliNote}`);
         } else {
             showVerifyResult(`
-                <div style="font-size:11px;font-weight:800;color:#b45309">⚠ 地址验证未通过 (HTTP ${data.status})</div>
+                <div style="font-size:11px;font-weight:700;color:#b45309"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>地址验证未通过 (HTTP ${data.status})</div>
                 <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:3px">${escapeHtml((data.message || '').slice(0,200))}</div>`);
         }
     } catch(e){
-        showVerifyResult(`<div style="font-size:11px;font-weight:800;color:#b45309">⚠ ${escapeHtml(e.message || String(e))}</div>`);
+        showVerifyResult(`<div style="font-size:11px;font-weight:700;color:#b45309"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline-block mr-1 align-text-bottom"></i>${escapeHtml(e.message || String(e))}</div>`);
     } finally {
         if(btn){ btn.disabled = false; btn.querySelector('span').textContent = tr('api.testUrl') || '验证地址'; }
     }
@@ -3175,7 +4081,7 @@ const RH_KNOWN_MODEL_LABELS = {
 };
 function isRunningHubLike(item){
     const base = String(item?.base_url || '').toLowerCase();
-    return item?.id === 'runninghub' || String(item?.protocol || '').toLowerCase() === 'runninghub' || base.includes('runninghub.cn');
+    return item?.id === 'runninghub' || String(item?.protocol || '').toLowerCase() === 'runninghub' || base.includes('runninghub.cn') || base.includes('runninghub.ai');
 }
 function rhActionLabel(text){
     const value = String(text || '').toLowerCase().replace(/[_/-]+/g, ' ');
@@ -3266,7 +4172,7 @@ async function fetchModels(){
                 image_request_mode:imageRequestModeInput?.value || item.image_request_mode || 'openai'
             })
         }).then(async r => {
-            if(!r.ok) throw new Error((await r.json()).detail || (tr('api.urlInvalid') || '拉取失败'));
+            if(!r.ok) throw new Error(await responseErrorDetail(r, tr('api.urlInvalid') || '拉取失败'));
             return r.json();
         });
         setFetchedModelState(data);
@@ -3429,7 +4335,7 @@ async function clearKeyOnly(){
     const ok = await saveProviders();
     if(ok) keyInput.value = '';
 }
-const FIXED_PROTOCOL_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'runninghub']);
+const FIXED_PROTOCOL_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'runninghub', 'runninghub-ai']);
 function providerSupportsModelProtocol(item){
     return Boolean(item) && !FIXED_PROTOCOL_PROVIDER_IDS.has(item.id);
 }
@@ -3543,7 +4449,13 @@ function removeMsLora(index){
 function selectProvider(id){
     if(isProviderTemporarilyHidden(providers.find(item => item.id === id))) return;
     recommendInlineOpen = false;
+    extToolsViewOpen = false;
+    modulesViewOpen = false;
+    aboutViewOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
     syncRecommendView();
+    syncExtToolsView();
+    syncModulesView();
     renderRecommendApi();
     syncEditor();
     selectedId = id;
@@ -3551,7 +4463,13 @@ function selectProvider(id){
 }
 function addProvider(){
     recommendInlineOpen = false;
+    extToolsViewOpen = false;
+    modulesViewOpen = false;
+    aboutViewOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
     syncRecommendView();
+    syncExtToolsView();
+    syncModulesView();
     renderRecommendApi();
     syncEditor();
     let id = 'custom-api';
@@ -3565,7 +4483,13 @@ async function addCliProvider(kind){
     const preset = CLI_PROVIDER_PRESETS[kind];
     if(!preset) return;
     recommendInlineOpen = false;
+    extToolsViewOpen = false;
+    modulesViewOpen = false;
+    aboutViewOpen = false;
+    if(typeof networkViewOpen !== 'undefined') networkViewOpen = false;
     syncRecommendView();
+    syncExtToolsView();
+    syncModulesView();
     renderRecommendApi();
     syncEditor();
     let item = providers.find(provider => provider.id === preset.id);
@@ -3746,36 +4670,59 @@ async function loadProviders(){
         providers = data.providers || [];
         selectedId = sortedProviders()[0]?.id || '';
         renderEditor();
-        openRecommendApi();
+        if(!providers.some(p => p.has_key || p.has_wallet_key)){
+            openRecommendApi();
+        }
         setStatus('');
     } catch(err) {
         setStatus(tr('api.loadFailed'));
     }
 }
+async function autoTestConnections(){
+    try {
+        const targets = (providers || []).filter(p => p.enabled !== false && (p.has_key || p.has_wallet_key));
+        if (!targets.length) return;
+        const results = await Promise.allSettled(targets.map(p =>
+            fetch('/api/providers/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider_id: p.id, base_url: p.base_url, protocol: p.protocol })
+            }).then(r => r.json()).then(d => ({ id: p.id, name: p.name, ok: !!d.ok, models: Number.isFinite(d.model_count) ? d.model_count : (Array.isArray(d.all) ? d.all.length : 0) }))
+        ));
+        const lines = [];
+        results.forEach(r => {
+            if (r.status !== 'fulfilled') return;
+            const { name, ok, models } = r.value;
+            lines.push((ok ? '[OK] ' : '[ERR] ') + (name || '?') + (ok ? ' (' + models + ' \u4e2a\u6a21\u578b)' : ' \u6d4b\u8fde\u5931\u8d25'));
+        });
+        if (lines.length) setStatus(tr('api.saved') + ' | ' + lines.join(' | '));
+    } catch (e) { /* auto-test must never block saving */ }
+}
+
 async function saveProviders(){
     syncEditor();
     providers.forEach(item => {
         item.id = normalizeId(item.id);
         applyLockedRecommendedProtocol(item);
-        item.protocol = item.id === 'runninghub'
+        item.protocol = (item.id === 'runninghub' || item.id === 'runninghub-ai')
             ? 'runninghub'
             : item.id === 'volcengine'
             ? 'volcengine'
             : API_PROTOCOLS.includes(String(item.protocol || '').toLowerCase()) ? String(item.protocol).toLowerCase() : 'openai';
         const isCliProtocol = CLI_PROTOCOLS.has(item.protocol);
         item.image_request_mode = normalizeImageRequestMode(
-            item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine' || isCliProtocol
+            item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'runninghub-ai' || item.id === 'volcengine' || isCliProtocol
                 ? 'openai'
                 : item.image_request_mode
         );
         item.image_edit_route = normalizeImageEditRoute(
-            item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine' || isCliProtocol
+            item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'runninghub-ai' || item.id === 'volcengine' || isCliProtocol
                 ? 'general'
                 : item.image_edit_route
         );
         if(isCliProtocol) applyCliProtocolDefaults(item, item.protocol);
-        if(item.id === 'runninghub'){
-            item.base_url = item.base_url || RH_DEFAULT_BASE_URL;
+        if(item.id === 'runninghub' || item.id === 'runninghub-ai'){
+            item.base_url = normalizeRunningHubBaseUrl(item.base_url, item.id);
             item.image_models = unique(item.image_models || []);
             item.chat_models = unique(item.chat_models || []);
             item.video_models = unique(item.video_models || []);
@@ -3817,13 +4764,13 @@ async function saveProviders(){
                 id:item.id,
                 name:item.name,
                 base_url:item.base_url,
-                protocol:(item.id === 'modelscope') ? 'openai' : item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (item.protocol || 'openai'),
+                protocol:(item.id === 'modelscope') ? 'openai' : (item.id === 'runninghub' || item.id === 'runninghub-ai') ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (item.protocol || 'openai'),
                 image_request_mode:item.image_request_mode || 'openai',
                 image_edit_route:item.image_edit_route || 'general',
                 image_generation_endpoint:item.image_generation_endpoint || '',
                 image_edit_endpoint:item.image_edit_endpoint || '',
                 enabled:item.enabled !== false,
-                primary:false,
+                primary:Boolean(item.primary),
                 image_models:item.image_models || [],
                 chat_models:item.chat_models || [],
                 video_models:item.video_models || [],
@@ -3831,8 +4778,8 @@ async function saveProviders(){
                 model_protocols:(item.model_protocols && typeof item.model_protocols === 'object') ? item.model_protocols : {},
                 ms_loras:item.id === 'modelscope' ? (item.ms_loras || []) : [],
                 ms_defaults_version:item.id === 'modelscope' ? (item.ms_defaults_version || 1) : 0,
-                rh_apps:item.id === 'runninghub' ? (item.rh_apps || []) : [],
-                rh_workflows:item.id === 'runninghub' ? (item.rh_workflows || []) : [],
+                rh_apps:(item.id === 'runninghub' || item.id === 'runninghub-ai') ? (item.rh_apps || []) : [],
+                rh_workflows:(item.id === 'runninghub' || item.id === 'runninghub-ai') ? (item.rh_workflows || []) : [],
                 volcengine_project_name:item.id === 'volcengine' ? (item.volcengine_project_name || VOLCENGINE_DEFAULT_PROJECT_NAME) : '',
                 volcengine_region:item.id === 'volcengine' ? (item.volcengine_region || VOLCENGINE_DEFAULT_REGION) : '',
                 volcengine_access_key_id:item.volcengine_access_key_id || undefined,
@@ -3861,6 +4808,8 @@ async function saveProviders(){
         selectedId = provider()?.id || providers[0]?.id || '';
         renderEditor();
         setStatus(tr('api.saved'));
+        // 保存后自动测连：对每个启用且配了 key 的平台发一个最小请求，状态栏显示结果
+        autoTestConnections();
         // 广播变更，画布等其他 iframe 立即重新拉取最新平台/模型列表
         broadcastStudioApiChange('providers-changed');
         return true;
@@ -3874,6 +4823,7 @@ function escapeHtml(str){
 }
 function escapeAttr(str){ return escapeHtml(str).replace(/`/g, '&#96;'); }
 window.addEventListener('message', event => {
+    if(event.origin && event.origin !== location.origin) return;
     if(event.data?.type === 'studio-theme' && window.StudioTheme) window.StudioTheme.set(event.data.theme);
     if(event.data?.type === 'studio-lang' && window.StudioI18n) {
         window.StudioI18n.set(event.data.lang);
@@ -3907,6 +4857,14 @@ window.onload = () => {
     if(window.StudioTheme) window.StudioTheme.apply();
     if(window.StudioI18n) window.StudioI18n.apply();
     syncRecommendView();
+    if(providerList){
+        providerList.addEventListener('click', (e) => {
+            const card = e.target.closest('.provider-card');
+            if(card && card.dataset.providerId){
+                selectProvider(card.dataset.providerId);
+            }
+        });
+    }
     loadProviders();
     // 平台名输入时实时预览生成的 ID
     if(nameInput) nameInput.addEventListener('input', updateIdPreview);

@@ -100,7 +100,7 @@ button {
   background: var(--panel);
   color: var(--text);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 700;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .08);
 }
 
@@ -114,7 +114,7 @@ button {
 h1 {
   margin: 0;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -174,7 +174,7 @@ p {
 .settings-head strong {
   flex: 0 0 auto;
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .settings-head span {
@@ -232,7 +232,7 @@ p {
 .check span {
   color: var(--muted);
   font-size: 9px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .check {
@@ -290,7 +290,7 @@ textarea:focus {
   background: var(--panel);
   color: var(--text);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .btn,
@@ -415,7 +415,7 @@ textarea:focus {
 .scan-main small {
   color: color-mix(in srgb, var(--button-text) 72%, transparent);
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .scan-main:hover {
@@ -483,7 +483,7 @@ textarea:focus {
   justify-content: space-between;
   gap: 6px;
   color: var(--muted);
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .toolbar > div {
@@ -581,7 +581,7 @@ textarea:focus {
   background: color-mix(in srgb, var(--panel) 82%, transparent);
   color: var(--muted);
   font-size: 8px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -670,7 +670,7 @@ textarea:focus {
   border-radius: 9px;
   background: var(--panel);
   color: var(--text);
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 

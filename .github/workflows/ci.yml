@@ -1,0 +1,89 @@
+name: MeansCanvas CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Node.js for frontend syntax check
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt pytest ruff
+
+    - name: Python Compile Check
+      run: |
+        python -m compileall -q .
+
+    - name: Python Lint & Critical Errors Check (Ruff)
+      run: |
+        ruff check --select F821,F822,F823,E9 core/ routers/ tests/ scripts/ main.py
+
+    - name: Guard: file length budget & ratchet limits
+      run: |
+        python scripts/check_file_lengths.py
+
+    - name: Guard: tracked files must exist
+      run: |
+        missing=0
+        for f in $(git ls-files 'static/**/*.js' 'static/**/*.css' 'static/**/*.html'); do
+          [ -f "$f" ] || { echo "TRACKED BUT MISSING: $f"; missing=1; }
+        done
+        [ $missing -eq 0 ] || exit 1
+
+    - name: Guard: no reverse import of main
+      run: |
+        ! grep -rnE "^[[:space:]]*from main import|^[[:space:]]*import main([[:space:]]|$)" routers/ core/ \
+          || (echo "FAIL: routers/core 反向导入 main.py，会形成循环依赖"; exit 1)
+
+    - name: Guard: outbound fetch must be SSRF-guarded
+      run: |
+        python scripts/check_ssrf_guards.py
+
+    - name: Guard: typography and aesthetic contracts (AGENTS.md)
+      run: |
+        python scripts/check_aesthetics.py
+
+    - name: Frontend JavaScript Syntax Check
+      run: |
+        set -e
+        for f in static/js/*.js static/js/i18n/*.js static/js/utils/*.js; do
+          [ -f "$f" ] && node --check "$f"
+        done
+        echo "Frontend JS syntax check passed."
+
+    - name: Frontend Concurrency & Regression Tests
+      run: |
+        node --test tests/test_frontend_concurrency.test.mjs
+
+    - name: i18n Validation
+      run: |
+        node static/js/i18n/validate-i18n.js
+
+    - name: Run Pytest
+      env:
+        PYTHONPATH: .
+      run: |
+        pytest tests/ -v
+
+

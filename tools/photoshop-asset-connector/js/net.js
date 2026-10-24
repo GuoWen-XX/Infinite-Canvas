@@ -49,12 +49,10 @@
     return absUrl(url);
   }
 
-  // 缩略图地址：本地 /assets|/output 走后端预览接口（小图、带缓存，避免一次性加载几十张超大原图导致空白/卡死）
+  // 缩略图统一经后端转成小 JPEG，避免 UXP 直接解码远程原图或 WebP 时整批空白。
   function thumbUrl(url, w) {
-    if (/^\/(assets|output)\//.test(String(url || ''))) {
-      return `${httpBase()}/api/media-preview?url=${encodeURIComponent(url)}&w=${w || 256}`;
-    }
-    return absUrl(url);
+    if (!url) return '';
+    return `${httpBase()}/api/image-jpeg?url=${encodeURIComponent(url)}&w=${w || 256}`;
   }
 
   async function fetchBytes(url) {
@@ -85,6 +83,13 @@
     return out;
   }
 
+  // UXP 图片元素对远程资源解码不稳定；先 fetch JPEG 字节，再赋为 Base64 Data URL。
+  async function thumbnailDataUrl(url, w) {
+    const res = await fetch(thumbUrl(url, w), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`缩略图加载失败 HTTP ${res.status}`);
+    return `data:image/jpeg;base64,${toBase64(await res.arrayBuffer())}`;
+  }
+
   // 上传一段已编码好的 base64 图片（指定 content_type），返回 /assets 地址（避开 UXP 的 FormData 问题）。
   // 首选 /api/ai/upload-base64（落 assets/input，不污染本地素材）；失败回退 /api/local-assets/import-urls。
   async function uploadBase64Raw(b64, name, mime) {
@@ -110,5 +115,5 @@
     return uploadBase64Raw(toBase64(buffer), name, 'image/png');
   }
 
-  DX.net = { parseHost, httpBase, wsBase, absUrl, thumbUrl, displayUrl, needsJpeg, apiGet, apiSend, fetchBytes, toBase64, uploadInputBase64, uploadBase64Raw };
+  DX.net = { parseHost, httpBase, wsBase, absUrl, thumbUrl, thumbnailDataUrl, displayUrl, needsJpeg, apiGet, apiSend, fetchBytes, toBase64, uploadInputBase64, uploadBase64Raw };
 })();

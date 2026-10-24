@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>素材库管理</title>
     <script>
         (function(){
@@ -12,14 +14,18 @@
                 if(theme === 'dark') {
                     document.documentElement.classList.add('studio-theme-dark');
                     document.documentElement.classList.add('theme-dark');
+                } else if(theme === 'warm') {
+                    document.documentElement.classList.add('studio-theme-warm');
+                    document.documentElement.classList.add('theme-warm');
                 }
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
-    <link rel="stylesheet" href="/static/css/asset-manager.css?v=2026.07.29.1785292586">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
+    <link rel="stylesheet" href="/static/css/asset-manager.css?v=2026.10.04.1790799683">
 </head>
 <body>
     <div class="asset-page">
@@ -47,6 +53,6 @@
     </div>
 
     <input id="assetUploadInput" type="file" accept="image/*,video/*,audio/*,.json,.zip,application/json,application/zip" multiple hidden>
-    <script src="/static/js/asset-manager.js?v=2026.07.29.1785292590"></script>
+    <script src="/static/js/asset-manager.js?v=2026.10.04.1790074582"></script>
 </body>
 </html>

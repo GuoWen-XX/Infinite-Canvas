@@ -1,5 +1,5 @@
 (function(){
-    const VERSION = '2026.07.04.rec-ui.1';
+    const VERSION = '2026.09.23.1015';
     const scripts = [
         '/static/js/i18n-core.js',
         '/static/js/i18n/common.js',
@@ -9,16 +9,20 @@
         '/static/js/i18n/smart-canvas.js',
         '/static/js/i18n/comfyui-settings.js',
     ];
-    const tags = scripts.map(src => '<script src="' + src + '?v=' + VERSION + '"></script>').join('');
-    if(document.readyState === 'loading' && document.currentScript){
-        document.write(tags);
-        return;
-    }
-    scripts.reduce((promise, src) => promise.then(() => new Promise((resolve, reject) => {
+    let loadedCount = 0;
+    const total = scripts.length;
+
+    scripts.forEach(src => {
         const script = document.createElement('script');
         script.src = src + '?v=' + VERSION;
-        script.onload = resolve;
-        script.onerror = reject;
+        script.async = false;
+        script.onload = () => {
+            loadedCount++;
+            if(loadedCount === total){
+                window.StudioI18n?.apply?.();
+            }
+        };
+        script.onerror = (err) => console.error('Failed to load i18n module:', src, err);
         document.head.appendChild(script);
-    })), Promise.resolve()).then(() => window.StudioI18n?.apply?.()).catch(err => console.error('Failed to load i18n modules', err));
+    });
 })();

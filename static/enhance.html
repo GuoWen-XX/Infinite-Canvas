@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>Z-IMAGE | 极简影像重塑</title>
     <script>
         (function(){
@@ -17,19 +19,20 @@
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <script src="/static/js/image-preview.js?v=2026.07.29.1785292584"></script>
-    <script src="/static/js/history-bulk-manager.js?v=2026.07.29.1785292584"></script>
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <script src="/static/js/image-preview.js?v=2026.10.04.1787932356"></script>
+    <script src="/static/js/history-bulk-manager.js?v=2026.10.04.1790800008"></script>
     <style>
-        @import url('/static/vendor/css/fonts.css?v=2026.07.29.1785292593');
+        @import url('/static/vendor/css/fonts.css?v=2026.10.04.1790813007');
 
         :root {
-            --accent: #111827;
-            --bg: #f9fafb;
-            --card: #ffffff;
+            --accent: var(--strong, #111827);
+            --bg: var(--bg, #f9fafb);
+            --card: var(--card, #ffffff);
             --easing: cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -46,16 +49,15 @@
         }
 
         *::-webkit-scrollbar-thumb {
-            background-color: #d8d8d8 !important;
+            background-color: var(--line-2, #d8d8d8) !important;
             border: 3px solid transparent !important;
             border-right-width: 5px !important;
-            /* 增加右侧间距，使滚动条向左位移 */
             background-clip: padding-box !important;
             border-radius: 10px !important;
         }
 
         *::-webkit-scrollbar-thumb:hover {
-            background-color: #c0c0c0 !important;
+            background-color: var(--ink-secondary, #c0c0c0) !important;
         }
 
         *::-webkit-scrollbar-corner {
@@ -64,71 +66,54 @@
 
         * {
             scrollbar-width: thin !important;
-            scrollbar-color: #d8d8d8 transparent !important;
+            scrollbar-color: var(--line-2, #d8d8d8) transparent !important;
         }
 
         body {
             background-color: var(--bg);
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: var(--accent);
+            font-family: 'Montserrat', 'Space Grotesk', 'Source Han Sans SC', '思源黑体', -apple-system, sans-serif;
+            color: var(--text, #111827);
             -webkit-font-smoothing: antialiased;
         }
 
         .container-box {
-            max-width: 1280px;
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 0 40px;
-            margin-top: 50px;
-        }
-
-        /* 统一组件风格 */
-        .glass-btn {
-            background: #111827;
-            transition: all 0.3s var(--easing);
-        }
-
-        .glass-btn:hover {
-            background: #000;
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-        }
-
-        .glass-btn:active {
-            transform: scale(0.98);
+            padding: 28px 32px 64px 32px;
         }
 
         .upload-item {
             background: var(--card);
-            border: 1px dashed #e2e8f0;
-            transition: all 0.4s var(--easing);
+            border: 1px dashed var(--line-2, #cbd5e1);
+            border-radius: 18px;
+            transition: all 0.3s var(--easing);
         }
 
         .upload-item:hover {
-            border-color: #000;
-            background: #fff;
+            border-color: var(--text);
             transform: translateY(-2px);
         }
 
         .result-frame {
-            background: #ffffff;
-            border-radius: 32px;
-            border: 1px solid #f1f5f9;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.02);
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            box-shadow: 0 4px 20px var(--shadow, rgba(0, 0, 0, 0.02));
         }
 
         .masonry-item {
             break-inside: avoid;
             margin-bottom: 1.25rem;
-            background: #fff;
-            border: 1px solid #f1f5f9;
-            border-radius: 24px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
             overflow: hidden;
-            transition: all 0.5s var(--easing);
+            transition: all 0.3s var(--easing);
         }
 
         .masonry-item:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px var(--shadow, rgba(0, 0, 0, 0.08));
         }
 
         /* 统一精致 Range 设计 */
@@ -266,140 +251,298 @@
             font-weight: 600;
             letter-spacing: .04em;
         }
+
+        /* --- Studio Page Header & Typography --- */
+        .studio-page-head {
+            display: flex !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            gap: 20px !important;
+            margin-bottom: 32px !important;
+            padding-bottom: 22px !important;
+            border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.07)) !important;
+        }
+        .studio-title-group {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        .studio-title-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 14px !important;
+            flex-wrap: wrap !important;
+        }
+        .studio-title {
+            margin: 0 !important;
+            font-size: 34px !important;
+            font-weight: 600 !important;
+            line-height: 1.18 !important;
+            letter-spacing: -0.01em !important;
+            color: var(--text, var(--ink-primary, #0f172a)) !important;
+            font-style: normal !important;
+            font-feature-settings: "palt" 1, "kern" 1 !important;
+        .studio-desc {
+            margin: 0 !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.6 !important;
+            letter-spacing: 0.025em !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-style: normal !important;
+        }
+        .studio-head-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            flex-shrink: 0 !important;
+        }
+        .studio-status-pill {
+            height: 34px !important;
+            padding: 0 14px !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--line, rgba(0, 0, 0, 0.08)) !important;
+            background: var(--card, #ffffff) !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            box-shadow: 0 1px 3px var(--shadow, rgba(0,0,0,0.04)) !important;
+            font-style: normal !important;
+        }
+        .studio-status-dot {
+            width: 7px !important;
+            height: 7px !important;
+            border-radius: 50% !important;
+            background: #10b981 !important;
+            display: inline-block !important;
+        }
     </style>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
 </head>
 
 <body class="selection:bg-black selection:text-white">
 
     <div class="container-box">
-        <header class="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
-            <div class="space-y-1">
-                <h1 class="text-4xl font-extrabold tracking-[-0.05em] flex items-center">
-                    Z IMAGE<span class="text-base mt-3 ml-1">®</span>
-                </h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400" data-i18n="nav.enhance">Computational Photography
-                    Archive</p>
+        <header class="studio-page-head flex items-end justify-between gap-5 mb-8 pb-6 border-b border-[var(--line,rgba(0,0,0,0.07))]">
+            <div class="studio-title-group flex flex-col gap-2">
+                <div class="studio-title-row flex items-center gap-3.5 flex-wrap">
+                    <h1 class="studio-title text-3xl lg:text-4xl font-semibold tracking-normal text-[var(--text,#0f172a)]" data-i18n="studio.enhanceTitle">细节增强</h1>
+                </div>
+                <p class="studio-desc text-xs md:text-sm text-[var(--ink-secondary,#64748b)]" data-i18n="studio.enhanceDesc">高保真图像细节重绘增强与超分辨率画质无损放大。</p>
             </div>
-            <nav class="flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                <span class="text-black border-b-2 border-black pb-1" data-i18n="nav.enhance">Enhance</span>
-            </nav>
+            <div class="studio-head-actions flex items-center gap-2.5 flex-shrink-0">
+                <div id="studioStatus" class="studio-status-pill inline-flex items-center gap-2 h-8 px-3.5 rounded-full border border-[var(--line,rgba(0,0,0,0.08))] bg-[var(--card,#ffffff)] text-[11px] font-semibold text-[var(--ink-secondary,#64748b)] shadow-sm">
+                    <span class="studio-status-dot"></span>
+                    <span id="statusText" data-i18n="studio.systemReady">系统就绪</span>
+                </div>
+            </div>
         </header>
 
-        <main class="grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <div class="lg:col-span-4 space-y-10">
-                <section class="group">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] mb-5 text-gray-400">01. <span data-i18n="studio.inputSource">Input Source</span>
-                    </h3>
+        <main class="studio-workbench items-start">
+            <div class="studio-workbench-left">
+                <!-- 01. Input Source -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <span class="flex items-center gap-1.5"><i data-lucide="image" class="w-3.5 h-3.5"></i> <span data-i18n="studio.inputSource">输入图像</span></span>
+                        <span class="text-[10px] text-[var(--ink-tertiary)]">JPG / PNG / WEBP</span>
+                    </div>
                     <div id="dropzone"
-                        class="upload-item relative overflow-hidden rounded-2xl aspect-[4/3] flex flex-col items-center justify-center cursor-pointer">
+                        class="upload-item relative overflow-hidden rounded-xl h-44 flex flex-col items-center justify-center cursor-pointer">
                         <input type="file" id="fileInput" class="hidden" accept="image/*">
 
-                        <div id="uploadContent" class="text-center space-y-4">
+                        <div id="uploadContent" class="text-center p-4 space-y-2">
                             <div
-                                class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mx-auto group-hover:bg-black group-hover:text-white group-hover:border-black transition-all duration-500">
-                                <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                                class="w-9 h-9 rounded-full border border-[var(--line)] bg-[var(--card)] flex items-center justify-center mx-auto shadow-sm text-[var(--ink-secondary)]">
+                                <i data-lucide="arrow-up" class="w-4 h-4"></i>
                             </div>
-                            <p class="text-[11px] font-bold uppercase tracking-tight" data-i18n="studio.dropImage">Drop image here</p>
+                            <p class="text-xs font-medium text-[var(--text)]" data-i18n="studio.dropImage">拖拽图片至此或点击上传</p>
+                            <p class="text-[10px] text-[var(--ink-tertiary)]">建议分辨率 1024px ~ 4096px</p>
                         </div>
 
                         <img id="previewImg" class="hidden absolute inset-0 w-full h-full object-cover">
 
                         <div id="changeOverlay"
-                            class="hidden absolute inset-0 bg-black/10 backdrop-blur-sm items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            class="hidden absolute inset-0 bg-black/30 backdrop-blur-xs items-center justify-center transition-opacity">
                             <span
-                                class="bg-white px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl" data-i18n="studio.change">Change</span>
+                                class="bg-[var(--card)] text-[var(--text)] px-4 py-1.5 rounded-full text-[11px] font-semibold shadow-md tracking-wider uppercase border border-[var(--line)]" data-i18n="studio.change">更换图片</span>
                         </div>
                     </div>
                 </section>
 
-                <section class="space-y-10">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">02. <span data-i18n="studio.parameters">Parameters</span></h3>
+                <!-- 02. Parameters & Action -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <span class="flex items-center gap-1.5"><i data-lucide="sliders" class="w-3.5 h-3.5"></i><span data-i18n="studio.parameters">增强参数</span></span>
+                        <span class="text-[10px] font-mono text-[var(--ink-tertiary)]" id="engineBadge">NGX DLSS 5</span>
+                    </div>
 
-                    <!-- Local Controls -->
-                    <div id="localControls" class="space-y-10">
-                        <div class="space-y-5">
-                            <div class="flex justify-between items-end">
-                                <label class="text-xs font-bold uppercase tracking-tight text-gray-800" data-i18n="studio.refinementStrength">Refinement
-                                    Strength</label>
-                                <span id="strengthVal" class="font-mono text-xs font-bold">0.50</span>
+                    <!-- Engine Selector -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="engineDlss5Btn" onclick="setEnhanceEngine('dlss5')"
+                            class="py-2 px-2.5 rounded-xl border border-[var(--strong,#111827)] bg-[var(--strong,#111827)] text-[var(--strong-text,#ffffff)] text-xs font-medium transition-all">
+                            DLSS 5 神经渲染
+                        </button>
+                        <button type="button" id="engineZimageBtn" onclick="setEnhanceEngine('zimage')"
+                            class="py-2 px-2.5 rounded-xl border border-[var(--line)] text-[var(--ink-secondary)] text-xs font-medium hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">
+                            Z-Image 细节重塑
+                        </button>
+                    </div>
+
+                    <!-- Distributed Render Node -->
+                    <div class="space-y-1.5">
+                        <label class="block text-[11px] font-semibold text-[var(--ink-secondary)]">目标渲染节点</label>
+                        <select id="targetBackendSelect"
+                            class="w-full h-9 px-3 rounded-xl border border-[var(--line)] bg-[var(--card)] text-xs text-[var(--text)] outline-none">
+                            <option value="">自动调度 (空闲优先)</option>
+                        </select>
+                    </div>
+
+                    <!-- DLSS 5 Parameters Panel -->
+                    <div id="dlss5Panel" class="space-y-3.5 pt-2 border-t border-[var(--line)]">
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-[var(--ink-secondary)]">洗图模式</label>
+                                <select id="dlssModeSelect"
+                                    class="w-full h-9 px-2.5 rounded-xl border border-[var(--line)] bg-[var(--card)] text-xs text-[var(--text)] outline-none">
+                                    <option value="2pass" selected>2x 两阶段洗图 (推荐)</option>
+                                    <option value="dlaa">1x 原分辨率洗图 (DLAA)</option>
+                                    <option value="2x">2x 直接超分</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-[var(--ink-secondary)]">画面风格</label>
+                                <select id="dlssStyleSelect"
+                                    class="w-full h-9 px-2.5 rounded-xl border border-[var(--line)] bg-[var(--card)] text-xs text-[var(--text)] outline-none">
+                                    <option value="Default" selected>默认平衡 (Default)</option>
+                                    <option value="Cinematic">电影质感 (Cinematic)</option>
+                                    <option value="Natural">自然真实 (Natural)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs font-semibold">
+                                <label class="text-[var(--ink-secondary)]">结构保持强度</label>
+                                <span id="dlssStructureVal" class="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[var(--soft,rgba(148,163,184,0.12))] text-[var(--text)]">2.0</span>
+                            </div>
+                            <input type="range" id="dlssStructureSlider" min="1.0" max="2.0" step="0.1" value="2.0"
+                                class="w-full h-1.5 rounded-lg appearance-none cursor-pointer">
+                            <div class="flex justify-between text-[10px] text-[var(--ink-tertiary)]">
+                                <span>1.0 (细节重构)</span>
+                                <span>2.0 (锁死面部与轮廓)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Z-Image Parameters Panel -->
+                    <div id="zimagePanel" class="hidden space-y-3.5 pt-2 border-t border-[var(--line)]">
+                        <div class="space-y-2.5">
+                            <div class="flex justify-between items-center text-xs font-semibold">
+                                <label class="text-[var(--ink-secondary)]" data-i18n="studio.refinementStrength">重绘增强强度</label>
+                                <span id="strengthVal" class="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[var(--soft,rgba(148,163,184,0.12))] text-[var(--text)]">0.50</span>
                             </div>
                             <input type="range" id="strengthSlider" min="0.1" max="1.0" step="0.01" value="0.5"
-                                class="w-full">
+                                class="w-full h-1.5 rounded-lg appearance-none cursor-pointer">
+                            <div class="flex justify-between text-[10px] text-[var(--ink-tertiary)]">
+                                <span>0.1 (微弱轻微)</span>
+                                <span>1.0 (深度重塑)</span>
+                            </div>
                         </div>
 
-                        <div class="p-5 bg-white border border-gray-200/50 rounded-2xl shadow-sm">
+                        <div class="pt-3 border-t border-[var(--line)]">
                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-4">
-                                    <div class="p-2.5 bg-gray-50 rounded-xl border border-gray-100"><i data-lucide="layers"
-                                            class="w-4 h-4"></i></div>
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-[var(--card-subtle)] rounded-lg border border-[var(--line)]">
+                                        <i data-lucide="layers" class="w-4 h-4 text-[var(--ink-secondary)]"></i>
+                                    </div>
                                     <div>
-                                        <p class="text-[11px] font-bold uppercase" data-i18n="studio.superResolution">Super Resolution</p>
-                                        <p class="text-[9px] text-gray-400" data-i18n="studio.doublePixels">Double pixels (4K)</p>
+                                        <p class="text-xs font-semibold text-[var(--text)]" data-i18n="studio.superResolution">超分辨率放大</p>
+                                        <p class="text-[10px] text-[var(--ink-tertiary)]" data-i18n="studio.doublePixels">画质 2K / 4K 无损倍增</p>
                                     </div>
                                 </div>
-                                <label class="ios-switch relative inline-block w-12 h-7">
+                                <label class="ios-switch relative inline-block w-11 h-6">
                                     <input type="checkbox" id="upscaleToggle" class="opacity-0 w-0 h-0"
                                         onchange="toggleUpscaleOptions()">
                                     <span
-                                        class="ios-slider absolute inset-0 cursor-pointer bg-gray-200 rounded-full transition-colors duration-300"></span>
+                                        class="ios-slider absolute inset-0 cursor-pointer bg-[var(--line-2,#cbd5e1)] rounded-full transition-colors duration-300"></span>
                                 </label>
                             </div>
-                            <div id="upscaleOptions" class="hidden pt-4 mt-4 border-t border-gray-100 grid-cols-2 gap-3">
+                            <div id="upscaleOptions" class="hidden pt-4 mt-3 border-t border-[var(--line)] grid grid-cols-2 gap-2.5">
                                 <button id="btn2x" onclick="setUpscaleFactor(2048)"
-                                    class="py-2.5 rounded-xl border border-black bg-black text-white text-[10px] font-bold transition-all">
+                                    class="py-2 rounded-xl border border-[var(--strong)] bg-[var(--strong)] text-[var(--strong-text)] text-xs font-medium transition-all">
                                     2x (2K)
                                 </button>
                                 <button id="btn4x" onclick="setUpscaleFactor(4096)"
-                                    class="py-2.5 rounded-xl border border-gray-200 text-gray-400 text-[10px] font-bold hover:border-black hover:text-black transition-all">
+                                    class="py-2 rounded-xl border border-[var(--line)] text-[var(--ink-secondary)] text-xs font-medium hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">
                                     4x (4K)
                                 </button>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Action Button -->
                     <button id="genBtn" onclick="handleGenerate()"
-                        class="glass-btn w-full py-5 text-white rounded-xl font-bold text-[11px] uppercase tracking-[0.4em] flex items-center justify-center gap-3 shadow-xl shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                        <span id="btnText" data-i18n="studio.beginRemaster">Begin Remastering</span>
+                        class="studio-btn-primary w-full h-12 text-white rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="sparkles" id="btnIcon" class="w-4 h-4"></i>
+                        <span id="btnText" data-i18n="studio.beginRemaster">开始增强</span>
                     </button>
                 </section>
             </div>
 
-            <div class="lg:col-span-8">
+            <!-- Right Canvas Stage -->
+            <div class="studio-workbench-right">
                 <div id="resultBox"
-                    class="result-frame relative h-[500px] lg:h-[650px] flex items-center justify-center overflow-hidden group">
-                    <div id="emptyState" class="text-center space-y-4 opacity-20">
-                        <i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i>
-                        <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.canvasReady">Canvas Ready</p>
+                    class="studio-stage-frame group">
+                    <!-- Stage Header Bar -->
+                    <div class="absolute top-0 inset-x-0 h-11 px-5 flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)]/80 backdrop-blur-md z-10">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+                            <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                            <span class="uppercase tracking-wider">CANVAS STAGE</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="zoomImage()" class="p-1.5 rounded-lg hover:bg-[var(--soft)] text-[var(--ink-secondary)] transition-colors" title="全屏对比">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <div id="loadingState" class="hidden flex flex-col items-center gap-5">
+                    <div id="emptyState" class="text-center space-y-3 opacity-30 py-20">
+                        <div class="w-14 h-14 rounded-2xl border border-dashed border-[var(--line-2,#94a3b8)] flex items-center justify-center mx-auto">
+                            <i data-lucide="image" class="w-6 h-6 stroke-[1.5]"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold uppercase tracking-[0.2em]" data-i18n="studio.canvasReady">CANVAS READY</p>
+                            <p class="text-[11px] text-[var(--ink-tertiary)]">上传左侧图片并点击开始增强，重绘与放大结果将在此呈现</p>
+                        </div>
+                    </div>
+
+                    <div id="loadingState" class="hidden flex flex-col items-center gap-4 py-20">
                         <div class="loading-box"></div>
-                        <p class="text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse" data-i18n="studio.computingPixels">Computing pixels...
-                        </p>
+                        <p class="text-xs font-medium uppercase tracking-[0.2em] animate-pulse text-[var(--ink-secondary)]" data-i18n="studio.computingPixels">Computing pixels...</p>
                     </div>
 
                     <img id="outputImg"
-                        class="hidden w-full h-full object-contain p-8 cursor-zoom-in transition-all duration-700 hover:scale-[1.02]"
+                        class="hidden w-full h-full object-contain p-6 pt-14 cursor-zoom-in transition-all duration-500 hover:scale-[1.01]"
                         onclick="zoomImage()">
 
                     <a id="downloadBtn" href="#" download
-                        class="hidden absolute bottom-8 right-8 w-14 h-14 bg-white shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white transition-all duration-500 border border-gray-100">
-                        <i data-lucide="download" class="w-5 h-5"></i>
+                        class="hidden absolute bottom-6 right-6 w-11 h-11 bg-[var(--card)] shadow-lg rounded-xl flex items-center justify-center hover:bg-[var(--strong)] hover:text-[var(--strong-text)] transition-all border border-[var(--line)] z-20">
+                        <i data-lucide="download" class="w-4 h-4"></i>
                     </a>
                 </div>
             </div>
         </main>
 
-        <section class="mt-32">
-            <div class="flex items-center gap-6 mb-10">
-                <h2 class="text-[11px] font-black uppercase tracking-[0.5em]">Archive</h2>
-                <div class="h-px flex-1 bg-black/5"></div>
+        <section class="mt-16">
+            <div class="flex items-center gap-6 mb-8">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ink-secondary)]" data-i18n="studio.archives">Archives</h2>
+                <div class="h-px flex-1 bg-[var(--line)]"></div>
             </div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger"
-                class="py-16 text-center opacity-20 text-[10px] font-bold uppercase tracking-widest">
+                class="py-16 text-center opacity-40 text-xs font-medium uppercase tracking-wider text-[var(--ink-tertiary)]" data-i18n="studio.endOfArchive">
                 End of Archive
             </div>
         </section>
@@ -437,7 +580,7 @@
             </div>
             <div class="mt-8">
                 <button onclick="downloadLightboxImage()"
-                    class="px-10 py-4 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-xl">
+                    class="px-10 py-4 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-3 shadow-xl">
                     <i data-lucide="save" class="w-4 h-4"></i> Save Master
                 </button>
             </div>
@@ -454,6 +597,7 @@
             if(btnText && !document.getElementById('genBtn')?.disabled) btnText.textContent = tr('studio.beginRemaster');
         }
         window.addEventListener('message', event => {
+            if (event.origin && event.origin !== location.origin) return;
             if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.enhance'); });
@@ -472,39 +616,79 @@
         let uploadedPath = "";
         let currentResult = null;
         let currentUpscaleFactor = 2048;
+        let currentEngine = "dlss5";
 
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const previewImg = document.getElementById('previewImg');
         const slider = document.getElementById('strengthSlider');
         const valDisplay = document.getElementById('strengthVal');
+        const dlssStructSlider = document.getElementById('dlssStructureSlider');
+        const dlssStructVal = document.getElementById('dlssStructureVal');
+
+        function setEnhanceEngine(engine) {
+            currentEngine = engine === 'zimage' ? 'zimage' : 'dlss5';
+            const dlssBtn = document.getElementById('engineDlss5Btn');
+            const zimgBtn = document.getElementById('engineZimageBtn');
+            const dlssPanel = document.getElementById('dlss5Panel');
+            const zimgPanel = document.getElementById('zimagePanel');
+            const badge = document.getElementById('engineBadge');
+            const activeCls = "py-2 px-2.5 rounded-xl border border-[var(--strong,#111827)] bg-[var(--strong,#111827)] text-[var(--strong-text,#ffffff)] text-xs font-medium transition-all";
+            const inactiveCls = "py-2 px-2.5 rounded-xl border border-[var(--line)] text-[var(--ink-secondary)] text-xs font-medium hover:border-[var(--strong)] hover:text-[var(--text)] transition-all";
+            if (currentEngine === 'dlss5') {
+                dlssBtn.className = activeCls;
+                zimgBtn.className = inactiveCls;
+                dlssPanel.classList.remove('hidden');
+                zimgPanel.classList.add('hidden');
+                if (badge) badge.textContent = "NGX DLSS 5";
+            } else {
+                zimgBtn.className = activeCls;
+                dlssBtn.className = inactiveCls;
+                zimgPanel.classList.remove('hidden');
+                dlssPanel.classList.add('hidden');
+                if (badge) badge.textContent = "Z-IMAGE";
+            }
+        }
+
+        async function loadRenderNodes() {
+            const sel = document.getElementById('targetBackendSelect');
+            if (!sel) return;
+            try {
+                const res = await fetch('/api/comfyui/instances/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+                const prev = sel.value;
+                sel.innerHTML = '<option value="">自动调度 (空闲优先)</option>';
+                nodes.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n.address;
+                    const gpuTag = n.gpu_name ? ` · ${n.gpu_name.split('Laptop')[0].trim()}` : '';
+                    const stTag = n.online ? '在线' : '离线';
+                    opt.textContent = `${n.address} (${stTag}${gpuTag})`;
+                    sel.appendChild(opt);
+                });
+                if (prev) sel.value = prev;
+            } catch (e) { }
+        }
 
         function setUpscaleFactor(factor) {
             currentUpscaleFactor = factor;
             const btn2x = document.getElementById('btn2x');
             const btn4x = document.getElementById('btn4x');
-
-            // Helper to set active/inactive styles
             const setActive = (btn) => {
                 btn.className = "py-2.5 rounded-xl border border-black bg-black text-white text-[10px] font-bold transition-all";
             };
             const setInactive = (btn) => {
                 btn.className = "py-2.5 rounded-xl border border-gray-200 text-gray-400 text-[10px] font-bold hover:border-black hover:text-black transition-all";
             };
-
-            if (factor === 2048) {
-                setActive(btn2x);
-                setInactive(btn4x);
-            } else {
-                setInactive(btn2x);
-                setActive(btn4x);
-            }
+            if (factor === 2048) { setActive(btn2x); setInactive(btn4x); }
+            else { setInactive(btn2x); setActive(btn4x); }
         }
 
         dropzone.onclick = () => fileInput.click();
         fileInput.onchange = (e) => handleFile(e.target.files[0]);
 
-        // Drag and Drop
         dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropzone.classList.add('border-black', 'bg-gray-50');
@@ -520,7 +704,6 @@
             }
         });
 
-        // Paste support
         let isHovering = false;
         dropzone.addEventListener('mouseenter', () => isHovering = true);
         dropzone.addEventListener('mouseleave', () => isHovering = false);
@@ -529,8 +712,7 @@
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.kind === 'file' && item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    handleFile(file);
+                    handleFile(item.getAsFile());
                     break;
                 }
             }
@@ -539,13 +721,16 @@
         slider.oninput = function () {
             valDisplay.innerText = parseFloat(this.value).toFixed(2);
         };
+        if (dlssStructSlider) {
+            dlssStructSlider.oninput = function () {
+                dlssStructVal.innerText = parseFloat(this.value).toFixed(1);
+            };
+        }
 
         async function handleFile(file) {
             if (!file) return;
             const btn = document.getElementById('genBtn');
             const btnText = document.getElementById('btnText');
-
-            // Disable button during upload
             btn.disabled = true;
             btnText.innerText = tr('studio.uploading');
 
@@ -562,15 +747,19 @@
             formData.append('files', file);
             try {
                 const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    throw new Error(errJson.detail || '未连接到 ComfyUI 渲染节点');
+                }
                 const data = await res.json();
                 uploadedPath = data.files[0].comfy_name;
-                // Enable button after successful upload
                 btn.disabled = false;
                 btnText.innerText = tr('studio.beginRemaster');
             } catch (err) {
-                console.error("Upload error");
-                btnText.innerText = tr('studio.uploadFailed');
+                console.error("Upload error:", err);
+                btnText.innerText = '未连接ComfyUI';
                 btn.disabled = false;
+                alert('【渲染节点提示】\n' + (err.message || '图片上传失败') + '\n\n请检查本地或分布式 ComfyUI 渲染节点是否在线。');
             }
         }
 
@@ -597,77 +786,94 @@
             }
             const btn = document.getElementById('genBtn');
             btn.disabled = true;
-            btn.style.backgroundColor = '#333';
-            btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.4em] text-[11px] uppercase">${tr('studio.processing')}</span>`;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">${tr('studio.processing')}</span>`;
             lucide.createIcons();
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('outputImg').classList.add('hidden');
             document.getElementById('loadingState').classList.remove('hidden');
 
+            const targetBackend = document.getElementById('targetBackendSelect')?.value || undefined;
             let debugStep = "Start";
             try {
                 let finalData;
-                const isUpscale = document.getElementById('upscaleToggle').checked;
-
-                debugStep = "Phase 1 Request";
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.4em] text-[11px] uppercase">${isUpscale ? "Phase 1/2: Enhancing..." : "Processing..."}</span>`;
-                lucide.createIcons();
-
-                const enhanceRes = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        workflow_json: "Z-Image-Enhance.json",
-                        params: { "15": { "image": uploadedPath }, "204": { "value": parseFloat(slider.value) } },
-                        type: "enhance",
-                        client_id: CLIENT_ID
-                    })
-                });
-                const enhanceData = await enhanceRes.json();
-                if (enhanceData.error) throw new Error("Enhance API Error: " + enhanceData.error);
-                if (!enhanceData.images?.length) throw new Error("Enhance failed: No images returned");
-
-                finalData = enhanceData;
-
-                if (isUpscale) {
-                    debugStep = "Phase 2 Preparation";
-                    btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.4em] text-[11px] uppercase">Phase 2/2: Uploading...</span>`;
-                    lucide.createIcons();
-
-                    const imgUrl = enhanceData.images[0];
-                    let imgBlob;
-                    try {
-                        const blobRes = await fetch(imgUrl);
-                        if (!blobRes.ok) throw new Error(`Fetch failed status: ${blobRes.status}`);
-                        imgBlob = await blobRes.blob();
-                    } catch (e) { throw new Error(`Failed to fetch Phase 1 image: ${e.message}`); }
-
-                    debugStep = "Phase 2 Upload";
-                    const formData = new FormData();
-                    formData.append('files', imgBlob, 'temp_upscale_input.png');
-                    const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-                    if (!uploadRes.ok) throw new Error(`Upload failed status: ${uploadRes.status}`);
-                    const uploadData = await uploadRes.json();
-                    if (!uploadData.files?.[0]) throw new Error("Intermediate upload failed");
-                    const uploadedInput = uploadData.files[0].comfy_name;
-
-                    debugStep = "Phase 2 Execution";
-                    btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.4em] text-[11px] uppercase">Phase 2/2: Upscaling...</span>`;
-                    lucide.createIcons();
-                    const seed = Math.floor(Math.random() * 4294967295);
-                    const upscaleRes = await fetch('/api/generate', {
+                if (currentEngine === 'dlss5') {
+                    debugStep = "DLSS 5 Neural Rendering";
+                    const dlssMode = document.getElementById('dlssModeSelect')?.value || '2pass';
+                    const dlssStyle = document.getElementById('dlssStyleSelect')?.value || 'Default';
+                    const dlssStructure = parseFloat(dlssStructSlider?.value || '2.0');
+                    const enhanceRes = await fetch('/api/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            workflow_json: "upscale.json",
-                            params: { "15": { "image": uploadedInput }, "172": { "seed": seed, "resolution": currentUpscaleFactor } },
+                            workflow_json: "__dlss5__",
+                            params: { "1": { "image": uploadedPath, "dlss_mode": dlssMode, "dlss_style": dlssStyle, "dlss_structure": dlssStructure } },
                             type: "enhance",
-                            client_id: CLIENT_ID
+                            client_id: CLIENT_ID,
+                            target_backend: targetBackend
                         })
                     });
-                    finalData = await upscaleRes.json();
-                    if (finalData.error) throw new Error("Upscale API Error: " + finalData.error);
-                    if (!finalData.images?.length) throw new Error("Upscale failed: No images returned");
+                    const enhanceData = await enhanceRes.json().catch(() => ({}));
+                    if (!enhanceRes.ok || enhanceData.error) throw new Error(enhanceData.detail || enhanceData.error || `HTTP ${enhanceRes.status}`);
+                    if (!enhanceData.images?.length) throw new Error("DLSS 5 failed: No images returned");
+                    finalData = enhanceData;
+                } else {
+                    const isUpscale = document.getElementById('upscaleToggle').checked;
+                    debugStep = "Phase 1 Request";
+                    btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">${isUpscale ? "Phase 1/2: Enhancing..." : tr('studio.processing')}</span>`;
+                    lucide.createIcons();
+
+                    const enhanceRes = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            workflow_json: "Z-Image-Enhance.json",
+                            params: { "15": { "image": uploadedPath }, "204": { "value": parseFloat(slider.value) } },
+                            type: "enhance",
+                            client_id: CLIENT_ID,
+                            target_backend: targetBackend
+                        })
+                    });
+                    const enhanceData = await enhanceRes.json().catch(() => ({}));
+                    if (!enhanceRes.ok || enhanceData.error) throw new Error(enhanceData.detail || enhanceData.error || `HTTP ${enhanceRes.status}`);
+                    if (!enhanceData.images?.length) throw new Error("Enhance failed: No images returned");
+                    finalData = enhanceData;
+
+                    if (isUpscale) {
+                        debugStep = "Phase 2 Preparation";
+                        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">Phase 2/2: Uploading...</span>`;
+                        lucide.createIcons();
+                        const blobRes = await fetch(enhanceData.images[0]);
+                        if (!blobRes.ok) throw new Error(`Fetch failed status: ${blobRes.status}`);
+                        const imgBlob = await blobRes.blob();
+
+                        debugStep = "Phase 2 Upload";
+                        const formData = new FormData();
+                        formData.append('files', imgBlob, 'temp_upscale_input.png');
+                        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+                        if (!uploadRes.ok) throw new Error(`Upload failed status: ${uploadRes.status}`);
+                        const uploadData = await uploadRes.json();
+                        if (!uploadData.files?.[0]) throw new Error("Intermediate upload failed");
+                        const uploadedInput = uploadData.files[0].comfy_name;
+
+                        debugStep = "Phase 2 Execution";
+                        btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">Phase 2/2: Upscaling...</span>`;
+                        lucide.createIcons();
+                        const seed = Math.floor(Math.random() * 4294967295);
+                        const upscaleRes = await fetch('/api/generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                workflow_json: "upscale.json",
+                                params: { "15": { "image": uploadedInput }, "172": { "seed": seed, "resolution": currentUpscaleFactor } },
+                                type: "enhance",
+                                client_id: CLIENT_ID,
+                                target_backend: targetBackend
+                            })
+                        });
+                        finalData = await upscaleRes.json().catch(() => ({}));
+                        if (!upscaleRes.ok || finalData.error) throw new Error(finalData.detail || finalData.error || `HTTP ${upscaleRes.status}`);
+                        if (!finalData.images?.length) throw new Error("Upscale failed: No images returned");
+                    }
                 }
 
                 currentResult = finalData;
@@ -686,17 +892,15 @@
                 alert(`Error at ${debugStep}: ${error.message || JSON.stringify(error)}`);
             } finally {
                 btn.disabled = false;
-                btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span id="btnText">Begin Remastering</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span id="btnText">${tr('studio.beginRemaster')}</span>`;
                 lucide.createIcons();
             }
         }
 
         function zoomImage() {
             if (currentResult) {
-                // Ensure comparison works by injecting params if missing
                 if (!currentResult.params && uploadedPath) {
-                    currentResult.params = { "15": { "image": uploadedPath } };
+                    currentResult.params = { "1": { "image": uploadedPath } };
                 }
                 openLightbox(currentResult);
             }
@@ -705,6 +909,8 @@
         function renderImageCard(data, isNew = false) {
             const masonry = document.getElementById('masonry');
             if (document.getElementById(`h-${data.timestamp}`)) return;
+            const imgSrc = (typeof safeMediaUrl === 'function') ? safeMediaUrl(data.images?.[0]) : (data.images?.[0] || '');
+            if (!imgSrc) return;
 
             const card = document.createElement('div');
             card.id = `h-${data.timestamp}`;
@@ -713,9 +919,9 @@
             card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data); };
 
             card.innerHTML = `
-                <img src="${data.images[0]}" class="w-full h-auto block transform group-hover:scale-105 transition-transform duration-1000">
+                <img src="${imgSrc}" class="w-full h-auto block transform group-hover:scale-105 transition-transform duration-1000">
                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-5">
-                    <p class="text-white text-[9px] font-black uppercase tracking-widest">Remaster Archive</p>
+                    <p class="text-white text-[9px] font-bold uppercase tracking-widest">Remaster Archive</p>
                 </div>
             `;
             isNew ? masonry.prepend(card) : masonry.appendChild(card);
@@ -778,11 +984,12 @@
             ensureLightboxPreview();
             if(lightboxPreview) lightboxPreview.reset();
 
-            if (data.params?.["15"]?.image) {
+            const origImg = data.params?.["15"]?.image || data.params?.["1"]?.image;
+            if (origImg) {
                 compare.classList.remove('hidden');
                 frame.classList.add('hidden');
                 const genImg = document.getElementById('compareGenerated');
-                document.getElementById('compareOriginal').src = `/api/view?filename=${encodeURIComponent(data.params["15"].image)}&type=input`;
+                document.getElementById('compareOriginal').src = `/api/view?filename=${encodeURIComponent(origImg)}&type=input`;
                 genImg.src = data.images[0];
                 document.getElementById('compareOriginalWrapper').style.clipPath = 'inset(0 50% 0 0)';
                 document.getElementById('compareSlider').style.left = '50%';
@@ -819,6 +1026,7 @@
 
         window.onload = () => {
             applyLanguage();
+            loadRenderNodes();
             loadHistory().then(() => window.HistoryBulkManager?.attach({masonry:'#masonry'}));
             initCompareEvents();
         };

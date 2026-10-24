@@ -1,0 +1,54 @@
+# --- Infinite-Canvas .gitignore (2026-09-01) ---
+
+# user data & generated assets (never version these)
+assets/
+data/
+output/
+logs/
+history.json
+
+# bundled runtime & offline wheels (never version these)
+python/
+packages/
+get-pip.py
+
+# secrets & local env
+.env
+.env.bak
+.env.*.bak
+API/.env
+API/.env.*
+
+# backups & temp
+*.bak
+*.bak-*
+*.before-*
+*.backup
+_self_restart.log
+*.tmp
+.openclaw/
+scratch/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# node (if any tooling added later)
+node_modules/
+
+# OS noise
+Thumbs.db
+Desktop.ini
+
+# Nested accidental repos
+MeansCanvas/
+*/.git
+
+# internal process artifacts & patches
+.superpowers/
+docs/superpowers/
+md/
+*.patch
+*.diff
+

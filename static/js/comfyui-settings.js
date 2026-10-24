@@ -35,32 +35,32 @@ function typeLabel(type){
 
 // ComfyUI 节点类型 → 中文 + 图标 + 颜色分类
 const NODE_INFO = {
-    'KSampler':              { label:'采样器',        icon:'⚙', cat:'sampler' },
-    'KSamplerAdvanced':      { label:'采样器（高级）',icon:'⚙', cat:'sampler' },
-    'SamplerCustom':         { label:'自定义采样',    icon:'⚙', cat:'sampler' },
-    'CheckpointLoaderSimple':{ label:'主模型加载',    icon:'📦', cat:'loader' },
-    'UNETLoader':            { label:'UNet 加载',     icon:'📦', cat:'loader' },
-    'VAELoader':             { label:'VAE 加载',      icon:'📦', cat:'loader' },
-    'CLIPLoader':            { label:'CLIP 加载',     icon:'📦', cat:'loader' },
-    'DualCLIPLoader':        { label:'双 CLIP 加载',  icon:'📦', cat:'loader' },
-    'LoraLoader':            { label:'LoRA 加载',     icon:'⚡', cat:'lora' },
-    'LoraLoaderModelOnly':   { label:'LoRA 加载（仅模型）', icon:'⚡', cat:'lora' },
-    'CLIPTextEncode':        { label:'提示词编码',    icon:'✎', cat:'prompt' },
-    'CLIPTextEncodeFlux':    { label:'Flux 提示词',   icon:'✎', cat:'prompt' },
-    'ConditioningCombine':   { label:'条件合并',      icon:'⊕', cat:'prompt' },
-    'ConditioningConcat':    { label:'条件拼接',      icon:'⊕', cat:'prompt' },
-    'VAEDecode':             { label:'VAE 解码',      icon:'◐', cat:'vae' },
-    'VAEEncode':             { label:'VAE 编码',      icon:'◑', cat:'vae' },
-    'LoadImage':             { label:'图片加载',      icon:'🖼', cat:'image' },
-    'SaveImage':             { label:'图片保存',      icon:'💾', cat:'output' },
-    'PreviewImage':          { label:'图片预览',      icon:'👁', cat:'output' },
-    'ImageScale':            { label:'图片缩放',      icon:'⇆', cat:'image' },
-    'EmptyLatentImage':      { label:'空白潜空间',    icon:'▦', cat:'latent' },
-    'LatentUpscaleBy':       { label:'潜空间放大',    icon:'↗', cat:'latent' },
-    'ControlNetApply':       { label:'ControlNet',    icon:'⇨', cat:'controlnet' },
-    'ControlNetLoader':      { label:'ControlNet 加载',icon:'📦', cat:'loader' },
-    'PrimitiveNode':         { label:'常量',          icon:'•', cat:'misc' },
-    'Note':                  { label:'备注',          icon:'≡', cat:'misc' },
+    'KSampler':              { label:'采样器',        icon:'sliders', cat:'sampler' },
+    'KSamplerAdvanced':      { label:'采样器（高级）',icon:'sliders', cat:'sampler' },
+    'SamplerCustom':         { label:'自定义采样',    icon:'sliders', cat:'sampler' },
+    'CheckpointLoaderSimple':{ label:'主模型加载',    icon:'box', cat:'loader' },
+    'UNETLoader':            { label:'UNet 加载',     icon:'box', cat:'loader' },
+    'VAELoader':             { label:'VAE 加载',      icon:'box', cat:'loader' },
+    'CLIPLoader':            { label:'CLIP 加载',     icon:'box', cat:'loader' },
+    'DualCLIPLoader':        { label:'双 CLIP 加载',  icon:'box', cat:'loader' },
+    'LoraLoader':            { label:'LoRA 加载',     icon:'layers', cat:'lora' },
+    'LoraLoaderModelOnly':   { label:'LoRA 加载（仅模型）', icon:'layers', cat:'lora' },
+    'CLIPTextEncode':        { label:'提示词编码',    icon:'type', cat:'prompt' },
+    'CLIPTextEncodeFlux':    { label:'Flux 提示词',   icon:'type', cat:'prompt' },
+    'ConditioningCombine':   { label:'条件合并',      icon:'git-merge', cat:'prompt' },
+    'ConditioningConcat':    { label:'条件拼接',      icon:'git-merge', cat:'prompt' },
+    'VAEDecode':             { label:'VAE 解码',      icon:'image', cat:'vae' },
+    'VAEEncode':             { label:'VAE 编码',      icon:'image', cat:'vae' },
+    'LoadImage':             { label:'图片加载',      icon:'upload', cat:'image' },
+    'SaveImage':             { label:'图片保存',      icon:'download', cat:'output' },
+    'PreviewImage':          { label:'图片预览',      icon:'eye', cat:'output' },
+    'ImageScale':            { label:'图片缩放',      icon:'maximize-2', cat:'image' },
+    'EmptyLatentImage':      { label:'空白潜空间',    icon:'grid', cat:'latent' },
+    'LatentUpscaleBy':       { label:'潜空间放大',    icon:'arrow-up-right', cat:'latent' },
+    'ControlNetApply':       { label:'ControlNet',    icon:'sliders-horizontal', cat:'controlnet' },
+    'ControlNetLoader':      { label:'ControlNet 加载',icon:'box', cat:'loader' },
+    'PrimitiveNode':         { label:'常量',          icon:'code', cat:'misc' },
+    'Note':                  { label:'备注',          icon:'file-text', cat:'misc' },
 };
 
 // 常见输入字段 → 中文友好名
@@ -114,7 +114,7 @@ function nodeSub(node){
     return node.class_type || '';
 }
 function nodeIcon(node){
-    return NODE_INFO[node.class_type]?.icon || '◆';
+    return NODE_INFO[node.class_type]?.icon || 'box';
 }
 function inputLabel(name){
     return INPUT_LABELS[name] || name;
@@ -182,7 +182,7 @@ function mediaPreviewHtml(kind, url, name='', compact=false){
     if(!url) return mediaUploadText(kind);
     if(kind === 'video') return `<video src="${safeUrl}" muted preload="metadata" playsinline controls></video>`;
     if(kind === 'audio') return `<div class="media-file-chip"><i data-lucide="file-audio" class="${compact ? 'w-5 h-5' : 'w-6 h-6'}"></i><span class="media-file-name">${safeName}</span><audio src="${safeUrl}" controls preload="metadata"></audio></div>`;
-    return `<img src="${safeUrl}">`;
+    return `<img src="${safeUrl}" alt="${safeName}">`;
 }
 function defaultMiniCards(){
     return {
@@ -201,25 +201,74 @@ function defaultMiniTestNodes(){
     ];
 }
 
-// —— ComfyUI 后端地址管理 ——
+// —— ComfyUI 后端地址与节点健康管理 ——
 let comfyInstances = [];
+let comfyInstanceStatusMap = {};
+let selectedTestBackend = 'auto';
+let lastRunBackend = '';
+
 async function loadComfyInstances(){
     try {
-        const data = await fetch('/api/comfyui/instances').then(r => r.json());
+        const data = await fetch('/api/comfyui/instances/status').then(r => r.json());
         comfyInstances = Array.isArray(data.instances) ? data.instances : [];
+        comfyInstanceStatusMap = {};
+        (data.nodes || []).forEach(n => { if(n?.address) comfyInstanceStatusMap[n.address] = n; });
         renderComfyInstances();
-    } catch(e){ console.error(e); }
+        renderPreview();
+    } catch(e){
+        try {
+            const data = await fetch('/api/comfyui/instances').then(r => r.json());
+            comfyInstances = Array.isArray(data.instances) ? data.instances : [];
+            renderComfyInstances();
+        } catch(err){ console.error(err); }
+    }
+}
+async function refreshComfyInstancesStatus(){
+    setStatus(tr('comfy.loading'));
+    await loadComfyInstances();
+    setStatus('');
+}
+function formatComfyNodeOptionLabel(addr){
+    const st = comfyInstanceStatusMap[addr];
+    if(!st) return addr;
+    const stateTxt = tr(st.online ? 'comfy.nodeOnline' : 'comfy.nodeOffline');
+    const gpuTxt = st.gpu_short ? `${st.gpu_short} · ` : '';
+    return `${addr} (${gpuTxt}${stateTxt})`;
 }
 function renderComfyInstances(){
     const el = document.getElementById('comfyInstancesList');
     if(!el) return;
-    el.innerHTML = comfyInstances.map((addr, i) => `
-        <div style="display:flex;align-items:center;gap:6px;padding:4px;border:1px solid var(--line);border-radius:9px;background:var(--soft)">
-            <span style="width:18px;text-align:center;font-size:10.5px;color:var(--faint);font-weight:800">${i + 1}</span>
-            <input class="small-input" type="text" value="${escapeAttr(addr)}" placeholder="host:port" oninput="updateComfyInstance(${i}, this.value)" style="flex:1;height:28px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;font-family:ui-monospace,Menlo,monospace">
-            <button class="opt-del" type="button" onclick="removeComfyInstance(${i})" title="删除"><i data-lucide="x" class="w-3 h-3"></i></button>
-        </div>
-    `).join('');
+    el.innerHTML = comfyInstances.map((addr, i) => {
+        const st = comfyInstanceStatusMap[addr];
+        let metaHtml = '';
+        if(st){
+            const dotBg = st.online ? 'var(--text)' : 'var(--faint)';
+            const stateTxt = tr(st.online ? 'comfy.nodeOnline' : 'comfy.nodeOffline');
+            const parts = [stateTxt];
+            if(st.online && st.gpu_short){
+                const vram = st.vram_total_gb > 0 ? ` ${st.vram_free_gb}/${st.vram_total_gb}GB` : '';
+                parts.push(`${st.gpu_short}${vram}`);
+            }
+            if(st.online){
+                const qCount = (st.queue_running || 0) + (st.queue_pending || 0);
+                parts.push(tf('comfy.queueCount', {count: qCount}));
+                if(st.latency_ms != null) parts.push(`${st.latency_ms}ms`);
+            }
+            metaHtml = `<div style="display:flex;align-items:center;gap:5px;padding:2px 4px 0 22px;font-size:10.5px;color:${st.online ? 'var(--muted)' : 'var(--faint)'};font-weight:600">
+                <span style="width:6px;height:6px;border-radius:999px;background:${dotBg};display:inline-block;flex-shrink:0"></span>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(parts.join(' · '))}</span>
+            </div>`;
+        }
+        return `
+        <div style="display:flex;flex-direction:column;gap:2px;padding:5px;border:1px solid var(--line);border-radius:9px;background:var(--soft)">
+            <div style="display:flex;align-items:center;gap:6px">
+                <span style="width:18px;text-align:center;font-size:10.5px;color:var(--faint);font-weight:700">${i + 1}</span>
+                <input class="small-input" type="text" value="${escapeAttr(addr)}" placeholder="host:port" oninput="updateComfyInstance(${i}, this.value)" style="flex:1;height:28px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;font-family:ui-monospace,Menlo,monospace">
+                <button class="opt-del" type="button" onclick="removeComfyInstance(${i})" title="删除"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </div>
+            ${metaHtml}
+        </div>`;
+    }).join('');
     refreshIcons();
 }
 function addComfyInstance(){
@@ -246,9 +295,9 @@ async function saveComfyInstances(){
         if(!res.ok) throw new Error((await res.json()).detail || '保存失败');
         const data = await res.json();
         comfyInstances = data.instances || cleaned;
-        renderComfyInstances();
+        await loadComfyInstances();
         try { new BroadcastChannel('studio-api').postMessage({ type: 'comfy-instances-changed' }); } catch(e) {}
-        try { window.parent?.postMessage({ type: 'comfy-instances-changed' }, '*'); } catch(e) {}
+        try { window.parent?.postMessage({ type: 'comfy-instances-changed' }, window.location.origin); } catch(e) {}
         setStatus('ComfyUI 后端地址已保存');
     } catch(e){
         alert(e.message || '保存失败');
@@ -276,7 +325,7 @@ window.addEventListener('pageshow', () => {
 
 function renderList(){
     listEl.innerHTML = workflows.map(w => `
-        <button class="workflow-card ${w.name===selectedName?'active':''}" type="button" onclick="selectWorkflow('${escapeHtml(w.name)}')">
+        <button class="workflow-card ${w.name===selectedName?'active':''}" type="button" data-workflow-name="${escapeAttr(w.name)}">
             <span class="workflow-icon"><i data-lucide="${w.builtin?'package':'file-json-2'}" class="w-3.5 h-3.5"></i></span>
             <span class="min-w-0" style="flex:1">
                 <div class="workflow-name">${escapeHtml(w.title)}</div>
@@ -469,7 +518,7 @@ function renderEditor(){
             <div class="node-card ${expanded?'expanded':''}" id="node-card-${escapeAttr(nodeId)}" data-node-id="${escapeAttr(nodeId)}">
                 <div class="node-card-head" onclick="this.parentElement.classList.toggle('expanded')">
                     <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
-                        <span style="font-size:20px;line-height:1;flex:0 0 auto">${icon}</span>
+                        <span style="display:inline-flex;align-items:center;line-height:1;flex:0 0 auto"><i data-lucide="${escapeAttr(icon)}" class="w-5 h-5 text-muted"></i></span>
                         <div style="min-width:0">
                             <div class="node-class">${escapeHtml(nodeLabel(node))}</div>
                             <div class="node-id">${escapeHtml(nodeSub(node))} · #${escapeHtml(nodeId)} · ${tf('comfy.configurableCount', {count:inputs.length})}</div>
@@ -583,7 +632,7 @@ function renderGraph(){
         return `
             <g class="gnode cat-${cat} ${exposedClass}" data-node-id="${escapeAttr(id)}" transform="translate(${pos.x},${pos.y})" onclick="openNodePopup('${escapeAttr(id)}', this)">
                 <rect width="${NODE_W}" height="${NODE_H}" rx="8"></rect>
-                <text class="gn-icon" x="10" y="20" font-size="14">${icon}</text>
+                <circle cx="16" cy="18" r="3.5" fill="currentColor" opacity="0.6"/>
                 <text class="gn-title" x="28" y="20">${escapeHtml(truncLabel)}</text>
                 <text class="gn-sub" x="28" y="35">${escapeHtml(truncSub)}</text>
                 <text class="gn-sub" x="${NODE_W - 8}" y="20" text-anchor="end">#${escapeHtml(id)}</text>
@@ -691,7 +740,7 @@ function openNodePopup(nodeId, gEl){
     const sub = nodeSub(node);
     popup.innerHTML = `
         <div class="popup-head">
-            <span class="popup-icon">${icon}</span>
+            <span class="popup-icon" style="display:inline-flex;align-items:center"><i data-lucide="${escapeAttr(icon)}" class="w-5 h-5 text-muted"></i></span>
             <div style="min-width:0;flex:1">
                 <div class="popup-title">${escapeHtml(label)}</div>
                 <div class="popup-sub">${escapeHtml(sub)} · #${escapeHtml(nodeId)}</div>
@@ -762,9 +811,9 @@ function renderInputRow(nodeId, inputKey, rawValue){
         const preview = rawValue.length > 50 ? rawValue.slice(0,50) + '…' : rawValue;
         valueBadge = `<span style="color:var(--muted);font-size:10.5px;font-weight:700">"</span><span style="color:var(--text);font-size:11px;font-weight:700">${escapeHtml(preview)}</span><span style="color:var(--muted);font-size:10.5px;font-weight:700">"</span>`;
     } else if(typeOf === 'number'){
-        valueBadge = `<span style="color:#0369a1;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums">${rawValue}</span>`;
+        valueBadge = `<span style="color:var(--text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums">${rawValue}</span>`;
     } else if(typeOf === 'boolean'){
-        valueBadge = `<span style="color:${rawValue?'#15803d':'#b45309'};font-size:11px;font-weight:800">${rawValue?'✓ true':'✗ false'}</span>`;
+        valueBadge = `<span style="color:var(--accent);font-size:11px;font-weight:700">${rawValue?'true':'false'}</span>`;
     } else {
         valueBadge = `<span style="color:var(--faint);font-size:11px">${escapeHtml(String(rawValue))}</span>`;
     }
@@ -825,7 +874,7 @@ function renderExtras(f){
                 下拉选项 <span style="color:var(--faint)">· 数字形式自动作为数值传给 ComfyUI</span>
             </div>
             ${rows}
-            <button class="ghost-btn" type="button" onclick="event.stopPropagation();addDropdownOption('${fid}')" style="height:34px;padding:0 16px;font-size:12px;font-weight:800;align-self:flex-start;gap:6px"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>添加选项</span></button>
+            <button class="ghost-btn" type="button" onclick="event.stopPropagation();addDropdownOption('${fid}')" style="height:34px;padding:0 16px;font-size:12px;font-weight:700;align-self:flex-start;gap:6px"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>添加选项</span></button>
         </div>`;
     }
     return '';
@@ -940,17 +989,18 @@ function renderPreview(){
         return;
     }
     const fieldsHtml = fields.map(f => renderPreviewField(f)).join('');
+    const nodeOpts = [`<option value="auto" ${selectedTestBackend==='auto'?'selected':''}>${escapeHtml(tr('comfy.autoDispatch'))}</option>`]
+        .concat(comfyInstances.filter(Boolean).map(addr => `<option value="${escapeAttr(addr)}" ${selectedTestBackend===addr?'selected':''}>${escapeHtml(formatComfyNodeOptionLabel(addr))}</option>`))
+        .join('');
+    const backendSelectorHtml = `<div class="pfield"><div class="pfield-label">${escapeHtml(tr('comfy.targetBackend'))}</div><select class="pfield-select" onchange="selectedTestBackend=this.value">${nodeOpts}</select></div>`;
+    const runInfo = lastRunBackend ? `${tr('comfy.runSuccess')} · ${lastRunBackend}` : tr('comfy.runSuccess');
     const resultHtml = runResult
-        ? `<div class="run-result"><img src="${escapeAttr(runResult)}" onclick="openImagePreview('${escapeAttr(runResult)}')"><div class="run-status">${tr('comfy.runSuccess')}</div></div>`
+        ? `<div class="run-result"><img src="${escapeAttr(runResult)}" alt="Preview" onclick="openImagePreview('${escapeAttr(runResult)}')"><div class="run-status">${escapeHtml(runInfo)}</div></div>`
         : '';
     const runButton = `<button id="runBtn" class="run-btn" type="button" onclick="onRun()">
             <i data-lucide="play" class="w-4 h-4"></i><span>${tr('comfy.runTest')}</span>
         </button>`;
-    previewCard.innerHTML = `
-        ${fieldsHtml}
-        ${runButton}
-        ${resultHtml}
-    `;
+    previewCard.innerHTML = `${fieldsHtml}${backendSelectorHtml}${runButton}${resultHtml}`;
     refreshIcons();
 }
 
@@ -1040,7 +1090,7 @@ function renderMiniCanvasPreview(target = previewCard, large = false){
     const comfy = miniTestNodes.find(n => n.type === 'comfy') || defaultMiniTestNodes().find(n => n.type === 'comfy');
     const output = miniTestNodes.find(n => n.type === 'output') || defaultMiniTestNodes().find(n => n.type === 'output');
     const resultHtml = runResult
-        ? `<div class="mini-result"><img src="${escapeAttr(runResult)}" onclick="openImagePreview('${escapeAttr(runResult)}')"><div class="run-status">${tr('comfy.runSuccess')}</div></div>`
+        ? `<div class="mini-result"><img src="${escapeAttr(runResult)}" alt="Preview" onclick="openImagePreview('${escapeAttr(runResult)}')"><div class="run-status">${tr('comfy.runSuccess')}</div></div>`
         : `<div class="preview-empty" style="padding:18px 10px">${tr('comfy.resultHere')}</div>`;
     target.style.display = 'block';
     target.innerHTML = `
@@ -1070,7 +1120,7 @@ function renderMiniCanvasPreview(target = previewCard, large = false){
                     <span class="mini-port in"></span><span class="mini-port out"></span>
                     <div class="mini-card-head"><i data-lucide="workflow" class="w-3.5 h-3.5"></i><span class="mini-node-title">${escapeHtml(currentConfig.title || selectedName.replace('.json',''))} · ${tr('canvas.comfyCustom')}</span></div>
                     <div class="mini-card-body">
-                        <div class="text-[10px] font-black uppercase" style="color:var(--faint)">${tr('comfy.inputs')}</div>
+                        <div class="text-[10px] font-bold uppercase" style="color:var(--faint)">${tr('comfy.inputs')}</div>
                         <div class="preview-empty" style="padding:10px;font-size:11px;text-align:left">
                             ${mediaFieldLabel('image', imageFields.length)} · ${mediaFieldLabel('video', videoFields.length)} · ${mediaFieldLabel('audio', audioFields.length)} · ${promptFields.length ? tr('comfy.acceptsPrompt') : tr('comfy.noPromptField')}
                         </div>
@@ -1280,17 +1330,19 @@ async function onRun(){
     try {
         const baseFields = workspaceMode === 'canvas' ? fieldsFromMiniCanvas() : {...previewValues};
         const runFields = applyActiveRandomValues(baseFields);
+        const targetBackend = selectedTestBackend && selectedTestBackend !== 'auto' ? selectedTestBackend : '';
         const res = await fetch(`/api/workflows/${encodeURIComponent(selectedName)}/run`, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ fields:runFields, config:currentConfig, client_id:'workflow-test' })
+            body:JSON.stringify({ fields:runFields, config:currentConfig, client_id:'workflow-test', target_backend:targetBackend })
         });
         if(!res.ok) throw new Error((await res.json()).detail || tr('comfy.runFailed'));
         const data = await res.json();
         runResult = data.images?.[0] || null;
+        lastRunBackend = data.backend || targetBackend || '';
         renderPreview();
         renderWorkspaceView();
-        setStatus(tr('comfy.runSuccess'));
+        setStatus(lastRunBackend ? `${tr('comfy.runSuccess')} (${lastRunBackend})` : tr('comfy.runSuccess'));
     } catch(e){
         alert(e.message || tr('comfy.runFailed'));
         setStatus(tr('comfy.runFailed'));
@@ -1383,6 +1435,7 @@ async function onDelete(){
 }
 
 window.addEventListener('message', event => {
+    if(event.origin && event.origin !== location.origin) return;
     if(event.data?.type === 'studio-theme' && window.StudioTheme) window.StudioTheme.set(event.data.theme);
     if(event.data?.type === 'studio-lang' && window.StudioI18n) window.StudioI18n.set(event.data.lang);
 });
@@ -1391,6 +1444,14 @@ window.addEventListener('studio-lang-change', refreshLanguageView);
 document.addEventListener('DOMContentLoaded', () => {
     refreshIcons();
     if(window.StudioI18n) StudioI18n.apply();
+    if(listEl) {
+        listEl.addEventListener('click', (e) => {
+            const card = e.target.closest('.workflow-card');
+            if(card && card.dataset.workflowName) {
+                selectWorkflow(card.dataset.workflowName);
+            }
+        });
+    }
     loadList();
     loadComfyInstances();
 });

@@ -37,6 +37,24 @@ const api = (window.comfyAPI && window.comfyAPI.api) ? window.comfyAPI.api : {
 };
 const app = (window.comfyAPI && window.comfyAPI.app) ? window.comfyAPI.app : null;
 
+function escapeHtml(str) {
+  if (typeof window !== 'undefined' && typeof window.escapeHtml === 'function') {
+    return window.escapeHtml(str);
+  }
+  return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[s]));
+}
+
+function isSafeMediaUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return /^(https?:\/\/|data:image\/|blob:|\/assets\/|\/output\/|\/api\/)/i.test(url.trim());
+}
+
 // --- UI Constants & Configuration ---
 const RULER_HEIGHT = 24;
 const BLOCK_HEIGHT = 160; // Increased to make the image timeline area much taller
@@ -1823,7 +1841,7 @@ class TimelineEditor {
       this.strengthRow.style.display = "flex";
       this.audioInfoArea.style.display = "block";
       this.audioInfoArea.innerHTML = `
-        File: <span>${seg.fileName || "Unknown"}</span><br>
+        File: <span>${escapeHtml(seg.fileName || "Unknown")}</span><br>
         Length: <span>${this.formatTime(seg.audioDurationFrames)}</span> Output Length: <span>${this.formatTime(seg.length)}</span><br>
         Trim-in: <span>${this.formatTime(Math.round(seg.trimStart))}</span> Trim-Out: <span>${this.formatTime(Math.round(seg.audioDurationFrames - (seg.trimStart + seg.length)))}</span>
       `;
@@ -3109,6 +3127,10 @@ class TimelineEditor {
       saveBtn.className = "pr-gap-menu-btn";
       saveBtn.innerHTML = `Save Image`;
       saveBtn.onclick = () => {
+        if (!isSafeMediaUrl(seg.imageB64)) {
+          this.dismissContextMenu();
+          return;
+        }
         const a = document.createElement("a");
         a.href = seg.imageB64;
         a.download = "timeline_image.jpg";
@@ -3121,10 +3143,30 @@ class TimelineEditor {
       openBtn.className = "pr-gap-menu-btn";
       openBtn.innerHTML = `Open Image in New Tab`;
       openBtn.onclick = () => {
-        const win = window.open();
+        if (!isSafeMediaUrl(seg.imageB64)) {
+          this.dismissContextMenu();
+          return;
+        }
+        const win = window.open('', '_blank', 'noopener,noreferrer');
         if (win) {
-          win.document.write(`<body style="margin:0;display:flex;justify-content:center;align-items:center;background:#0e0e0e;height:100vh;"><img style="max-width:100%;max-height:100%;" src="${seg.imageB64}" /></body>`);
-          win.document.close();
+          try {
+            win.opener = null;
+            win.document.title = "Preview";
+            const body = win.document.body;
+            body.style.margin = "0";
+            body.style.display = "flex";
+            body.style.justifyContent = "center";
+            body.style.alignItems = "center";
+            body.style.background = "#0e0e0e";
+            body.style.height = "100vh";
+            const img = win.document.createElement("img");
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.src = seg.imageB64;
+            body.appendChild(img);
+          } catch (e) {
+            console.error("Failed to render preview image", e);
+          }
         }
         this.dismissContextMenu();
       };

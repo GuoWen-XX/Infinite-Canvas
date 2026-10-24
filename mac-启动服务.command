@@ -5,7 +5,7 @@
 cd "$(dirname "$0")"
 
 echo "============================================"
-echo "   ComfyUI-API-Modelscope"
+echo "   MeansCanvas (开卷画布)"
 echo "============================================"
 echo ""
 echo "修复权限中..."
@@ -21,22 +21,22 @@ chmod +x main.py 2>/dev/null
 echo "权限已修复！"
 echo ""
 
-# 清理占用 3000 端口的旧进程，避免 address already in use
-OLD_PID=$(lsof -ti :3000 2>/dev/null)
+# 清理占用 3333 端口的旧进程，避免 address already in use
+OLD_PID=$(lsof -ti :3333 2>/dev/null)
 if [ -n "$OLD_PID" ]; then
-    echo "检测到 3000 端口被占用，正在停止旧进程 (PID: $OLD_PID)..."
+    echo "检测到 3333 端口被占用，正在停止旧进程 (PID: $OLD_PID)..."
     kill $OLD_PID 2>/dev/null
     sleep 1
     # 仍未退出则强制结束
-    if lsof -ti :3000 >/dev/null 2>&1; then
-        kill -9 $(lsof -ti :3000) 2>/dev/null
+    if lsof -ti :3333 >/dev/null 2>&1; then
+        kill -9 $(lsof -ti :3333) 2>/dev/null
     fi
     echo "旧进程已停止。"
     echo ""
 fi
 
 echo "正在启动服务..."
-echo "本机访问： http://127.0.0.1:3000/"
+echo "本机访问： http://127.0.0.1:3333/"
 echo "============================================"
 echo ""
 

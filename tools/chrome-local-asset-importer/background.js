@@ -43,7 +43,7 @@ chrome.webRequest.onHeadersReceived.addListener(
       record(details.tabId, details.url, ct);
     }
   },
-  {urls: ['<all_urls>']},
+  {urls: ['<all_urls>'], types: ['xmlhttprequest', 'media', 'other']},
   ['responseHeaders']
 );
 

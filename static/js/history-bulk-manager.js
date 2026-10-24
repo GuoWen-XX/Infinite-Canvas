@@ -32,14 +32,14 @@
             }
             .hbm-toolbar .hbm-spacer { flex: 1; }
             .hbm-count {
-                font-size: 11px; font-weight: 800; letter-spacing: .05em;
+                font-size: 11px; font-weight: 700; letter-spacing: .05em;
                 color: #64748b; text-transform: uppercase;
             }
             .hbm-btn {
                 display: inline-flex; align-items: center; gap: 6px;
                 height: 36px; padding: 0 16px; border-radius: 999px;
                 border: 1px solid #e2e8f0; background: #fff; color: #111827;
-                font-size: 11px; font-weight: 800; letter-spacing: .04em;
+                font-size: 11px; font-weight: 700; letter-spacing: .04em;
                 text-transform: uppercase; cursor: pointer;
                 transition: all .25s cubic-bezier(.4,0,.2,1); white-space: nowrap;
             }
@@ -61,7 +61,7 @@
                 box-shadow: 0 2px 8px rgba(0,0,0,.25);
                 z-index: 30; pointer-events: none;
                 display: flex; align-items: center; justify-content: center;
-                font-size: 14px; font-weight: 900; color: transparent;
+                font-size: 14px; font-weight: 700; color: transparent;
                 line-height: 1;
             }
             body.history-bulk-selecting [data-history-ts].hbm-selected::after {
@@ -205,7 +205,7 @@
             }));
 
             const failed = results.filter(r => r.status === 'rejected').length;
-            if(failed > 0) alert(failed + ' / ' + sel.length + ' ✗');
+            if(failed > 0) alert(failed + ' / ' + sel.length + ' ' + (typeof langIsEn === 'function' && langIsEn() ? 'failed to delete' : '项删除失败'));
 
             refreshLabels();
             if(selectedCards().length === 0 && cards().length === 0){ exit(); }

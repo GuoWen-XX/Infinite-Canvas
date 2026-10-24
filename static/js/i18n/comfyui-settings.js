@@ -67,6 +67,13 @@
         "comfy.runFailed": { zh: "运行失败", en: "Run failed" },
         "comfy.invalidJson": { zh: "不是有效的 JSON 文件", en: "Not a valid JSON file" },
         "comfy.namePrompt": { zh: "给这个工作流起个名字（中文/英文/数字/_-.）：", en: "Name this workflow (letters/numbers/_-.):" },
-        "comfy.uploaded": { zh: "已上传：", en: "Uploaded: " }
+        "comfy.uploaded": { zh: "已上传：", en: "Uploaded: " },
+        "comfy.backendNodes": { zh: "ComfyUI 渲染节点", en: "ComfyUI Render Nodes" },
+        "comfy.refreshStatus": { zh: "刷新状态", en: "Refresh Status" },
+        "comfy.nodeOnline": { zh: "在线", en: "Online" },
+        "comfy.nodeOffline": { zh: "离线", en: "Offline" },
+        "comfy.autoDispatch": { zh: "自动负载均衡 (Auto)", en: "Auto Load-Balance (Auto)" },
+        "comfy.targetBackend": { zh: "渲染节点", en: "Target Node" },
+        "comfy.queueCount": { zh: "队列 {count}", en: "Queue {count}" }
     });
 })();

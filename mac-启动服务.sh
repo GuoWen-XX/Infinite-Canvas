@@ -7,11 +7,18 @@ fi
 if [ -z "$LAN_IP" ]; then
   LAN_IP="127.0.0.1"
 fi
-APP_URL="http://${LAN_IP}:3000/"
+APP_URL="http://${LAN_IP}:3333/"
 
-echo "Starting ComfyUI-API-Modelscope..."
+python3 -c "from core.providers import get_configured_access_token; exit(0 if get_configured_access_token() else 1)" 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "[安全提示] 未检测到 IC_ACCESS_TOKEN 配置。"
+  echo "          当前服务在局域网模式运行，建议在 API/.env 中设置 IC_ACCESS_TOKEN。"
+  echo ""
+fi
+
+echo "Starting MeansCanvas (开卷画布)..."
 echo "Visit: ${APP_URL}"
-echo "Local: http://127.0.0.1:3000/"
+echo "Local: http://127.0.0.1:3333/"
 echo "Press Ctrl+C to stop."
 echo ""
 

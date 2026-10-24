@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>Flux Modern Gallery | Unified Console</title>
     <script>
         (function(){
@@ -17,19 +19,21 @@
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <script src="/static/js/image-preview.js?v=2026.07.29.1785292584"></script>
-    <script src="/static/js/history-bulk-manager.js?v=2026.07.29.1785292584"></script>
+    <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=2026.10.04.1790813007">
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <script src="/static/js/image-preview.js?v=2026.10.04.1787932356"></script>
+    <script src="/static/js/history-bulk-manager.js?v=2026.10.04.1790800008"></script>
     <style>
         :root {
-            --bg-base: #f8f8f8;
-            --text-main: #1a1a1a;
+            --bg-base: var(--bg, #f8f8f8);
+            --text-main: var(--text, #1a1a1a);
             --max-w: 1280px;
             --easing: cubic-bezier(0.4, 0, 0.2, 1);
-            --accent: #000000;
+            --accent: var(--strong, #000000);
         }
 
         /* --- 极简悬浮浅灰滚动条 (无底色/左移) --- */
@@ -45,16 +49,15 @@
         }
 
         *::-webkit-scrollbar-thumb {
-            background-color: #d8d8d8 !important;
+            background-color: var(--line-2, #d8d8d8) !important;
             border: 3px solid transparent !important;
             border-right-width: 5px !important;
-            /* 增加右侧间距，使滚动条向左位移 */
             background-clip: padding-box !important;
             border-radius: 10px !important;
         }
 
         *::-webkit-scrollbar-thumb:hover {
-            background-color: #c0c0c0 !important;
+            background-color: var(--ink-secondary, #c0c0c0) !important;
         }
 
         *::-webkit-scrollbar-corner {
@@ -63,12 +66,12 @@
 
         * {
             scrollbar-width: thin !important;
-            scrollbar-color: #d8d8d8 transparent !important;
+            scrollbar-color: var(--line-2, #d8d8d8) transparent !important;
         }
 
         body {
             background-color: var(--bg-base);
-            font-family: "Inter", -apple-system, "PingFang SC", sans-serif;
+            font-family: 'Montserrat', 'Space Grotesk', 'Source Han Sans SC', '思源黑体', -apple-system, sans-serif;
             color: var(--text-main);
             -webkit-font-smoothing: antialiased;
         }
@@ -80,46 +83,50 @@
         }
 
         .console-card {
-            background: #ffffff;
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+            background: var(--card, #ffffff);
+            border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+            box-shadow: 0 4px 20px var(--shadow, rgba(0, 0, 0, 0.03));
+            border-radius: 20px;
+            overflow: hidden;
         }
 
-        /* 复合切换组件样式 */
         .mode-switcher {
             position: relative;
-            background: #f1f1f1;
-            padding: 4px;
-            border-radius: 14px;
+            background: var(--card-subtle, #f1f1f1);
+            padding: 3px;
+            border-radius: 12px;
             display: flex;
-            width: 260px;
+            width: 100%;
+            max-width: 320px;
+            border: 1px solid var(--line, transparent);
         }
 
         .mode-btn {
             position: relative;
             z-index: 10;
             flex: 1;
-            padding: 8px 0;
+            padding: 7px 8px;
             text-align: center;
             font-size: 11px;
-            font-weight: 800;
+            font-weight: 600;
             text-transform: uppercase;
-            color: #999;
-            transition: color 0.3s ease;
+            white-space: nowrap;
+            color: var(--ink-tertiary, #999);
+            transition: color 0.2s ease;
             cursor: pointer;
         }
 
         .mode-btn.active {
-            color: #000;
+            color: var(--text, #000);
         }
 
         .mode-glider {
             position: absolute;
-            height: calc(100% - 8px);
-            width: calc(50% - 4px);
-            background: #fff;
-            border-radius: 11px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            height: calc(100% - 6px);
+            width: calc(50% - 3px);
+            background: var(--card, #fff);
+            border-radius: 9px;
+            box-shadow: 0 1px 4px var(--shadow, rgba(0, 0, 0, 0.08));
             transition: transform 0.3s var(--easing);
             z-index: 1;
         }
@@ -138,120 +145,242 @@
 
         .masonry-item {
             aspect-ratio: 1 / 1;
-            border-radius: 24px;
+            border-radius: 16px;
             overflow: hidden;
-            background: #eee;
-            border: 1px solid #f1f5f9;
-            transition: all 0.5s var(--easing);
+            background: var(--card, #eee);
+            border: 1px solid var(--line, #f1f5f9);
+            transition: all 0.3s var(--easing);
             position: relative;
         }
 
         .masonry-item:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px var(--shadow, rgba(0, 0, 0, 0.08));
         }
 
         .gallery-lightbox {
-            background: rgba(255, 255, 255, 0.99);
+            background: var(--bg, rgba(255, 255, 255, 0.99));
         }
 
-        .btn-render {
-            background: #000;
-            color: #fff;
-            transition: all 0.3s ease;
-        }
-
-        .btn-render:hover {
-            transform: translateY(-1px);
-            background: #222;
-        }
-
-        .btn-render:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        .dimension-box {
+            background: var(--card-subtle, #fafafa);
+            border: 1px solid var(--line, rgba(0,0,0,0.08));
+            border-radius: 8px;
+            padding: 4px 8px;
         }
 
         input::-webkit-inner-spin-button {
             display: none;
         }
+
+        /* --- Studio Page Header & Typography --- */
+        .studio-page-head {
+            display: flex !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            gap: 20px !important;
+            margin-bottom: 32px !important;
+            padding-bottom: 22px !important;
+            border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.07)) !important;
+        }
+        .studio-title-group {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        .studio-title-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 14px !important;
+            flex-wrap: wrap !important;
+        }
+        .studio-title {
+            margin: 0 !important;
+            font-size: 34px !important;
+            font-weight: 600 !important;
+            line-height: 1.18 !important;
+            letter-spacing: -0.01em !important;
+            color: var(--text, var(--ink-primary, #0f172a)) !important;
+            font-style: normal !important;
+            font-feature-settings: "palt" 1, "kern" 1 !important;
+        .studio-desc {
+            margin: 0 !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.6 !important;
+            letter-spacing: 0.025em !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-style: normal !important;
+        }
+        .studio-head-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            flex-shrink: 0 !important;
+        }
+        .studio-status-pill {
+            height: 34px !important;
+            padding: 0 14px !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--line, rgba(0, 0, 0, 0.08)) !important;
+            background: var(--card, #ffffff) !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            box-shadow: 0 1px 3px var(--shadow, rgba(0,0,0,0.04)) !important;
+            font-style: normal !important;
+        }
+        .studio-status-dot {
+            width: 7px !important;
+            height: 7px !important;
+            border-radius: 50% !important;
+            background: #10b981 !important;
+            display: inline-block !important;
+        }
+        .studio-status-dot.busy {
+            background: #d97706 !important;
+            animation: studioPulse 1.5s infinite ease-in-out !important;
+        }
     </style>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
 </head>
 
 <body class="antialiased">
 
-    <header class="pt-20 pb-12">
-        <div class="layout-container">
-            <div class="console-card rounded-3xl p-1.5">
-                <div class="bg-gray-50/50 rounded-[22px] p-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest" data-i18n="studio.unifiedConsole">Unified Art
-                            Console</span>
-                        <div id="statusDot" class="flex items-center gap-2">
-                            <span id="statusText" class="text-[9px] font-bold text-gray-500 uppercase" data-i18n="studio.ready">System
-                                Ready</span>
-                            <div id="dotColor" class="w-1.5 h-1.5 bg-black rounded-full"></div>
+    <div class="layout-container max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        <header class="studio-page-head flex items-end justify-between gap-5 mb-8 pb-6 border-b border-[var(--line,rgba(0,0,0,0.07))]">
+            <div class="studio-title-group flex flex-col gap-2">
+                <div class="studio-title-row flex items-center gap-3.5 flex-wrap">
+                    <h1 class="studio-title text-3xl lg:text-4xl font-semibold tracking-normal text-[var(--text,#0f172a)]" data-i18n="studio.zimageTitle">文生图</h1>
+                </div>
+                <p class="studio-desc text-xs md:text-sm text-[var(--ink-secondary,#64748b)]" data-i18n="studio.zimageDesc">极简一体化文生图创作终端，支持本地 ComfyUI 与 ModelScope 云端算力推理。</p>
+            </div>
+            <div class="studio-head-actions flex items-center gap-2.5 flex-shrink-0">
+                <div id="statusDot" class="studio-status-pill inline-flex items-center gap-2 h-8 px-3.5 rounded-full border border-[var(--line,rgba(0,0,0,0.08))] bg-[var(--card,#ffffff)] text-[11px] font-semibold text-[var(--ink-secondary,#64748b)] shadow-sm">
+                    <span id="dotColor" class="studio-status-dot"></span>
+                    <span id="statusText" data-i18n="studio.ready">系统就绪</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="studio-workbench items-start">
+            <!-- Left Controls Column -->
+            <div class="studio-workbench-left">
+                <!-- Prompt Section -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                        <span class="flex items-center gap-1.5"><i data-lucide="terminal" class="w-3.5 h-3.5"></i> <span data-i18n="studio.inputPrompt">提示词 Prompt</span></span>
+                    </div>
+                    <textarea id="prompt" rows="4"
+                        class="w-full bg-[var(--card-subtle)] border border-[var(--line)] rounded-xl p-4 text-sm font-normal outline-none placeholder:text-[var(--ink-tertiary)] text-[var(--text)] resize-none leading-relaxed transition-colors"
+                        placeholder="输入画面描述词，描述场景、光影、构图与细节..." data-i18n-placeholder="studio.describeVision"></textarea>
+                </section>
+
+                <!-- Settings & Action Section -->
+                <section class="studio-card-panel">
+                    <!-- Engine Source -->
+                    <div class="space-y-2">
+                        <span class="text-[11px] font-semibold text-[var(--ink-secondary)] uppercase tracking-wider block" data-i18n="studio.engineSource">推理引擎</span>
+                        <div class="mode-switcher">
+                            <div id="modeLocal" class="mode-btn active flex items-center justify-center gap-1.5"
+                                onclick="switchEngine('local')">
+                                <i data-lucide="monitor" class="w-3 h-3"></i>
+                                <span data-i18n="studio.local">本地 ComfyUI</span>
+                            </div>
+                            <div id="modeCloud" class="mode-btn flex items-center justify-center gap-1.5"
+                                onclick="switchEngine('cloud')">
+                                <i data-lucide="cloud" class="w-3 h-3"></i>
+                                <span>ModelScope 云端</span>
+                            </div>
+                            <div id="glider" class="mode-glider"></div>
                         </div>
                     </div>
-                    <textarea id="prompt" rows="2"
-                        class="w-full bg-transparent text-2xl font-medium outline-none placeholder:text-gray-200 text-black resize-none leading-relaxed"
-                        placeholder="Describe your vision..." data-i18n-placeholder="studio.describeVision"></textarea>
-                </div>
 
-                <div class="flex flex-col md:flex-row items-center justify-between p-4 px-6 gap-6">
-                    <div class="flex items-center gap-8">
-                        <div class="flex flex-col">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase mb-1" data-i18n="studio.engineSource">Engine Source</span>
-                            <div class="mode-switcher">
-                                <div id="modeLocal" class="mode-btn active flex items-center justify-center gap-1.5"
-                                    onclick="switchEngine('local')">
-                                    <i data-lucide="monitor" class="w-3 h-3"></i>
-                                    <span data-i18n="studio.local">Local</span>
-                                </div>
-                                <div id="modeCloud" class="mode-btn flex items-center justify-center gap-1.5"
-                                    onclick="switchEngine('cloud')">
-                                    <i data-lucide="cloud" class="w-3 h-3"></i>
-                                    <span>ModelScope</span>
-                                </div>
-                                <div id="glider" class="mode-glider"></div>
-                            </div>
-                        </div>
-
-                        <div class="h-8 w-px bg-gray-100"></div>
-
-                        <div class="flex flex-col">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase mb-1" data-i18n="studio.dimensions">Dimensions</span>
-                            <div class="flex items-center gap-2 text-xs font-bold">
+                    <!-- Dimensions -->
+                    <div class="space-y-2 pt-4 border-t border-[var(--line)]">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold text-[var(--ink-secondary)] uppercase tracking-wider" data-i18n="studio.dimensions">画面尺寸</span>
+                            <div class="dimension-box flex items-center gap-2 text-xs font-semibold">
                                 <input id="width" type="number" value="1024"
-                                    class="w-10 bg-transparent outline-none border-b border-transparent focus:border-black">
-                                <span class="text-gray-200">×</span>
+                                    class="w-12 bg-transparent text-center outline-none text-[var(--text)] font-mono">
+                                <span class="text-[var(--ink-tertiary)]">×</span>
                                 <input id="height" type="number" value="1024"
-                                    class="w-10 bg-transparent outline-none border-b border-transparent focus:border-black">
+                                    class="w-12 bg-transparent text-center outline-none text-[var(--text)] font-mono">
                             </div>
                         </div>
-
-
+                        <!-- Ratio presets -->
+                        <div class="grid grid-cols-4 gap-2 pt-1">
+                            <button type="button" onclick="setDimensions(1024, 1024)" class="py-1.5 rounded-lg border border-[var(--line)] bg-[var(--card-subtle)] text-[11px] font-medium text-[var(--ink-secondary)] hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">1:1</button>
+                            <button type="button" onclick="setDimensions(1152, 864)" class="py-1.5 rounded-lg border border-[var(--line)] bg-[var(--card-subtle)] text-[11px] font-medium text-[var(--ink-secondary)] hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">4:3</button>
+                            <button type="button" onclick="setDimensions(1280, 720)" class="py-1.5 rounded-lg border border-[var(--line)] bg-[var(--card-subtle)] text-[11px] font-medium text-[var(--ink-secondary)] hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">16:9</button>
+                            <button type="button" onclick="setDimensions(720, 1280)" class="py-1.5 rounded-lg border border-[var(--line)] bg-[var(--card-subtle)] text-[11px] font-medium text-[var(--ink-secondary)] hover:border-[var(--strong)] hover:text-[var(--text)] transition-all">9:16</button>
+                        </div>
                     </div>
 
                     <button id="mainGenBtn" onclick="handleRender()"
-                        class="w-full md:w-56 h-12 btn-render rounded-xl font-bold text-[11px] uppercase flex items-center justify-center gap-3">
-                        <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                        <span id="btnText" data-i18n="studio.renderArt">Render Art</span>
+                        class="studio-btn-primary w-full h-12 rounded-xl font-medium text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all text-white">
+                        <i data-lucide="sparkles" id="btnIcon" class="w-4 h-4"></i>
+                        <span id="btnText" data-i18n="studio.renderArt">开始生成</span>
                     </button>
+                </section>
+            </div>
+
+            <!-- Right Canvas Stage -->
+            <div class="studio-workbench-right">
+                <div id="activeStage"
+                    class="studio-stage-frame group">
+                    <!-- Stage Header Bar -->
+                    <div class="absolute top-0 inset-x-0 h-11 px-5 flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)]/80 backdrop-blur-md z-10">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+                            <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                            <span class="uppercase tracking-wider">CANVAS STAGE</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="zoomLatestStage()" id="stageZoomBtn" class="hidden p-1.5 rounded-lg hover:bg-[var(--soft)] text-[var(--ink-secondary)] transition-colors" title="全屏查看">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="stageEmpty" class="text-center space-y-3 opacity-30 py-20">
+                        <div class="w-14 h-14 rounded-2xl border border-dashed border-[var(--line-2,#94a3b8)] flex items-center justify-center mx-auto">
+                            <i data-lucide="sparkles" class="w-6 h-6 stroke-[1.5]"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold uppercase tracking-[0.2em]" data-i18n="studio.canvasReady">CANVAS READY</p>
+                            <p class="text-[11px] text-[var(--ink-tertiary)]">在左侧输入提示词并点击开始生成，新作将实时在此呈现</p>
+                        </div>
+                    </div>
+
+                    <div id="stageLoading" class="hidden flex flex-col items-center gap-4 py-20">
+                        <div class="loading-box"></div>
+                        <p class="text-xs font-medium uppercase tracking-[0.2em] animate-pulse text-[var(--ink-secondary)]" data-i18n="studio.computingPixels">Rendering art piece...</p>
+                    </div>
+
+                    <img id="stageImg" class="hidden w-full h-full object-contain p-6 pt-14 cursor-zoom-in transition-all duration-500 hover:scale-[1.01]" onclick="zoomLatestStage()">
+
+                    <a id="stageDownloadBtn" href="#" download class="hidden absolute bottom-6 right-6 w-11 h-11 bg-[var(--card)] shadow-lg rounded-xl flex items-center justify-center hover:bg-[var(--strong)] hover:text-[var(--strong-text)] transition-all border border-[var(--line)] z-20">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                    </a>
                 </div>
             </div>
-        </div>
-    </header>
+        </main>
 
-    <main class="pb-24">
-        <div class="layout-container">
+        <section class="mt-16">
+            <div class="flex items-center gap-6 mb-8">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ink-secondary)]" data-i18n="studio.archives">Archives</h2>
+                <div class="h-px flex-1 bg-[var(--line)]"></div>
+            </div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger"
                 class="py-12 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest cursor-pointer hidden">
                 <span data-i18n="studio.loadMore">Load More Archive</span>
             </div>
-        </div>
-    </main>
+        </section>
+    </div>
 
     <div id="lightbox" onclick="handleOutsideClick(event)"
         class="hidden fixed inset-0 z-50 gallery-lightbox flex flex-col items-center justify-center p-8">
@@ -261,24 +390,34 @@
             <div id="lightboxFrame" class="studio-preview-frame pointer-events-auto">
                 <img id="lightboxImg" src="" class="studio-preview-img" alt="preview">
                 <div data-no-pan
-                    class="absolute top-6 left-6 bg-black/50 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest shadow-2xl pointer-events-auto z-10">
+                    class="absolute top-6 left-6 bg-black/50 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[10px] font-bold tracking-widest shadow-2xl pointer-events-auto z-10">
                     <span id="lightboxRes">0x0</span>
                 </div>
                 <button onclick="downloadImage()" data-no-pan
                     class="absolute top-6 right-6 bg-black text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl hover:scale-105 transition-transform pointer-events-auto z-10">
                     <i data-lucide="download" class="w-5 h-5"></i>
                 </button>
+                <button id="lightboxPrev" onclick="prevLightboxImage(event)" data-no-pan class="lightbox-nav-btn prev" title="上一张" aria-label="上一张" data-i18n-title="studio.prevImage">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14.5 17.5L9 12L14.5 6.5"/>
+                    </svg>
+                </button>
+                <button id="lightboxNext" onclick="nextLightboxImage(event)" data-no-pan class="lightbox-nav-btn next" title="下一张" aria-label="下一张" data-i18n-title="studio.nextImage">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.5 6.5L15 12L9.5 17.5"/>
+                    </svg>
+                </button>
             </div>
             <div id="lightboxCard"
                 class="w-full mt-16 pointer-events-auto bg-white border border-gray-100 rounded-[2rem] p-8 shadow-sm flex justify-between items-center gap-8">
                 <div class="flex-1">
-                    <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-2" data-i18n="studio.promptExecution">Prompt
+                    <span class="text-[9px] font-bold text-gray-300 uppercase tracking-widest block mb-2" data-i18n="studio.promptExecution">Prompt
                         Execution</span>
                     <p id="lightboxPrompt" class="text-gray-700 text-sm leading-relaxed max-h-32 overflow-y-auto pr-2">
                     </p>
                 </div>
                 <button onclick="applySameStyle()"
-                    class="bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    class="bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
                     <i data-lucide="copy" class="w-3 h-3"></i>
                     <span data-i18n="studio.replicate">Replicate</span>
                 </button>
@@ -297,6 +436,7 @@
             switchEngine(currentEngine || localStorage.getItem(ENGINE_MODE_KEY) || 'local');
         }
         window.addEventListener('message', event => {
+            if (event.origin && event.origin !== location.origin) return;
             if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.textToImage'); });
@@ -458,18 +598,38 @@
         }
 
         // 工具函数
+        function setDimensions(w, h) {
+            document.getElementById('width').value = w;
+            document.getElementById('height').value = h;
+        }
+
+        let latestStageData = null;
+        function zoomLatestStage() {
+            if (latestStageData) openLightbox(latestStageData);
+        }
+
         function setLoading(isLoading) {
             const btn = document.getElementById('mainGenBtn');
             btn.disabled = isLoading;
 
+            const stageLoading = document.getElementById('stageLoading');
+            const stageEmpty = document.getElementById('stageEmpty');
+            const stageImg = document.getElementById('stageImg');
+            if (stageLoading) {
+                if (isLoading) {
+                    stageLoading.classList.remove('hidden');
+                    if (stageEmpty) stageEmpty.classList.add('hidden');
+                    if (stageImg) stageImg.classList.add('hidden');
+                } else {
+                    stageLoading.classList.add('hidden');
+                }
+            }
+
             if (isLoading) {
-                // Active state: Dark gray bg, filled yellow pulsing icon
-                btn.style.backgroundColor = '#333';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span>${tr('studio.processing')}</span>`;
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>${tr('studio.processing')}</span>`;
             } else {
-                // Reset state: Original bg (via CSS), outline yellow icon
                 btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span id="btnText">Render Art (${currentEngine.toUpperCase()})</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" id="btnIcon" class="w-4 h-4"></i><span id="btnText">${currentEngine === 'cloud' ? tr('studio.renderCloud') : tr('studio.renderLocal')}</span>`;
             }
             lucide.createIcons();
         }
@@ -483,14 +643,37 @@
 
         function renderImageCard(data, isNew = false) {
             if (document.getElementById(`history-${data.timestamp}`)) return;
+            if (isNew && !allHistory.some(it => (it.timestamp && it.timestamp === data.timestamp) || it === data)) {
+                allHistory.unshift(data);
+            }
+            const imgSrc = (typeof safeMediaUrl === 'function') ? safeMediaUrl(data.images?.[0]) : (data.images?.[0] || '');
+            if (!imgSrc) return;
+
+            // Update live stage
+            const stageEmpty = document.getElementById('stageEmpty');
+            const stageImg = document.getElementById('stageImg');
+            const stageZoomBtn = document.getElementById('stageZoomBtn');
+            const stageDownloadBtn = document.getElementById('stageDownloadBtn');
+            if (stageImg && (isNew || !latestStageData)) {
+                if (stageEmpty) stageEmpty.classList.add('hidden');
+                stageImg.src = imgSrc;
+                stageImg.classList.remove('hidden');
+                if (stageZoomBtn) stageZoomBtn.classList.remove('hidden');
+                if (stageDownloadBtn) {
+                    stageDownloadBtn.href = imgSrc;
+                    stageDownloadBtn.classList.remove('hidden');
+                }
+                latestStageData = data;
+            }
+
             const masonry = document.getElementById('masonry');
             const card = document.createElement('div');
             card.id = `history-${data.timestamp}`;
             card.dataset.historyTs = data.timestamp;
             card.className = 'masonry-item group cursor-zoom-in animate-in fade-in duration-700';
-            card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data.images[0], data.prompt); };
+            card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data); };
             card.innerHTML = `
-            <img src="${data.images[0]}" class="w-full h-full object-cover" loading="lazy">
+            <img src="${imgSrc}" class="w-full h-full object-cover" loading="lazy">
             ${data.type === 'cloud' ? '<div class="absolute top-3 left-3 z-10"><img src="/static/images/modelscope.gif" class="h-4 w-auto object-contain bg-white/90 rounded-full p-0.5 shadow-sm"></div>' : ''}
         `;
             isNew ? masonry.prepend(card) : masonry.appendChild(card);
@@ -572,12 +755,10 @@
                     if (statusText && dotColor) {
                         if (data.total > 0) {
                             statusText.innerText = `Queueing ${data.position}/${data.total}`;
-                            statusText.className = "text-[9px] font-bold text-orange-500 uppercase";
-                            dotColor.className = "w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse";
+                            dotColor.className = "studio-status-dot busy";
                         } else {
                             statusText.innerText = tr('studio.ready');
-                            statusText.className = "text-[9px] font-bold text-gray-500 uppercase";
-                            dotColor.className = "w-1.5 h-1.5 bg-black rounded-full";
+                            dotColor.className = "studio-status-dot";
                         }
                     }
                 } catch (e) { }
@@ -586,41 +767,163 @@
 
         // 基础功能
         let lightboxPreview = null;
+        let currentGalleryIndex = -1;
+        let galleryEntries = [];
+
         function ensureLightboxPreview(){
             if(!lightboxPreview && window.StudioImagePreview){
                 lightboxPreview = StudioImagePreview.attach(document.getElementById('lightboxFrame'));
             }
             return lightboxPreview;
         }
-        function openLightbox(url, prompt) {
+
+        function getGalleryEntries(){
+            const entries = [];
+            const source = [...(allHistory || [])];
+            for(const item of source){
+                const imgs = Array.isArray(item?.images) ? item.images : (item?.images ? [item.images] : []);
+                imgs.forEach((url, idx) => {
+                    if(url){
+                        entries.push({
+                            record: item,
+                            url: url,
+                            imageIndex: idx,
+                            totalImages: imgs.length,
+                            prompt: item.prompt || ''
+                        });
+                    }
+                });
+            }
+            return entries;
+        }
+
+        function updateLightboxNav(){
+            const prevBtn = document.getElementById('lightboxPrev');
+            const nextBtn = document.getElementById('lightboxNext');
+            if(!prevBtn || !nextBtn) return;
+
+            if(!galleryEntries || galleryEntries.length <= 1){
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                return;
+            }
+            prevBtn.style.display = 'flex';
+            nextBtn.style.display = 'flex';
+
+            const hasPrev = currentGalleryIndex > 0;
+            const hasNext = currentGalleryIndex < galleryEntries.length - 1;
+
+            prevBtn.disabled = !hasPrev;
+            nextBtn.disabled = !hasNext;
+            prevBtn.classList.toggle('disabled', !hasPrev);
+            nextBtn.classList.toggle('disabled', !hasNext);
+        }
+
+        function showLightboxItem(index){
+            if(!galleryEntries || !galleryEntries.length) return;
+            if(index < 0) index = 0;
+            if(index >= galleryEntries.length) index = galleryEntries.length - 1;
+            currentGalleryIndex = index;
+            const entry = galleryEntries[index];
+
             const img = document.getElementById('lightboxImg');
             const resDisplay = document.getElementById('lightboxRes');
             resDisplay.innerText = "...";
             ensureLightboxPreview();
             if(lightboxPreview) lightboxPreview.reset();
-            img.src = url;
+            img.src = entry.url;
             img.onload = () => {
-                resDisplay.innerText = `${img.naturalWidth} x ${img.naturalHeight}`;
+                const dim = `${img.naturalWidth} x ${img.naturalHeight}`;
+                resDisplay.innerText = entry.totalImages > 1 ? `(${entry.imageIndex + 1}/${entry.totalImages}) ${dim}` : dim;
             };
-            document.getElementById('lightboxPrompt').innerText = prompt;
+            document.getElementById('lightboxPrompt').innerText = entry.prompt || entry.record?.prompt || '';
+            updateLightboxNav();
             document.getElementById('lightbox').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
+
+        function openLightbox(urlOrData, prompt) {
+            galleryEntries = getGalleryEntries();
+            let targetUrl = '';
+            let targetRecord = null;
+            if (typeof urlOrData === 'object' && urlOrData !== null) {
+                targetRecord = urlOrData;
+                targetUrl = urlOrData.images?.[0] || '';
+            } else if (typeof urlOrData === 'string') {
+                targetUrl = urlOrData;
+            }
+
+            let idx = -1;
+            if (targetRecord) {
+                idx = galleryEntries.findIndex(e => e.record === targetRecord || (targetRecord.timestamp && e.record?.timestamp === targetRecord.timestamp));
+            }
+            if (idx === -1 && targetUrl) {
+                idx = galleryEntries.findIndex(e => e.url === targetUrl);
+            }
+            if (idx === -1) {
+                galleryEntries = [{
+                    record: targetRecord || { images: [targetUrl], prompt: prompt || '' },
+                    url: targetUrl,
+                    imageIndex: 0,
+                    totalImages: 1,
+                    prompt: prompt || targetRecord?.prompt || ''
+                }];
+                idx = 0;
+            }
+            showLightboxItem(idx);
+        }
+
+        function prevLightboxImage(e){
+            if(e){ e.stopPropagation(); e.preventDefault(); }
+            if(currentGalleryIndex > 0){
+                showLightboxItem(currentGalleryIndex - 1);
+            }
+        }
+
+        function nextLightboxImage(e){
+            if(e){ e.stopPropagation(); e.preventDefault(); }
+            if(galleryEntries && currentGalleryIndex < galleryEntries.length - 1){
+                showLightboxItem(currentGalleryIndex + 1);
+            }
+        }
+
         function closeLightbox() {
             if(lightboxPreview) lightboxPreview.reset();
             document.getElementById('lightbox').classList.add('hidden');
             document.body.style.overflow = 'auto';
+            currentGalleryIndex = -1;
         }
+
         function handleOutsideClick(e) { if (e.target.id === 'lightbox') closeLightbox(); }
+
         function downloadImage() {
-            const a = document.createElement('a'); a.href = document.getElementById('lightboxImg').src;
-            a.download = `Art-${Date.now()}.png`; a.click();
+            const currentEntry = galleryEntries?.[currentGalleryIndex];
+            const src = currentEntry?.url || document.getElementById('lightboxImg').src;
+            if(!src) return;
+            const a = document.createElement('a');
+            a.href = src;
+            a.download = `Art-${Date.now()}.png`;
+            a.click();
         }
+
         function applySameStyle() {
             document.getElementById('prompt').value = document.getElementById('lightboxPrompt').innerText;
             closeLightbox();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+
+        window.addEventListener('keydown', (e) => {
+            const lb = document.getElementById('lightbox');
+            if(!lb || lb.classList.contains('hidden')) return;
+            if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+            if(e.key === 'ArrowLeft'){
+                prevLightboxImage(e);
+            } else if(e.key === 'ArrowRight'){
+                nextLightboxImage(e);
+            } else if(e.key === 'Escape'){
+                closeLightbox();
+            }
+        });
     </script>
 </body>
 

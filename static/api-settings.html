@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=2026.10.04.1790813007">
     <title>API 设置</title>
     <script>
         (function(){
@@ -12,16 +13,20 @@
                 if(theme === 'dark') {
                     document.documentElement.classList.add('studio-theme-dark');
                     document.documentElement.classList.add('theme-dark');
+                } else if(theme === 'warm') {
+                    document.documentElement.classList.add('studio-theme-warm');
+                    document.documentElement.classList.add('theme-warm');
                 }
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
-    <link rel="stylesheet" href="/static/css/api-settings.css?v=2026.07.29.1785292587">
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
+    <link rel="stylesheet" href="/static/css/api-settings.css?v=2026.10.04.1792308352">
 </head>
 <body>
     <div class="page">
@@ -39,7 +44,7 @@
                     <div class="side-section-title" data-i18n="api.providersTitle">平台列表</div>
                     <div id="providerList" class="provider-list"></div>
                     <button class="add-btn" type="button" onclick="addProvider()"><i data-lucide="plus" class="w-4 h-4"></i><span data-i18n="api.addProvider">新增平台</span></button>
-                    <button class="api-link-btn" type="button" onclick="openRecommendApi()"><i data-lucide="sparkles" class="w-4 h-4"></i><span data-i18n="api.recommendApi">推荐API</span></button>
+                    <button class="api-link-btn nav-action-btn recommend-nav-btn" id="recommendNavBtn" type="button" onclick="openRecommendApi()"><i data-lucide="sparkles" class="w-4 h-4"></i><span data-i18n="api.recommendApi">推荐API</span></button>
                     <div class="cli-quick-group">
                         <div class="side-section-title" data-i18n="api.cliSettings">CLI 设置</div>
                         <div class="cli-quick-list">
@@ -48,6 +53,22 @@
                             <button class="cli-quick-btn" type="button" onclick="addCliProvider('gemini-cli')"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>Antigravity CLI</span></button>
                             <div class="cli-quick-note">需要先安装 CLI文件夹中的依赖。</div>
                         </div>
+                    </div>
+                    <div class="cli-quick-group" style="margin-top:6px;">
+                        <div class="side-section-title" data-i18n="api.networkSectionTitle">网络与端口</div>
+                        <button class="api-link-btn nav-action-btn network-nav-btn" id="networkNavBtn" type="button" onclick="openNetworkSettings()"><i data-lucide="network" class="w-4 h-4"></i><span data-i18n="api.networkManage">端口与网络管理</span></button>
+                    </div>
+                    <div class="cli-quick-group" style="margin-top:6px;">
+                        <div class="side-section-title" data-i18n="api.extTools">外部工具</div>
+                        <button class="api-link-btn nav-action-btn ext-tools-nav-btn" id="extToolsNavBtn" type="button" onclick="openExtToolsSettings()"><i data-lucide="layout-grid" class="w-4 h-4"></i><span data-i18n="api.extToolsManage">外部工具与分组</span></button>
+                    </div>
+                    <div class="cli-quick-group" style="margin-top:6px;">
+                        <div class="side-section-title" data-i18n="api.modulesSectionTitle">界面解耦</div>
+                        <button class="api-link-btn nav-action-btn modules-nav-btn" id="modulesNavBtn" type="button" onclick="openModulesSettings()"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i><span data-i18n="api.modulesManage">侧栏模块解耦</span></button>
+                    </div>
+                    <div class="cli-quick-group" style="margin-top:6px;">
+                        <div class="side-section-title" data-i18n="api.aboutSectionTitle">关于信息</div>
+                        <button class="api-link-btn nav-action-btn about-nav-btn" id="aboutNavBtn" type="button" onclick="openAboutSettings()"><i data-lucide="info" class="w-4 h-4"></i><span data-i18n="api.aboutManage">关于与初心</span></button>
                     </div>
                 </aside>
 
@@ -95,6 +116,10 @@
                                 <div class="volcengine-hint">
                                     <span class="ms-line">方舟默认请求地址：<span class="inline-code">https://ark.cn-beijing.volces.com/api/v3</span></span>
                                     <span class="ms-line">Seedance 视频生成使用方舟 API Key，验证会请求 <span class="inline-code">/api/v3/models</span>。</span>
+                                </div>
+                                <div class="pollinations-hint">
+                                    <span class="ms-line">免Key请求地址：<span class="inline-code">https://image.pollinations.ai</span></span>
+                                    <span class="ms-line">带Key API地址：<span class="inline-code">https://gen.pollinations.ai/v1</span>（可在 <a href="https://enter.pollinations.ai" target="_blank" rel="noopener">enter.pollinations.ai</a> 获取，解锁 250+ 图像与LLM模型）</span>
                                 </div>
                             </label>
                             <label class="field full api-key-field">
@@ -202,8 +227,8 @@
                                     </div>
                                 </div>
                                 <div class="ms-hint">
-                                    <span class="ms-line"><span data-i18n="api.msTokenCn">获取 Token · 国内：</span><a href="https://www.modelscope.cn/my/access/token" target="_blank">https://www.modelscope.cn/my/access/token</a></span>
-                                    <span class="ms-line"><span data-i18n="api.msTokenGlobal">获取 Token · 国外：</span><a href="https://www.modelscope.ai/my/access/token" target="_blank">https://www.modelscope.ai/my/access/token</a></span>
+                                    <span class="ms-line"><span data-i18n="api.msTokenCn">获取 Token · 国内：</span><a href="https://www.modelscope.cn/my/access/token" target="_blank" rel="noopener noreferrer">https://www.modelscope.cn/my/access/token</a></span>
+                                    <span class="ms-line"><span data-i18n="api.msTokenGlobal">获取 Token · 国外：</span><a href="https://www.modelscope.ai/my/access/token" target="_blank" rel="noopener noreferrer">https://www.modelscope.ai/my/access/token</a></span>
                                 </div>
                                 <div class="runninghub-hint">
                                 </div>
@@ -269,6 +294,7 @@
                                         <option value="gemini" data-i18n="api.protocolGemini">Gemini 协议</option>
                                         <option value="volcengine">方舟/Ark 任务协议</option>
                                         <option value="runninghub">RunningHub OpenAPI</option>
+                                        <option value="pollinations" data-i18n="api.protocolPollinations">Pollinations (免Key)</option>
                                         <option value="jimeng">即梦 CLI</option>
                                         <option value="codex">OpenAI Codex CLI</option>
                                         <option value="gemini-cli">Antigravity CLI</option>
@@ -281,6 +307,7 @@
                                         <option value="openai-video-proxy">图片：OpenAI 中转</option>
                                         <option value="openai-responses">图片：OpenAI RS</option>
                                         <option value="tudou-async">图片：土豆 GPT-Image-2 异步</option>
+                                        <option value="pollinations">图片：Pollinations 直接出图</option>
                                     </select>
                                 </div>
                             </div>
@@ -350,7 +377,7 @@
                             <div class="block-head">
                                 <div>
                                     <div class="block-title" data-i18n="api.chatModels">聊天模型</div>
-                                    <div class="block-desc" data-i18n="api.chatHint">GPT 对话和 LLM 节点使用</div>
+                                    <div class="block-desc" data-i18n="api.chatHint">LLM 对话和 LLM 节点使用</div>
                                 </div>
                                 <button class="ghost-btn" type="button" onclick="addModel('chat')"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span data-i18n="api.model">模型</span></button>
                         </div>
@@ -374,8 +401,8 @@
                                     <div class="block-title" data-i18n="api.loraManager">LoRA 管理</div>
                                     <div class="block-desc" data-i18n="api.loraManagerDesc">为 ModelScope 生图模型绑定可用 LoRA。无限画布 MS 节点会按当前模型自动筛选。</div>
                                     <div class="ms-hint">
-                                        <span class="ms-line"><span data-i18n="api.msCnModels">中文模型库：</span><a href="https://www.modelscope.cn/aigc/models" target="_blank">https://www.modelscope.cn/aigc/models</a></span>
-                                        <span class="ms-line"><span data-i18n="api.msEnModels">英文模型库：</span><a href="https://www.modelscope.ai/civision/models" target="_blank">https://www.modelscope.ai/civision/models</a></span>
+                                        <span class="ms-line"><span data-i18n="api.msCnModels">中文模型库：</span><a href="https://www.modelscope.cn/aigc/models" target="_blank" rel="noopener noreferrer">https://www.modelscope.cn/aigc/models</a></span>
+                                        <span class="ms-line"><span data-i18n="api.msEnModels">英文模型库：</span><a href="https://www.modelscope.ai/civision/models" target="_blank" rel="noopener noreferrer">https://www.modelscope.ai/civision/models</a></span>
                                     </div>
                                 </div>
                                 <button class="ghost-btn" type="button" onclick="addMsLora()"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>LoRA</span></button>
@@ -392,6 +419,205 @@
                         </div>
                     </div>
                     <section id="recommendPanel" class="provider-onboarding-card recommend-inline-card"></section>
+                </main>
+                <main id="networkContent" class="content network-content" hidden>
+                    <div class="content-head">
+                        <div>
+                            <div class="editor-title" data-i18n="api.networkManage">端口与网络管理</div>
+                            <div class="editor-sub" data-i18n="api.networkDesc">管理出站网络代理、ComfyUI 实例算力池与画布服务端口，修改后热重载即时生效。</div>
+                        </div>
+                        <div class="content-actions">
+                            <button class="action-btn" type="button" onclick="loadNetworkSettings()"><i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span data-i18n="api.refresh">刷新</span></button>
+                            <button class="action-btn save-btn api-page-save-btn" type="button" onclick="saveNetworkSettings()"><i data-lucide="save" class="w-3.5 h-3.5"></i><span data-i18n="api.save">保存配置</span></button>
+                        </div>
+                    </div>
+
+                    <!-- Card 1: Outbound Proxy Settings -->
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title" data-i18n="api.proxySettings">出站网络代理 (Outbound Proxy)</div>
+                                <div class="block-desc" data-i18n="api.proxyDesc">配置本地 HTTP/HTTPS/SOCKS 代理服务（支持 Xray、Clash 等），供各大 CLI 及云端模型请求访问外部网络</div>
+                            </div>
+                        </div>
+                        <div class="form">
+                            <label class="field full flex items-center justify-between" style="flex-direction:row;align-items:center;padding:10px 0;">
+                                <div style="display:flex;flex-direction:column;">
+                                    <span class="label" style="margin:0;font-weight:600;" data-i18n="api.proxyEnabled">启用网络代理</span>
+                                    <span class="hint" style="margin:2px 0 0;" data-i18n="api.proxyEnabledHint">开启后将所有出站模型请求及 CLI 子进程网络路由至指定代理端口</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="networkProxyEnabled" onchange="onNetworkProxyToggle()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px;">
+                                <label class="field">
+                                    <span class="label" data-i18n="api.proxyHost">代理地址 (Host)</span>
+                                    <div class="field-frame">
+                                        <input id="networkProxyHost" type="text" placeholder="127.0.0.1" value="127.0.0.1">
+                                    </div>
+                                </label>
+                                <label class="field">
+                                    <span class="label" data-i18n="api.proxyPort">代理端口 (Port)</span>
+                                    <div class="field-frame">
+                                        <input id="networkProxyPort" type="number" min="1" max="65535" placeholder="7897" value="7897">
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="network-presets-wrap" style="margin-top:10px;">
+                                <span class="hint" style="margin-bottom:6px;display:block;" data-i18n="api.quickPresets">快捷常用端口预设：</span>
+                                <div class="network-presets-list" style="display:flex;flex-wrap:wrap;gap:8px;">
+                                    <button type="button" class="preset-capsule" onclick="setNetworkProxyPreset(7897)">
+                                        <i data-lucide="zap" class="w-3 h-3"></i><span>7897 (当前活跃)</span>
+                                    </button>
+                                    <button type="button" class="preset-capsule" onclick="setNetworkProxyPreset(7899)">
+                                        <i data-lucide="radio" class="w-3 h-3"></i><span>7899 (Xray 备用)</span>
+                                    </button>
+                                    <button type="button" class="preset-capsule" onclick="setNetworkProxyPreset(7890)">
+                                        <i data-lucide="disc" class="w-3 h-3"></i><span>7890 (Clash 常用)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="network-action-row" style="margin-top:14px;display:flex;align-items:center;gap:12px;">
+                                <button type="button" class="action-btn" id="testProxyBtn" onclick="testProxyConnection()">
+                                    <i data-lucide="activity" class="w-3.5 h-3.5"></i><span data-i18n="api.testProxyConnection">测试代理连通性</span>
+                                </button>
+                                <span id="proxyTestStatusBadge" class="network-status-badge" style="display:none;"></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Card 2: ComfyUI Instances & Ports -->
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title" data-i18n="api.comfyInstancesTitle">ComfyUI 实例与端口</div>
+                                <div class="block-desc" data-i18n="api.comfyInstancesDesc">配置本地及局域网/Tailscale ComfyUI 后端推理端口（host:port 格式），列表首位为当前主生成实例</div>
+                            </div>
+                            <div class="models-toolbar-actions">
+                                <button class="action-btn" type="button" onclick="addComfyInstanceRow()">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i><span data-i18n="api.addInstance">添加实例</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="comfyInstanceListContainer" class="comfy-instances-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+                    </section>
+
+                    <!-- Card 3: Canvas Server Info -->
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title" data-i18n="api.serverInfoTitle">画布服务端口看板</div>
+                                <div class="block-desc" data-i18n="api.serverInfoDesc">当前 MeansCanvas Web 服务运行状态及默认启动监听端口</div>
+                            </div>
+                        </div>
+                        <div class="form">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                                <div class="field">
+                                    <span class="label" data-i18n="api.activePort">当前运行端口</span>
+                                    <div class="field-frame" style="background:var(--bg-subtle, #f8fafc);display:flex;align-items:center;gap:8px;">
+                                        <span id="serverActivePortText" style="font-family:ui-monospace,Menlo,monospace;font-weight:600;color:var(--text);">3333</span>
+                                        <span class="network-status-badge badge-active" style="padding:2px 8px;font-size:11px;border-radius:4px;background:rgba(34,197,94,0.12);color:#16a34a;">运行中</span>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <span class="label" data-i18n="api.bindMode">网络模式</span>
+                                    <div class="field-frame" style="background:var(--bg-subtle, #f8fafc);display:flex;align-items:center;">
+                                        <span id="serverBindModeText" style="font-size:13px;color:var(--text-muted, #64748b);">0.0.0.0 (局域网开放)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <label class="field full" style="margin-top:10px;">
+                                <span class="label" data-i18n="api.defaultLaunchPort">默认启动端口 (PORT)</span>
+                                <div class="field-frame" style="max-width:280px;">
+                                    <input id="serverPortInput" type="number" min="1" max="65535" placeholder="3333" value="3333">
+                                </div>
+                                <span class="hint" data-i18n="api.serverPortHint">修改默认启动端口后写入 API/.env，将在下次通过 run.bat 或 run_lan.bat 启动时生效。</span>
+                            </label>
+                        </div>
+                    </section>
+                </main>
+                <main id="extToolsContent" class="content ext-tools-content" hidden>
+                    <div class="content-head">
+                        <div>
+                            <div class="editor-title" data-i18n="api.extToolsManage">外部工具与分组</div>
+                            <div class="editor-sub" data-i18n="api.extToolsDesc">自由拖拽编排外部工具所属大类与排序，修改即时同步至主画布侧边栏。</div>
+                        </div>
+                        <div class="content-actions">
+                            <button class="action-btn" type="button" onclick="closeExtToolsSettings()"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i><span data-i18n="api.backToProviders">返回平台配置</span></button>
+                        </div>
+                    </div>
+
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title">大类编排与快捷操作</div>
+                                <div class="block-desc">按住工具卡片左侧抓手即可拖拽跨组移动或组内排序，支持新建专属分类与一键恢复默认</div>
+                            </div>
+                            <div class="models-toolbar-actions">
+                                <button class="action-btn" type="button" onclick="promptCreateExtCategory()">
+                                    <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i><span>新建大类</span>
+                                </button>
+                                <button class="action-btn" type="button" onclick="resetExtToolsToDefaultLayout()">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i><span>恢复官方默认</span>
+                                </button>
+                                <button class="action-btn primary-btn" type="button" onclick="toggleAllExtTools(true)">
+                                    <i data-lucide="check-check" class="w-3.5 h-3.5"></i><span>全部开启</span>
+                                </button>
+                                <button class="action-btn" type="button" onclick="toggleAllExtTools(false)">
+                                    <i data-lucide="eye-off" class="w-3.5 h-3.5"></i><span>全部隐藏</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="extToolsGroupContainer" class="ext-tools-group-container"></div>
+                        <div id="extToolsGrid" class="ext-tools-grid" style="display:none;"></div>
+                    </section>
+                </main>
+                <main id="modulesContent" class="content modules-content" hidden>
+                    <div class="content-head">
+                        <div>
+                            <div class="editor-title" data-i18n="api.modulesManage">侧栏模块解耦</div>
+                            <div class="editor-sub" data-i18n="api.modulesDesc">自定义主侧边栏功能模块的展示，一键切换纯粹无限画布或全功能模式</div>
+                        </div>
+                        <div class="content-actions">
+                            <button class="action-btn" type="button" onclick="closeModulesSettings()"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i><span data-i18n="api.backToProviders">返回平台配置</span></button>
+                        </div>
+                    </div>
+
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title" data-i18n="api.modulesPresetTitle">布局模式预设</div>
+                                <div class="block-desc" data-i18n="api.modulesPresetDesc">选择推荐的界面预设，或在下方自定义控制每个模块的显示与隐藏</div>
+                            </div>
+                            <div class="models-toolbar-actions">
+                                <button class="action-btn primary-btn" type="button" onclick="applyModulesPreset('pure_canvas')">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span data-i18n="api.presetPureCanvas">纯粹无限画布模式</span>
+                                </button>
+                                <button class="action-btn" type="button" onclick="applyModulesPreset('full_studio')">
+                                    <i data-lucide="check-check" class="w-3.5 h-3.5"></i><span data-i18n="api.presetFullStudio">全功能模式</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="modulesGrid" class="modules-grid"></div>
+                    </section>
+                </main>
+
+                <main id="aboutContent" class="content about-content" hidden>
+                    <div class="content-head">
+                        <div>
+                            <div class="editor-title">关于 开卷画布 · MeansCanvas</div>
+                            <div class="editor-sub">项目初心、架构理念与创作者生态</div>
+                        </div>
+                        <div class="content-actions">
+                            <button class="action-btn" type="button" onclick="closeAboutSettings()"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i><span data-i18n="api.backToProviders">返回平台配置</span></button>
+                        </div>
+                    </div>
+                    <iframe src="/static/about.html?v=2026.10.04.1791044586" style="width:100%;min-height:780px;border:1px solid var(--line);border-radius:16px;background:var(--panel);" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups"></iframe>
                 </main>
         </div>
         </div>
@@ -566,6 +792,8 @@
         </div>
     </div>
 
-    <script src="/static/js/api-settings.js?v=2026.07.29.1785465375"></script>
+    <script src="/static/js/ext-tools-meta.js?v=2026.10.04.1791468838"></script>
+    <script src="/static/js/network-settings.js?v=2026.10.04.1792550986"></script>
+    <script src="/static/js/api-settings.js?v=2026.10.04.1792308837"></script>
 </body>
 </html>

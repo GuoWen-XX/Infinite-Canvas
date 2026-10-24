@@ -112,6 +112,56 @@ let searchRenderTimer = null;
 let lastSearchCompositionEndAt = 0;
 let storageSettingsState = {open:false, tab:'prefs', editor:'', dirs:{}, defaults:{}, kind:'generated', items:[], selected:new Set(), loading:false, loadingMore:false, offset:0, total:0, hasMore:false, pageSize:80, restoreScrollTop:null, classificationPrompt:'', defaultClassificationPrompt:''};
 
+let taskHistoryCache = null;
+let taskHistoryFetching = false;
+async function fetchTaskHistoryCache(){
+    if(taskHistoryCache) return taskHistoryCache;
+    if(taskHistoryFetching) return new Map();
+    taskHistoryFetching = true;
+    try {
+        const res = await fetch('/api/task-history?limit=1000');
+        const data = await res.json().catch(() => ({}));
+        const map = new Map();
+        (data.tasks || []).forEach(t => {
+            const p = String(t.provider || '').trim();
+            const m = String(t.model || '').trim();
+            const prompt = String(t.prompt || (t.params && t.params.prompt) || '').trim();
+            (t.outputs || []).forEach(u => {
+                if(u){
+                    const val = {provider:p, model:m, prompt, duration_ms:t.duration_ms};
+                    map.set(String(u).trim(), val);
+                    const fname = String(u).split('/').pop();
+                    if(fname) map.set(fname, val);
+                }
+            });
+        });
+        taskHistoryCache = map;
+        return map;
+    } catch(_) {
+        taskHistoryCache = new Map();
+        return taskHistoryCache;
+    } finally {
+        taskHistoryFetching = false;
+    }
+}
+function resolveItemMeta(item){
+    if(!item) return {provider:'', model:'', prompt:''};
+    let provider = String(item.provider_id || item.provider || '').trim();
+    let model = String(item.model || item.modelLabel || '').trim();
+    let prompt = String(item.prompt || item.caption || '').trim();
+    if((!provider || !model) && taskHistoryCache){
+        const url = String(item.url || '').trim();
+        const fname = url ? url.split('/').pop() : '';
+        const th = (url ? taskHistoryCache.get(url) : null) || (fname ? taskHistoryCache.get(fname) : null);
+        if(th){
+            if(!provider && th.provider) provider = th.provider;
+            if(!model && th.model) model = th.model;
+            if(!prompt && th.prompt) prompt = th.prompt;
+        }
+    }
+    return {provider, model, prompt};
+}
+
 const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
 const SEARCH_INPUT_IDS = new Set(['assetSearch','workflowSearch','promptSearch','localSearch','localUploadSearch','canvasAssetSearch']);
 
@@ -279,7 +329,7 @@ function renderStorageSettingsModal(){
         overlay = document.createElement('div');
         overlay.id = 'storageSettingsOverlay';
         overlay.className = 'storage-settings-overlay';
-        document.body.appendChild(overlay);
+        (document.documentElement || document.body).appendChild(overlay);
     }
     const dirs = storageSettingsState.dirs || {};
     const kind = storageSettingsState.kind || 'generated';
@@ -509,17 +559,21 @@ function activePromptLibrary(){
 // 按“某个库自身”解析分类：库有自己的分类就用它；只有系统库在完全为空时才补默认内置分类。
 // 新建的普通库分类为空 → 返回 []，不能借用当前激活库/系统库的分类（否则树里会错显系统分类）。
 function promptCategoriesFor(lib){
-    const fromLib = Array.isArray(lib?.categories) ? lib.categories.filter(c => c?.id) : [];
-    if(fromLib.length) return fromLib;
-    if(!isSystemPromptLibrary(lib)) return [];
-    return [
-        {id:'view', name:'视角'},
-        {id:'storyboard', name:'分镜'},
-        {id:'character', name:'角色'},
-        {id:'product', name:'产品'},
-        {id:'lighting', name:'光影'},
-        {id:'custom', name:'我的'}
-    ];
+    const fromLib = Array.isArray(lib?.categories) ? lib.categories.filter(c => c?.id || c?.name) : [];
+    if(isSystemPromptLibrary(lib)){
+        const defaults = [
+            {id:'view', name:'视角'},
+            {id:'storyboard', name:'分镜'},
+            {id:'character', name:'角色'},
+            {id:'product', name:'产品'},
+            {id:'lighting', name:'光影'},
+            {id:'custom', name:'我的'}
+        ];
+        const defaultIds = new Set(defaults.map(d => d.id));
+        const customs = fromLib.filter(c => !defaultIds.has(c.id) && !defaultIds.has(c.name));
+        return [...defaults, ...customs];
+    }
+    return fromLib;
 }
 function activePromptCategories(){
     return promptCategoriesFor(activePromptLibrary());
@@ -554,7 +608,7 @@ const ASSET_CLASSIFICATION_LABELS = {
     tags:'标签'
 };
 function promptCategoryLabel(category='custom'){
-    const found = activePromptCategories().find(cat => cat.id === category);
+    const found = activePromptCategories().find(cat => cat.id === category || cat.name === category);
     if(found?.name) return found.name;
     const map = {view:'视角', storyboard:'分镜', character:'角色', product:'产品', lighting:'光影', mine:'我的', custom:'我的'};
     return map[category] || category || '自定义';
@@ -562,7 +616,11 @@ function promptCategoryLabel(category='custom'){
 function promptCountForCategory(category, lib=activePromptLibrary()){
     const items = lib?.items || [];
     if(category === 'all') return items.length;
-    return items.filter(item => (item.category || 'custom') === category).length;
+    const catObj = (lib ? promptCategoriesFor(lib) : activePromptCategories()).find(c => c.id === category);
+    return items.filter(item => {
+        const itemCat = item.category || 'custom';
+        return itemCat === category || (catObj && (itemCat === catObj.name || itemCat === catObj.id));
+    }).length;
 }
 function assetKind(item){
     const url = String(item?.url || '').toLowerCase();
@@ -945,7 +1003,7 @@ function canvasAssetCategories(){
         ? canvasAssetsData.categories.filter(cat => ['smart','classic'].includes(cat.id))
         : [
             {id:'smart', name:'智能画布', count:(canvasAssetsData.items || []).filter(item => item.canvas_kind === 'smart').length, canvas_count:(canvasAssetsData.canvases || []).filter(item => item.kind === 'smart').length},
-            {id:'classic', name:'普通画布', count:(canvasAssetsData.items || []).filter(item => item.canvas_kind !== 'smart').length, canvas_count:(canvasAssetsData.canvases || []).filter(item => item.kind !== 'smart').length}
+            {id:'classic', name:'全能画布', count:(canvasAssetsData.items || []).filter(item => item.canvas_kind !== 'smart').length, canvas_count:(canvasAssetsData.canvases || []).filter(item => item.kind !== 'smart').length}
         ];
     return cats;
 }
@@ -978,7 +1036,8 @@ function canvasAssetsForCategory(categoryId=activeCanvasAssetCategory){
 function canvasAssetOpenUrl(canvas){
     if(!canvas?.id) return '';
     const id = encodeURIComponent(canvas.id);
-    return canvas.kind === 'smart' ? `/static/smart-canvas.html?id=${id}` : `/static/canvas.html?id=${id}`;
+    const v = '2026.09.19.1789832000';
+    return canvas.kind === 'smart' ? `/static/smart-canvas.html?id=${id}&v=${v}` : `/static/canvas.html?id=${id}&v=${v}`;
 }
 function activeCanvasAssetCanvas(){
     if(!activeCanvasAssetCanvasId) return null;
@@ -1001,7 +1060,7 @@ function canvasAssetKindLabel(item){
     return '图片';
 }
 function canvasKindLabel(kind){
-    return kind === 'smart' ? '智能画布' : '普通画布';
+    return kind === 'smart' ? '智能画布' : '全能画布';
 }
 function canvasAssetSortLabel(){
     const map = {canvas_asc:'画布名称', updated_desc:'最近更新', updated_asc:'最早更新', name_asc:'名称 A-Z', kind:'类型'};
@@ -1074,8 +1133,14 @@ function normalizeAssetMoveTarget(){
 function currentPromptItems(){
     const lib = activePromptLibrary();
     const query = promptQuery.trim().toLowerCase();
+    const catObj = activePromptCategory !== 'all' ? activePromptCategories().find(c => c.id === activePromptCategory) : null;
     return (lib?.items || []).filter(item => {
-        if(activePromptCategory !== 'all' && (item.category || 'custom') !== activePromptCategory) return false;
+        if(activePromptCategory !== 'all'){
+            const itemCat = item.category || 'custom';
+            if(itemCat !== activePromptCategory && (!catObj || (itemCat !== catObj.name && itemCat !== catObj.id))){
+                return false;
+            }
+        }
         if(!query) return true;
         return [item.name, item.scene, item.positive, item.negative, item.category].join(' ').toLowerCase().includes(query);
     });
@@ -1315,7 +1380,8 @@ async function loadAll(){
         apiJson('/api/providers').catch(() => ({providers:[]})),
         apiJson('/api/canvas-assets').catch(() => ({categories:[], canvases:[], items:[]})),
         loadSharedFolders(),
-        loadLocalAssets()
+        loadLocalAssets(),
+        fetchTaskHistoryCache()
     ]);
     assetLibrary = assetData.library || {libraries:[], categories:[]};
     promptLibrary = promptData.library || {libraries:[]};
@@ -1483,6 +1549,15 @@ function renderCanvasAssetGroup(group){
         </div>
     </section>`;
 }
+function canvasAssetSourceChip(item){
+    if(!item) return '';
+    const prov = String(item.provider_id || item.provider || '').trim();
+    const mdl = String(item.model || '').trim();
+    if(!prov && !mdl) return '';
+    const parts = [prov, mdl].filter(Boolean);
+    const label = parts.join(' · ');
+    return `<span class="asset-source-chip" title="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
+}
 function renderCanvasAssetCard(item){
     return `<article class="asset-card canvas-asset-card ${item.id === selectedCanvasAssetId ? 'active' : ''}" data-canvas-asset-card="${escapeAttr(item.id)}">
         <input class="asset-card-check" type="checkbox" data-canvas-asset-check="${escapeAttr(item.id)}" ${selectedCanvasAssetIds.has(item.id) ? 'checked' : ''}>
@@ -1490,6 +1565,7 @@ function renderCanvasAssetCard(item){
         <div class="asset-card-body">
             <div class="asset-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'canvas asset')}</div>
             <div class="asset-card-meta">${escapeHtml(canvasAssetKindLabel(item))} · ${escapeHtml(item.canvas_title || '未命名画布')}</div>
+            ${canvasAssetSourceChip(item)}
         </div>
     </article>`;
 }
@@ -1502,6 +1578,8 @@ function renderCanvasAssetDetail(item){
     if(!item) return `<div class="panel-head"><div class="panel-title"><strong>画布资产详情</strong><span>选择一个画布资产查看详情</span></div></div><div class="detail-scroll"><div class="detail-empty"><i data-lucide="layout-dashboard"></i><span>暂无画布资产</span></div></div>`;
     const kind = assetKind(item);
     const canPreview = ['image','video'].includes(kind);
+    const meta = resolveItemMeta(item);
+    const promptText = String(item.prompt || meta.prompt || '').trim();
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>画布资产详情</strong><span>${escapeHtml(canvasAssetKindLabel(item))}</span></div>
@@ -1527,8 +1605,19 @@ function renderCanvasAssetDetail(item){
                     <div class="detail-meta"><span>更新时间</span><strong>${escapeHtml(formatDate(item.canvas_updated_at || item.created_at))}</strong></div>
                     <div class="detail-meta"><span>来源节点</span><strong title="${escapeAttr(item.node_title || item.node_type || '')}">${escapeHtml(item.node_title || item.node_type || '节点')}</strong></div>
                     <div class="detail-meta"><span>节点类型</span><strong>${escapeHtml(item.node_type || '-')}</strong></div>
+                    <div class="detail-meta"><span>模型 API 来源</span><strong>${escapeHtml(meta.provider || item.provider_id || '-')}</strong></div>
+                    <div class="detail-meta"><span>模型名</span><strong title="${escapeAttr(meta.model || item.model || '')}">${escapeHtml(meta.model || item.model || '-')}</strong></div>
                 </div>
                 <div class="detail-url">${escapeHtml(item.url || '')}</div>
+                ${promptText ? `<div class="detail-caption-card">
+                    <div class="detail-caption-head">
+                        <strong>生成提示词</strong>
+                        <div class="detail-caption-actions">
+                            <button class="asset-btn" type="button" data-canvas-asset-copy-prompt="${escapeAttr(item.id)}"><i data-lucide="copy"></i><span>复制</span></button>
+                        </div>
+                    </div>
+                    <div class="detail-prompt-box">${escapeHtml(promptText)}</div>
+                </div>` : ''}
             </div>
         </div>
     `;
@@ -1754,18 +1843,21 @@ function renderLocalUploadAddCard(){
 }
 function renderLocalUploadCard(item){
     const hasCaption = assetKind(item) === 'image' && String(item.caption || '').trim();
+    const meta = resolveItemMeta(item);
     return `<article class="asset-card ${item.id === selectedLocalUploadId ? 'active' : ''}" data-localup-card="${escapeAttr(item.id)}">
         <input class="asset-card-check" type="checkbox" data-localup-check="${escapeAttr(item.id)}" ${selectedLocalUploadIds.has(item.id) ? 'checked' : ''}>
         <div class="asset-thumb">${assetThumb(item)}</div>
         <div class="asset-card-body">
             <div class="asset-card-name" data-localup-rename="${escapeAttr(item.id)}" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || '本地素材')}</div>
             <div class="asset-card-meta">${escapeHtml(assetKindLabel(item))} · ${escapeHtml(formatFileSize(item.size))}${hasCaption ? ' · 有提示词' : ''}</div>
+            ${canvasAssetSourceChip(meta)}
         </div>
     </article>`;
 }
 function renderLocalUploadDetail(item){
     if(!item) return `<div class="panel-head"><div class="panel-title"><strong>素材预览</strong><span>选择一个素材查看详情</span></div></div><div class="detail-scroll"><div class="detail-empty"><i data-lucide="image"></i><span>暂无可预览素材</span></div></div>`;
     const isImage = assetKind(item) === 'image';
+    const meta = resolveItemMeta(item);
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>素材预览</strong><span>${escapeHtml(assetKindLabel(item))}</span></div>
@@ -1786,6 +1878,8 @@ function renderLocalUploadDetail(item){
                     <div class="detail-meta"><span>大小</span><strong>${escapeHtml(formatFileSize(item.size))}</strong></div>
                     <div class="detail-meta"><span>上传时间</span><strong>${escapeHtml(formatDate((item.created_at||0)*1000))}</strong></div>
                     <div class="detail-meta"><span>来源</span><strong>本地上传</strong></div>
+                    ${(meta.provider || item.provider_id) ? `<div class="detail-meta"><span>模型 API 来源</span><strong>${escapeHtml(meta.provider || item.provider_id || '-')}</strong></div>` : ''}
+                    ${(meta.model || item.model) ? `<div class="detail-meta"><span>模型名</span><strong title="${escapeAttr(meta.model || item.model || '')}">${escapeHtml(meta.model || item.model || '-')}</strong></div>` : ''}
                 </div>
                 <div class="detail-url">${escapeHtml(item.url || '')}</div>
                 ${isImage ? `<div class="detail-caption-card">
@@ -1802,7 +1896,7 @@ function renderLocalUploadDetail(item){
                                 <button class="asset-btn primary" type="button" data-localup-caption-save="${escapeAttr(item.id)}"><i data-lucide="save"></i><span>保存</span></button>
                             </div>
                         </div>
-                        <textarea id="localUploadCaptionEdit" class="detail-caption-textarea" placeholder="暂无反推提示词，可以批量反推后自动写入，也可以在这里手动编辑。">${escapeHtml(item.caption || '')}</textarea>
+                        <textarea id="localUploadCaptionEdit" class="detail-caption-textarea" placeholder="暂无反推提示词，可以批量反推后自动写入，也可以在这里手动编辑。">${escapeHtml(item.caption || meta.prompt || '')}</textarea>
                     </div>
                 ` : ''}
             </div>
@@ -2188,12 +2282,14 @@ function renderAssetTreeInlineEdit(kind){
     </div>`;
 }
 function renderAssetCard(item){
+    const meta = resolveItemMeta(item);
     return `<article class="asset-card ${item.id === selectedAssetId ? 'active' : ''}" data-asset-card="${escapeAttr(item.id)}">
         <input class="asset-card-check" type="checkbox" data-asset-check="${escapeAttr(item.id)}" ${selectedAssetIds.has(item.id) ? 'checked' : ''}>
         <div class="asset-thumb">${assetThumb(item)}</div>
         <div class="asset-card-body">
             <div class="asset-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'asset')}</div>
             <div class="asset-card-meta">${escapeHtml(assetKindLabel(item))} · ${escapeHtml(formatDate(item.created_at))}</div>
+            ${canvasAssetSourceChip(meta)}
         </div>
     </article>`;
 }
@@ -2270,6 +2366,7 @@ function renderAvatarSection(item){
 function renderAssetDetail(item){
     if(!item) return `<div class="panel-head"><div class="panel-title"><strong>素材预览</strong><span>选择一个素材查看详情</span></div></div><div class="detail-scroll"><div class="detail-empty"><i data-lucide="image"></i><span>暂无可预览素材</span></div></div>`;
     const isImage = assetKind(item) === 'image';
+    const meta = resolveItemMeta(item);
     if(assetEditMode && item.id === selectedAssetId){
         return `
             <div class="panel-head">
@@ -2286,12 +2383,15 @@ function renderAssetDetail(item){
                     <div class="detail-meta-grid">
                         <div class="detail-meta"><span>类型</span><strong>${escapeHtml(assetKindLabel(item))}</strong></div>
                         <div class="detail-meta"><span>创建时间</span><strong>${escapeHtml(formatDate(item.created_at))}</strong></div>
+                        ${(meta.provider || item.provider_id) ? `<div class="detail-meta"><span>模型 API 来源</span><strong>${escapeHtml(meta.provider || item.provider_id || '-')}</strong></div>` : ''}
+                        ${(meta.model || item.model) ? `<div class="detail-meta"><span>模型名</span><strong title="${escapeAttr(meta.model || item.model || '')}">${escapeHtml(meta.model || item.model || '-')}</strong></div>` : ''}
                     </div>
                     <div class="detail-url">${escapeHtml(item.url || '')}</div>
                 </div>
             </div>
         `;
     }
+    const promptText = (meta.prompt || item.prompt || '').trim();
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>素材预览</strong><span>${escapeHtml(assetKindLabel(item))}</span></div>
@@ -2310,8 +2410,19 @@ function renderAssetDetail(item){
                     <div class="detail-meta"><span>创建时间</span><strong>${escapeHtml(formatDate(item.created_at))}</strong></div>
                     <div class="detail-meta"><span>资产库</span><strong>${escapeHtml(activeAssetLibrary()?.name || '资产库')}</strong></div>
                     <div class="detail-meta"><span>分组</span><strong>${escapeHtml(activeAssetCategory()?.name || '分组')}</strong></div>
+                    ${(meta.provider || item.provider_id) ? `<div class="detail-meta"><span>模型 API 来源</span><strong>${escapeHtml(meta.provider || item.provider_id || '-')}</strong></div>` : ''}
+                    ${(meta.model || item.model) ? `<div class="detail-meta"><span>模型名</span><strong title="${escapeAttr(meta.model || item.model || '')}">${escapeHtml(meta.model || item.model || '-')}</strong></div>` : ''}
                 </div>
                 <div class="detail-url">${escapeHtml(item.url || '')}</div>
+                ${promptText ? `<div class="detail-caption-card">
+                    <div class="detail-caption-head">
+                        <strong>生成提示词</strong>
+                        <div class="detail-caption-actions">
+                            <button class="asset-btn" type="button" data-asset-copy-prompt="${escapeAttr(item.id)}"><i data-lucide="copy"></i><span>复制</span></button>
+                        </div>
+                    </div>
+                    <div class="detail-prompt-box">${escapeHtml(promptText)}</div>
+                </div>` : ''}
                 ${isImage ? `<div class="detail-caption-card">
                     <div class="detail-caption-head"><strong>智能分类</strong></div>
                     <div class="detail-classification-body">${renderClassificationChips(item, 32, {kind:'asset', libraryId:activeAssetLibraryId}) || '<span class="classification-empty">暂无智能分类，可以选中图片后点击“智能分类”。</span>'}</div>
@@ -2406,6 +2517,11 @@ function renderPromptTreeBranch(lib){
                 <span class="tree-row-count">${promptCountForCategory(cat.id, lib)}</span>
             </button>${active ? renderPromptTreeActionBar('category') : ''}`;
             }).join('')}
+            <button class="tree-row tree-child" type="button" data-prompt-cat-new data-lib-id="${libId}" style="opacity:0.75;cursor:pointer" title="新建标签/分组">
+                <span class="tree-elbow"></span>
+                <span class="tree-row-icon"><i data-lucide="plus"></i></span>
+                <span class="tree-row-name" style="color:var(--muted);font-size:11.5px">+ 新建标签/分组...</span>
+            </button>
         </div>
     </div>`;
 }
@@ -2466,6 +2582,13 @@ function renderPromptDetail(item, readonly){
             <div class="detail-scroll">
                 <div class="inline-edit-form">
                     <label class="inline-edit-field"><span>名称</span><input id="promptEditName" type="text" value="" placeholder="提示词名称"></label>
+                    <label class="inline-edit-field">
+                        <span>分类标签</span>
+                        <input id="promptEditCategory" list="promptCategoriesDatalist" type="text" value="${escapeAttr(activePromptCategory === 'all' ? '我的' : promptCategoryLabel(activePromptCategory))}" placeholder="选择已有标签或直接输入新标签">
+                        <datalist id="promptCategoriesDatalist">
+                            ${activePromptCategories().map(c => `<option value="${escapeAttr(c.name || promptCategoryLabel(c.id))}"></option>`).join('')}
+                        </datalist>
+                    </label>
                     <label class="inline-edit-field"><span>用途说明</span><textarea id="promptEditScene" placeholder="用途说明"></textarea></label>
                     <label class="inline-edit-field"><span>正向提示词</span><textarea id="promptEditPositive" placeholder="正向提示词"></textarea></label>
                     <label class="inline-edit-field"><span>负向提示词</span><textarea id="promptEditNegative" placeholder="负向提示词"></textarea></label>
@@ -2486,6 +2609,13 @@ function renderPromptDetail(item, readonly){
             <div class="detail-scroll">
                 <div class="inline-edit-form">
                     <label class="inline-edit-field"><span>名称</span><input id="promptEditName" type="text" value="${escapeAttr(item.name || '')}" placeholder="提示词名称"></label>
+                    <label class="inline-edit-field">
+                        <span>分类标签</span>
+                        <input id="promptEditCategory" list="promptCategoriesDatalist" type="text" value="${escapeAttr(promptCategoryLabel(item.category || 'custom'))}" placeholder="选择已有标签或直接输入新标签">
+                        <datalist id="promptCategoriesDatalist">
+                            ${activePromptCategories().map(c => `<option value="${escapeAttr(c.name || promptCategoryLabel(c.id))}"></option>`).join('')}
+                        </datalist>
+                    </label>
                     <label class="inline-edit-field"><span>用途说明</span><textarea id="promptEditScene" placeholder="用途说明">${escapeHtml(item.scene || '')}</textarea></label>
                     <label class="inline-edit-field"><span>正向提示词</span><textarea id="promptEditPositive" placeholder="正向提示词">${escapeHtml(item.positive || '')}</textarea></label>
                     <label class="inline-edit-field"><span>负向提示词</span><textarea id="promptEditNegative" placeholder="负向提示词">${escapeHtml(item.negative || '')}</textarea></label>
@@ -3373,7 +3503,7 @@ async function handleClick(event){
         return;
     }
     const localUpOpen = target.closest?.('[data-localup-open]');
-    if(localUpOpen){ const it = findLocalUpload(localUpOpen.dataset.localupOpen || ''); if(it?.url) window.open(it.url, '_blank'); return; }
+    if(localUpOpen){ const it = findLocalUpload(localUpOpen.dataset.localupOpen || ''); if(it?.url) window.open(it.url, '_blank', 'noopener,noreferrer'); return; }
     const localUpCopy = target.closest?.('[data-localup-copy]');
     if(localUpCopy){ const it = findLocalUpload(localUpCopy.dataset.localupCopy || ''); const ok = await copyTextToClipboard(it?.url || ''); setStatus(ok ? '已复制链接' : '复制失败'); return; }
     const localUpCard = target.closest?.('[data-localup-card]');
@@ -3426,6 +3556,17 @@ async function handleClick(event){
     if(canvasAssetOpen){ const it = findCanvasAssetItem(canvasAssetOpen.dataset.canvasAssetOpen || ''); if(it?.url) window.open(it.url, '_blank', 'noopener'); return; }
     const canvasAssetCopy = target.closest?.('[data-canvas-asset-copy]');
     if(canvasAssetCopy){ const it = findCanvasAssetItem(canvasAssetCopy.dataset.canvasAssetCopy || ''); const ok = await copyTextToClipboard(it?.url || ''); setStatus(ok ? '已复制画布资产链接' : '复制失败'); return; }
+    const canvasAssetCopyPrompt = target.closest?.('[data-canvas-asset-copy-prompt]');
+    if(canvasAssetCopyPrompt){
+        const it = findCanvasAssetItem(canvasAssetCopyPrompt.dataset.canvasAssetCopyPrompt || '');
+        const meta = resolveItemMeta(it);
+        const prompt = (meta.prompt || it?.prompt || '').trim();
+        if(prompt){
+            const ok = await copyTextToClipboard(prompt);
+            setStatus(ok ? '已复制生成提示词' : '复制失败');
+        }
+        return;
+    }
     const canvasAssetCheck = target.closest?.('[data-canvas-asset-check]');
     if(canvasAssetCheck){
         event.preventDefault();
@@ -3586,6 +3727,17 @@ async function handleClick(event){
     if(assetDownload){ downloadAssetItem(assetDownload.dataset.assetDownload || ''); return; }
     const assetOpen = target.closest?.('[data-asset-open]');
     if(assetOpen){ openAssetItem(assetOpen.dataset.assetOpen || ''); return; }
+    const assetCopyPrompt = target.closest?.('[data-asset-copy-prompt]');
+    if(assetCopyPrompt){
+        const it = findAssetItem(assetCopyPrompt.dataset.assetCopyPrompt || '');
+        const meta = resolveItemMeta(it);
+        const prompt = (meta.prompt || it?.prompt || '').trim();
+        if(prompt){
+            const ok = await copyTextToClipboard(prompt);
+            setStatus(ok ? '已复制生成提示词' : '复制失败');
+        }
+        return;
+    }
     const avatarCopy = target.closest?.('[data-avatar-copy]');
     if(avatarCopy){
         const uri = avatarCopy.dataset.avatarCopy || '';
@@ -3803,6 +3955,11 @@ function showDetailPreview(source, id){
     }
     const url = source === 'local' ? localObjectUrl(item) : item.url;
     if(!url) return;
+    const meta = resolveItemMeta(item);
+    const provider = meta.provider || item.provider_id || item.provider || '';
+    const model = meta.model || item.model || '';
+    const promptText = (meta.prompt || item.prompt || '').trim();
+    const canvasTitle = item.canvas_title || '';
     document.querySelector('.asset-lightbox')?.remove();
     const overlay = document.createElement('div');
     overlay.className = 'asset-lightbox';
@@ -3810,18 +3967,147 @@ function showDetailPreview(source, id){
     overlay.dataset.x = '0';
     overlay.dataset.y = '0';
     overlay.innerHTML = `
+        <div class="asset-lightbox-meta-bar">
+            ${provider ? `<div class="asset-lightbox-pill" title="模型 API 来源">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/>
+                </svg>
+                <span>${escapeHtml(provider)}</span>
+            </div>` : ''}
+            ${model ? `<div class="asset-lightbox-pill model" title="模型名">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+                <span>${escapeHtml(model)}</span>
+            </div>` : ''}
+            <div class="asset-lightbox-pill" id="lightboxResPill" style="display:none;" title="分辨率">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/>
+                </svg>
+                <span id="lightboxResText"></span>
+            </div>
+            ${canvasTitle ? `<div class="asset-lightbox-pill" title="关联画布">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2"/>
+                </svg>
+                <span>${escapeHtml(canvasTitle)}</span>
+            </div>` : ''}
+        </div>
+        <div class="asset-lightbox-toolbar">
+            <button class="asset-lightbox-btn" type="button" title="在新标签页打开" data-act="open-external" data-url="${escapeAttr(url)}">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+            </button>
+            <button class="asset-lightbox-btn" type="button" title="下载" data-act="download" data-url="${escapeAttr(url)}" data-name="${escapeAttr(item.name || 'preview')}">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>下载</span>
+            </button>
+            <button class="asset-lightbox-btn asset-lightbox-close" type="button" title="关闭 (Esc)" data-act="close">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
         <div class="asset-lightbox-inner" role="dialog" aria-modal="true" aria-label="${kind === 'video' ? '视频预览' : '图片预览'}">
             ${kind === 'video'
                 ? `<video class="asset-lightbox-video" src="${escapeAttr(url)}" controls autoplay playsinline preload="metadata"></video>`
                 : `<img class="asset-lightbox-image" src="${escapeAttr(url)}" alt="${escapeAttr(item.name || 'preview')}" draggable="false">`}
         </div>
+        ${promptText ? `<div class="asset-lightbox-bottom-panel">
+            <div class="asset-lightbox-prompt-text" title="生成提示词">${escapeHtml(promptText)}</div>
+            <button class="asset-lightbox-copy-btn" type="button" data-act="copy-prompt" data-prompt="${escapeAttr(promptText)}" title="复制提示词">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                </svg>
+                <span>复制提示词</span>
+            </button>
+        </div>` : ''}
     `;
-    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (btn) {
+            e.stopPropagation();
+            const act = btn.dataset.act;
+            if (act === 'open-external' && btn.dataset.url) {
+                window.open(btn.dataset.url, '_blank', 'noopener,noreferrer');
+            } else if (act === 'download') {
+                downloadLightboxMedia(btn.dataset.url, btn.dataset.name);
+            } else if (act === 'close') {
+                closeDetailPreview();
+            } else if (act === 'copy-prompt') {
+                const txt = btn.dataset.prompt || '';
+                copyTextToClipboard(txt).then(ok => {
+                    if(ok){
+                        btn.classList.add('copied');
+                        const span = btn.querySelector('span');
+                        if (span) span.textContent = '已复制';
+                        setTimeout(() => {
+                            btn.classList.remove('copied');
+                            if (span) span.textContent = '复制提示词';
+                        }, 2000);
+                        setStatus('已复制提示词');
+                    }
+                });
+            }
+            return;
+        }
+        if (e.target === overlay || e.target.classList.contains('asset-lightbox-inner')) {
+            closeDetailPreview();
+        }
+    });
+    const resPill = overlay.querySelector('#lightboxResPill');
+    const resText = overlay.querySelector('#lightboxResText');
+    if (resPill && resText) {
+        if (kind === 'image') {
+            const img = overlay.querySelector('.asset-lightbox-image');
+            if (img) {
+                const updateRes = () => {
+                    if (img.naturalWidth && img.naturalHeight) {
+                        resText.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+                        resPill.style.display = 'inline-flex';
+                    }
+                };
+                if (img.complete) updateRes();
+                else img.onload = updateRes;
+            }
+        } else if (kind === 'video') {
+            const vid = overlay.querySelector('.asset-lightbox-video');
+            if (vid) {
+                vid.onloadedmetadata = () => {
+                    if (vid.videoWidth && vid.videoHeight) {
+                        resText.textContent = `${vid.videoWidth} × ${vid.videoHeight}`;
+                        resPill.style.display = 'inline-flex';
+                    }
+                };
+            }
+        }
+    }
+    (document.documentElement || document.body).appendChild(overlay);
     document.body.classList.add('asset-lightbox-open');
+    document.documentElement.classList.add('asset-lightbox-open');
 }
+function downloadLightboxMedia(url, name){
+    if(!url) return;
+    const downloadName = name || 'asset_media';
+    const downloadEndpoint = `/api/download-output?url=${encodeURIComponent(url)}&name=${encodeURIComponent(downloadName)}`;
+    downloadUrl(downloadEndpoint, downloadName);
+    setStatus('已开始下载');
+}
+window.downloadLightboxMedia = downloadLightboxMedia;
+window.closeDetailPreview = closeDetailPreview;
 function closeDetailPreview(){
     document.querySelector('.asset-lightbox')?.remove();
     document.body.classList.remove('asset-lightbox-open');
+    document.documentElement.classList.remove('asset-lightbox-open');
     lightboxPanState = null;
 }
 function applyLightboxTransform(overlay){
@@ -4504,12 +4790,25 @@ async function savePromptCreate(){
     const scene = document.getElementById('promptEditScene')?.value || '';
     const positive = document.getElementById('promptEditPositive')?.value || '';
     const negative = document.getElementById('promptEditNegative')?.value || '';
+    const rawCat = (document.getElementById('promptEditCategory')?.value || '').trim() || (activePromptCategory === 'all' ? '我的' : promptCategoryLabel(activePromptCategory));
     if(!lib) return;
     if(!String(name || '').trim() || !String(positive || '').trim()){
         setStatus('名称和正向提示词不能为空');
         return;
     }
-    const category = activePromptCategory === 'all' ? 'custom' : activePromptCategory;
+    const allCats = activePromptCategories();
+    const matched = allCats.find(c => c.name === rawCat || c.id === rawCat);
+    const category = matched ? matched.id : rawCat;
+    if(!matched && rawCat && rawCat !== '全部' && rawCat !== 'all'){
+        try {
+            const catRes = await apiJson('/api/prompt-libraries/categories', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({library_id:lib.id, name:rawCat})
+            });
+            if(catRes?.library) promptLibrary = catRes.library;
+        } catch(e) {}
+    }
     const data = await apiJson('/api/prompt-libraries/items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:lib.id, name, positive, negative, category, scene})});
     promptLibrary = data.library || promptLibrary;
     selectedPromptId = data.item?.id || selectedPromptId;
@@ -4539,12 +4838,26 @@ async function savePromptEdit(id){
     const scene = document.getElementById('promptEditScene')?.value || '';
     const positive = document.getElementById('promptEditPositive')?.value || '';
     const negative = document.getElementById('promptEditNegative')?.value || '';
+    const rawCat = (document.getElementById('promptEditCategory')?.value || '').trim() || promptCategoryLabel(item?.category || 'custom');
     if(!item || !lib) return;
     if(!String(name || '').trim() || !String(positive || '').trim()){
         setStatus('名称和正向提示词不能为空');
         return;
     }
-    const data = await apiJson(`/api/prompt-libraries/items/${encodeURIComponent(id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:lib.id, name, positive, negative, category:item.category || 'custom', scene})});
+    const allCats = activePromptCategories();
+    const matched = allCats.find(c => c.name === rawCat || c.id === rawCat);
+    const category = matched ? matched.id : rawCat;
+    if(!matched && rawCat && rawCat !== '全部' && rawCat !== 'all'){
+        try {
+            const catRes = await apiJson('/api/prompt-libraries/categories', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({library_id:lib.id, name:rawCat})
+            });
+            if(catRes?.library) promptLibrary = catRes.library;
+        } catch(e) {}
+    }
+    const data = await apiJson(`/api/prompt-libraries/items/${encodeURIComponent(id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:lib.id, name, positive, negative, category, scene})});
     promptLibrary = data.library || promptLibrary;
     selectedPromptId = id;
     promptEditMode = false;
@@ -4596,7 +4909,7 @@ document.addEventListener('click', event => {
         handleClick(event).catch(err => setStatus(err.message || '操作失败'));
         return;
     }
-    if(event.target.closest?.('.asset-lightbox') && !event.target.closest?.('.asset-lightbox-image,.asset-lightbox-video')) closeDetailPreview();
+    if(event.target.closest?.('.asset-lightbox') && !event.target.closest?.('.asset-lightbox-image,.asset-lightbox-video,.asset-lightbox-toolbar,.asset-lightbox-meta-bar,.asset-lightbox-bottom-panel')) closeDetailPreview();
 });
 document.addEventListener('keydown', event => {
     if(event.key === 'Escape') closeDetailPreview();
@@ -4759,6 +5072,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
 refreshBtn?.addEventListener('click', () => loadAll().catch(err => setStatus(err.message || '加载失败')));
 storageSettingsBtn?.addEventListener('click', () => openStorageSettings().catch(err => setStatus(err.message || '打开偏好设置失败')));
 window.addEventListener('message', event => {
+    if(event.origin && event.origin !== location.origin) return;
     if(event.data?.type === 'studio-theme') window.StudioTheme?.apply?.(event.data.theme);
 });
 document.addEventListener('DOMContentLoaded', () => loadAll().catch(err => setStatus(err.message || '加载失败')));

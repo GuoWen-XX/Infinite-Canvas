@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Infinite Canvas 本地素材导入",
-  "description": "扫描当前网页图片，批量导入 Infinite Canvas 本地素材并可调用智能分类。",
+  "name": "开卷画布 · MeansCanvas 本地素材导入",
+  "description": "扫描当前网页图片，批量导入 开卷画布 · MeansCanvas 本地素材并可调用智能分类。",
   "version": "1.0.0",
   "action": {
     "default_popup": "popup.html",

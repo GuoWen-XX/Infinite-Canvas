@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>项目工作台</title>
     <script>
         (function(){
@@ -12,17 +14,22 @@
                 if(theme === 'dark') {
                     document.documentElement.classList.add('studio-theme-dark');
                     document.documentElement.classList.add('theme-dark');
+                } else if(theme === 'warm') {
+                    document.documentElement.classList.add('studio-theme-warm');
+                    document.documentElement.classList.add('theme-warm');
                 }
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/touch-mouse.js?v=2026.07.29.1785292587"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <link rel="stylesheet" href="/static/css/canvas-list.css?v=2026.07.29.1785292587">
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/touch-mouse.js?v=2026.10.04.1787932363"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <link rel="stylesheet" href="/static/css/tokens.css?v=2026.10.04.1790799660">
+    <link rel="stylesheet" href="/static/css/canvas-list.css?v=2026.10.04.1790757411">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
 </head>
 <body>
     <div id="workspace" class="workspace">
@@ -47,6 +54,7 @@
                     <span id="trashBadge" class="ws-trash-badge">0</span>
                 </button>
             </div>
+            <div id="sidebarResizeHandle" class="ws-sidebar-resizer" title="按住拖拽调整项目栏宽度"></div>
         </aside>
 
         <!-- RIGHT: board -->
@@ -90,6 +98,6 @@
             <div id="boardStatus" class="ws-status"></div>
         </main>
     </div>
-    <script src="/static/js/canvas-list.js?v=2026.07.29.1785292590"></script>
+    <script src="/static/js/canvas-list.js?v=2026.10.04.1790572665"></script>
 </body>
 </html>

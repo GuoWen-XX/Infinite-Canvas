@@ -1,0 +1,12 @@
+{
+  "name": "ic-tailwind-build",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Precompile Tailwind for Infinite-Canvas: replaces the 397KB runtime CDN compiler with a static, cacheable stylesheet.",
+  "scripts": {
+    "build": "tailwindcss -i input.css -o ../../static/vendor/css/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

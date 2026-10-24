@@ -1,0 +1,249 @@
+/**
+ * Infinite-Canvas Design Token System (v1.0)
+ * 单一事实来源：所有主题颜色、圆角、动效、字号、间距在此定义。
+ * 规则：组件 CSS 禁止硬编码颜色/圆角/时长，一律消费 CSS 变量。
+ * 创建：2026-09-14 · by k3
+ */
+
+/* ============================================================
+   1. 颜色 Token —— 三套主题色板
+   ============================================================ */
+:root {
+    /* -- Light Theme (Apple & Google Typography & Surface Aesthetic) -- */
+    --bg: #ffffff;
+    --bg-base: #f5f5f7;
+    --page: #f5f5f7;
+    --card: #ffffff;
+    --card-solid: #ffffff;
+    --panel: #ffffff;
+    --soft: #f5f5f7;
+    --soft-2: #eef0f3;
+    --line: rgba(0, 0, 0, 0.08);
+    --line-2: rgba(0, 0, 0, 0.14);
+    --text: #1d1d1f;
+    --text-main: #1d1d1f;
+    --muted: #6e6e73;
+    --faint: #86868b;
+    --shadow: rgba(0, 0, 0, 0.05);
+    --shadow-strong: rgba(0, 0, 0, 0.12);
+    --strong: #1d1d1f;
+    --strong-text: #ffffff;
+    --accent: #1d1d1f;
+    --grid: rgba(0, 0, 0, 0.045);
+
+    /* -- Ink hierarchy (Apple & Google Typography Guide) -- */
+    --ink-primary: #1d1d1f;
+    --ink-secondary: #424245;
+    --ink-tertiary: #6e6e73;
+    --ink-meta: #86868b;
+    --ink-caption: #767680;
+    --rule-soft: rgba(0, 0, 0, 0.07);
+
+    /* -- Semantic -- */
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #0071e3;
+}
+
+/* ============================================================
+   2. Warm Theme (暖白纸质)
+   ============================================================ */
+.theme-warm, .studio-theme-warm, html.theme-warm, html.studio-theme-warm {
+    --bg: #f5f1ea;
+    --bg-base: #f5f1ea;
+    --page: #f5f1ea;
+    --card: #fffdf9;
+    --card-solid: #fffdf9;
+    --panel: #fffdf9;
+    --soft: #ede4d4;
+    --soft-2: #e4ddcf;
+    --line: rgba(185, 170, 150, 0.45);
+    --line-2: rgba(60, 50, 40, 0.16);
+    --text: #2a2520;
+    --text-main: #2a2520;
+    --muted: #8a8278;
+    --faint: #7d766a;
+    --shadow: rgba(60, 45, 30, 0.08);
+    --strong: #c97b5a;
+    --strong-text: #fffdf9;
+    --accent: #a85c3c;
+    --grid: rgba(120, 110, 95, 0.08);
+
+    --ink-primary: #2a2520;
+    --ink-secondary: #5a5248;
+    --ink-tertiary: #8a8278;
+    --ink-meta: #8a8278;
+    --ink-caption: #7d766a;
+    --rule-soft: rgba(60, 50, 40, 0.08);
+}
+
+/* ============================================================
+   3. Dark Theme (深邃暗夜) — 对比度优化版
+   ============================================================ */
+.theme-dark, .studio-theme-dark, html.theme-dark, html.studio-theme-dark {
+    --bg: #0d0d0f;
+    --bg-base: #0d0d0f;
+    --page: #0d0d0f;
+    --card: #1a1b20;
+    --card-solid: #1a1b20;
+    --panel: #1a1b20;
+    --soft: #16171b;
+    --soft-2: #262930;
+    --line: rgba(255, 255, 255, 0.14);
+    --line-2: rgba(255, 255, 255, 0.20);
+    --text: #e8e8ea;
+    --text-main: #e8e8ea;
+    --muted: #a7a7ad;
+    --faint: #737373;
+    --shadow: rgba(0, 0, 0, 0.60);
+    --strong: #f5f5f5;
+    --strong-text: #0d0d0f;
+    --accent: #e8e8ea;
+    --grid: rgba(255, 255, 255, 0.07);
+
+    --ink-primary: #f3f4f6;
+    --ink-secondary: #d1d5db;
+    --ink-tertiary: #9ca3af;
+    --ink-meta: #9ca3af;
+    --ink-caption: #b9bfc7;
+    --rule-soft: rgba(255, 255, 255, 0.12);
+}
+
+/* ============================================================
+   4. 圆角 Token —— 三级制
+   ============================================================ */
+:root {
+    --radius-xs: 4px;   /* 小元素：chip、badge、色板 */
+    --radius-sm: 8px;   /* 中元素：按钮、输入框、下拉 */
+    --radius-md: 16px;  /* 大元素：面板、卡片、模态框 */
+    --radius-lg: 22px;  /* 特大元素（保留兼容） */
+    --radius-full: 999px; /* 胶囊/圆角 */
+}
+
+/* ============================================================
+   5. 动效 Token —— 三级制
+   ============================================================ */
+:root {
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);  /* architectural ease，与 means.group 全站一致：前快后长，体感更快 */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --ease-bounce: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+
+    --duration-fast: 0.1s;    /* 快速反馈：hover、色板缩放 */
+    --duration-normal: 0.2s;  /* 标准过渡：面板、菜单、按钮 */
+    --duration-slow: 0.35s;   /* 大幅位移：页面切换、大幅动效 */
+    --duration-xslow: 0.6s;   /* 超慢：图片 hover、大幅缩放 */
+}
+
+/* ============================================================
+   6. 字号 Token —— 最小 11px
+   ============================================================ */
+:root {
+    --text-xs: 11px;    /* 辅助文字、chip、badge */
+    --text-sm: 12px;    /* 次要文字、meta、caption */
+    --text-md: 13px;    /* 正文、按钮 */
+    --text-lg: 14px;    /* 小节标题 */
+    --text-xl: 15px;    /* 标题 */
+    --text-2xl: 16px;   /* 大标题 */
+    --text-3xl: 18px;   /* 特大标题 */
+
+    /* 最小字号：禁止低于 11px */
+    --text-min: 11px;
+}
+
+/* ============================================================
+   7. 间距 Token —— 4px 基栅
+   ============================================================ */
+:root {
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+}
+
+/* ============================================================
+   8. 字体 Token
+   ============================================================ */
+:root {
+    --font-mixed: "Montserrat", "Space Grotesk", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-serif-accent: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", serif;
+}
+
+/* ============================================================
+   9. 混合字体栈 —— 全局强制应用
+   ============================================================ */
+html, body, button, input, select, textarea, .panel, .card, .btn, .tag, .tab, .label, .title, table, th, td {
+    font-family: var(--font-mixed) !important;
+}
+
+body {
+    letter-spacing: -0.006em;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums; /* 计时/费用/坐标数字等宽对齐，不再跳动 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* 无斜体（排版契约 §3） */
+em, i, cite, var, dfn { font-style: normal; }
+
+/* 字重层级 */
+h1, h2, h3, h4, h5, h6, strong, b, .font-bold, .font-semibold, .panel-title, .title {
+    letter-spacing: -0.015em;
+}
+
+/* ============================================================
+   11. 字距 Token —— 苹果与谷歌精密光学字距
+   ============================================================ */
+:root {
+    --tracking-tight: -0.012em;  /* 正文、按钮 */
+    --tracking-label: 0.02em;    /* 导航、标签、小节题 */
+    --tracking-cta: 0.04em;      /* 关键 CTA、极小号标注 */
+}
+
+/* 小号标注/kicker：大写 + 宽字距，层级靠字距而非加粗 */
+.input-label, .panel-title, .nav-fold-toggle .nav-text {
+    letter-spacing: var(--tracking-label);
+}
+.input-label {
+    text-transform: uppercase;
+}
+
+button, .btn, input, select, textarea, .asset-btn, .side-pill {
+    letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   10. 滚动条 —— 全局统一
+   ============================================================ */
+* {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(148, 163, 184, 0.72) transparent !important;
+}
+*::-webkit-scrollbar {
+    width: 10px !important;
+    height: 10px !important;
+    background: transparent !important;
+}
+*::-webkit-scrollbar-track { background: transparent !important; }
+*::-webkit-scrollbar-thumb {
+    min-height: 36px;
+    background-color: rgba(148, 163, 184, 0.72) !important;
+    border: 3px solid transparent !important;
+    border-right-width: 3px !important;
+    background-clip: padding-box !important;
+    border-radius: var(--radius-full) !important;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(100, 116, 139, 0.86) !important;
+}
+*::-webkit-scrollbar-corner { background: transparent !important; }

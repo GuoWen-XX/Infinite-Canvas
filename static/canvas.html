@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
-    <title>无限画布</title>
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=2026.10.04.1790813007">
+    <title>开卷画布 · MeansCanvas</title>
     <script>
         (function(){
             try {
@@ -12,17 +15,42 @@
                 if(theme === 'dark') {
                     document.documentElement.classList.add('studio-theme-dark');
                     document.documentElement.classList.add('theme-dark');
+                } else if(theme === 'warm') {
+                    document.documentElement.classList.add('studio-theme-warm');
+                    document.documentElement.classList.add('theme-warm');
                 }
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/touch-mouse.js?v=2026.07.29.1785292587"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.07.29.1785467498">
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/touch-mouse.js?v=2026.10.04.1787932363"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <link rel="stylesheet" href="/static/css/tokens.css?v=2026.10.04.1790799660">
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.10.04.1791420823">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
+    <style>
+        /* 顶部导航与快捷工具栏 100% 纯实底防透底（内联规则确保 100% 穿透静态缓存） */
+        .topbar { background: transparent !important; border: none !important; pointer-events: none !important; }
+        .topbar .panel, .topbar .canvas-nav, .topbar .toolbar, #quickToolbar, .canvas-nav {
+            background: #fffdf9 !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        html.studio-theme-dark .topbar .panel, html.studio-theme-dark .canvas-nav, html.studio-theme-dark #quickToolbar,
+        body.studio-theme-dark .topbar .panel, body.studio-theme-dark .canvas-nav, body.studio-theme-dark #quickToolbar,
+        .theme-dark .topbar .panel, .theme-dark .canvas-nav, .theme-dark #quickToolbar {
+            background: #212121 !important;
+        }
+        html:not(.studio-theme-dark):not(.theme-dark):not(.studio-theme-warm):not(.theme-warm) .topbar .panel,
+        html:not(.studio-theme-dark):not(.theme-dark):not(.studio-theme-warm):not(.theme-warm) .canvas-nav,
+        html:not(.studio-theme-dark):not(.theme-dark):not(.studio-theme-warm):not(.theme-warm) #quickToolbar {
+            background: #ffffff !important;
+        }
+    </style>
 </head>
 <body>
     <div id="shell" class="shell no-canvas">
@@ -38,20 +66,33 @@
             <div id="quickToolbar" class="panel toolbar editor-only collapsed">
                 <button class="tool-btn toolbar-toggle" type="button" onclick="toggleQuickToolbar()" title="展开快捷菜单" aria-label="展开快捷菜单"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
                 <div class="toolbar-items">
+                    <!-- 基础节点组 -->
                     <button class="tool-btn" onclick="addImageNode()"><i data-lucide="image-plus" class="w-4 h-4"></i><span data-i18n="canvas.image">图片</span></button>
                     <button class="tool-btn" onclick="addPromptNode()"><i data-lucide="text-cursor-input" class="w-4 h-4"></i><span data-i18n="canvas.prompt">提示词</span></button>
                     <button class="tool-btn" onclick="addLoopNode()"><i data-lucide="repeat-2" class="w-4 h-4"></i><span data-i18n="canvas.loop">循环</span></button>
                     <button class="tool-btn" onclick="addLLMNode()"><i data-lucide="message-square-text" class="w-4 h-4"></i>LLM</button>
+                    <div class="toolbar-divider"></div>
+                    <!-- 生成节点组 -->
                     <button class="tool-btn" onclick="addGeneratorNode()"><i data-lucide="wand-sparkles" class="w-4 h-4"></i><span data-i18n="canvas.apiGenerate">API生成</span></button>
                     <button class="tool-btn" onclick="addMsGenNode()"><i data-lucide="cloud-lightning" class="w-4 h-4"></i><span data-i18n="canvas.msGenerate">MS生成</span></button>
-                    <button class="tool-btn" onclick="addVideoNode()"><i data-lucide="clapperboard" class="w-4 h-4"></i><span data-i18n="canvas.videoGenerate">视频生成</span></button>
                     <button class="tool-btn" onclick="addRhNode()"><i data-lucide="workflow" class="w-4 h-4"></i><span data-i18n="canvas.rhGenerate">RH生成</span></button>
                     <button class="tool-btn" onclick="addComfyNode()"><i data-lucide="workflow" class="w-4 h-4"></i>ComfyUI</button>
+                    <button class="tool-btn" onclick="addVideoNode()"><i data-lucide="clapperboard" class="w-4 h-4"></i><span data-i18n="canvas.videoGenerate">视频生成</span></button>
+                    <button class="tool-btn" onclick="addMiniMaxNode()"><i data-lucide="sparkles" class="w-4 h-4"></i><span>MiniMax</span></button>
                     <button class="tool-btn" onclick="addLTXDirectorNode()"><i data-lucide="film" class="w-4 h-4"></i><span data-i18n="canvas.ltxDirector">LTX Director</span></button>
+                    <button class="tool-btn" onclick="addShotBreakdownNode()"><i data-lucide="scissors" class="w-4 h-4"></i><span data-i18n="canvas.shotBreakdown">逐帧拉片</span></button>
+                    <div class="toolbar-divider"></div>
+                    <!-- 工具节点组 -->
+                    <button class="tool-btn" onclick="addEnhanceNode()"><i data-lucide="sparkle" class="w-4 h-4"></i><span data-i18n="canvas.enhanceNode">细节增强</span></button>
+                    <button class="tool-btn" onclick="addAngleNode()"><i data-lucide="box" class="w-4 h-4"></i><span data-i18n="canvas.angleNode">角度控制</span></button>
+                    <button class="tool-btn" onclick="addEditNode()"><i data-lucide="scissors" class="w-4 h-4"></i><span data-i18n="canvas.editNode">图片编辑</span></button>
                     <button class="tool-btn" onclick="addOutputNode()"><i data-lucide="circle-dot" class="w-4 h-4"></i>Output</button>
+                    <div class="toolbar-divider"></div>
+                    <!-- 管理组 -->
                     <button class="tool-btn" onclick="groupSelectedImages()"><i data-lucide="group" class="w-4 h-4"></i><span data-i18n="canvas.group">分组</span></button>
                 </div>
                 <div class="toolbar-fixed">
+                    <button id="canvasAgentToggle" class="tool-btn toolbar-agent" type="button" title="Agent 创作助手 (Alt+A)" aria-label="Agent 创作助手"><i data-lucide="sparkles" class="w-4 h-4"></i><span>Agent</span></button>
                     <button id="workflowTransferToggle" class="tool-btn toolbar-workflow" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open" class="w-4 h-4"></i><span>工作流</span></button>
                     <button id="canvasAssetToggle" class="tool-btn toolbar-asset canvas-asset-toggle" type="button" title="资产库" aria-label="资产库"><i data-lucide="library" class="w-4 h-4"></i><span>资产库</span></button>
                     <button id="canvasLogToggle" class="tool-btn toolbar-log" type="button" onclick="openCanvasLog(event)" title="日志" aria-label="日志" data-i18n-title="canvas.logs"><i data-lucide="list-todo" class="w-4 h-4"></i><span data-i18n="canvas.logs">日志</span></button>
@@ -66,24 +107,82 @@
             <div id="selectionBox" class="selection-box"></div>
             <div id="selectionHub" class="selection-hub"></div>
             <div id="createMenu" class="create-menu">
-                <button class="menu-btn" onclick="menuAdd('image')"><i data-lucide="image-plus" class="w-4 h-4"></i><span data-i18n="canvas.imageCard">上传节点</span></button>
-                <button class="menu-btn" onclick="menuAdd('prompt')"><i data-lucide="text-cursor-input" class="w-4 h-4"></i><span data-i18n="canvas.prompt">提示词</span></button>
-                <button class="menu-btn" onclick="menuAdd('loop')"><i data-lucide="repeat-2" class="w-4 h-4"></i><span data-i18n="canvas.loopNode">循环节点</span></button>
-                <button class="menu-btn" onclick="menuAdd('llm')"><i data-lucide="message-square-text" class="w-4 h-4"></i><span data-i18n="canvas.llmNode">LLM 节点</span></button>
-                <button class="menu-btn" onclick="menuAdd('generator')"><i data-lucide="wand-sparkles" class="w-4 h-4"></i><span data-i18n="canvas.apiGenerate">API生成</span></button>
-                <button class="menu-btn" onclick="menuAdd('midjourney')"><i data-lucide="panel-top" class="w-4 h-4"></i><span>Midjourney</span></button>
-                <button class="menu-btn" onclick="menuAdd('msgen')"><i data-lucide="cloud-lightning" class="w-4 h-4"></i><span data-i18n="canvas.modelscopeGenerate">Modelscope生成</span></button>
-                <button class="menu-btn" onclick="menuAdd('video')"><i data-lucide="clapperboard" class="w-4 h-4"></i><span data-i18n="canvas.videoGenerateNode">视频生成</span></button>
-                <button class="menu-btn" onclick="menuAdd('rh')"><i data-lucide="workflow" class="w-4 h-4"></i><span data-i18n="canvas.rhGenerate">RH生成</span></button>
-                <button class="menu-btn" onclick="menuAdd('comfy')"><i data-lucide="workflow" class="w-4 h-4"></i><span data-i18n="canvas.comfyGenerate">ComfyUI 生成</span></button>
-                <button class="menu-btn" onclick="menuAdd('ltxDirector')"><i data-lucide="film" class="w-4 h-4"></i><span data-i18n="canvas.ltxDirector">LTX Director</span></button>
-                <button class="menu-btn" onclick="menuAdd('output')"><i data-lucide="circle-dot" class="w-4 h-4"></i>Output</button>
+                <div class="menu-section" data-section="image">
+                    <div class="menu-section-header" onclick="toggleMenuSection(this)">
+                        <span class="menu-section-title" data-i18n="canvas.menuGroupImage">图片 / 基础</span>
+                        <i data-lucide="chevron-down" class="menu-section-arrow"></i>
+                    </div>
+                    <div class="menu-section-body">
+                        <button class="menu-btn" onclick="menuAdd('image')"><i data-lucide="image-plus" class="w-4 h-4"></i><span data-i18n="canvas.imageCard">上传节点</span></button>
+                        <button class="menu-btn" onclick="menuAdd('prompt')"><i data-lucide="text-cursor-input" class="w-4 h-4"></i><span data-i18n="canvas.prompt">提示词</span></button>
+                        <button class="menu-btn" onclick="menuAdd('output')"><i data-lucide="circle-dot" class="w-4 h-4"></i><span data-i18n="canvas.outputNode">输出节点</span></button>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section collapsed" data-section="webui">
+                    <div class="menu-section-header" onclick="toggleMenuSection(this)">
+                        <span class="menu-section-title" data-i18n="canvas.menuGroupWebui">WebUI</span>
+                        <i data-lucide="chevron-down" class="menu-section-arrow"></i>
+                    </div>
+                    <div class="menu-section-body">
+                        <button class="menu-btn" onclick="menuAdd('enhance')"><i data-lucide="sparkle" class="w-4 h-4"></i><span data-i18n="canvas.enhanceNode">细节增强</span></button>
+                        <button class="menu-btn" onclick="menuAdd('angle')"><i data-lucide="box" class="w-4 h-4"></i><span data-i18n="canvas.angleNode">角度控制</span></button>
+                        <button class="menu-btn" onclick="menuAdd('edit')"><i data-lucide="scissors" class="w-4 h-4"></i><span data-i18n="canvas.editNode">图片编辑</span></button>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section" data-section="imggen">
+                    <div class="menu-section-header" onclick="toggleMenuSection(this)">
+                        <span class="menu-section-title" data-i18n="canvas.menuGroupImageGen">图片生成</span>
+                        <i data-lucide="chevron-down" class="menu-section-arrow"></i>
+                    </div>
+                    <div class="menu-section-body">
+                        <button class="menu-btn" onclick="menuAdd('generator')"><i data-lucide="wand-sparkles" class="w-4 h-4"></i><span data-i18n="canvas.apiGenerate">API生成</span></button>
+                        <button class="menu-btn" onclick="menuAdd('midjourney')"><i data-lucide="panel-top" class="w-4 h-4"></i><span>Midjourney</span></button>
+                        <button class="menu-btn" onclick="menuAdd('msgen')"><i data-lucide="cloud-lightning" class="w-4 h-4"></i><span data-i18n="canvas.modelscopeGenerate">Modelscope生成</span></button>
+                        <button class="menu-btn" onclick="menuAdd('comfy')"><i data-lucide="workflow" class="w-4 h-4"></i><span data-i18n="canvas.comfyGenerate">ComfyUI 生成</span></button>
+                        <button class="menu-btn" onclick="menuAdd('rh')"><i data-lucide="workflow" class="w-4 h-4"></i><span data-i18n="canvas.rhGenerate">RH生成</span></button>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section collapsed" data-section="video">
+                    <div class="menu-section-header" onclick="toggleMenuSection(this)">
+                        <span class="menu-section-title" data-i18n="canvas.menuGroupVideo">视频生成</span>
+                        <i data-lucide="chevron-down" class="menu-section-arrow"></i>
+                    </div>
+                    <div class="menu-section-body">
+                        <button class="menu-btn" onclick="menuAdd('video')"><i data-lucide="clapperboard" class="w-4 h-4"></i><span data-i18n="canvas.videoGenerateNode">视频生成</span></button>
+                        <button class="menu-btn" onclick="menuAdd('minimax')"><i data-lucide="sparkles" class="w-4 h-4"></i><span>MiniMax H3</span></button>
+                        <button class="menu-btn" onclick="menuAdd('ltxDirector')"><i data-lucide="film" class="w-4 h-4"></i><span data-i18n="canvas.ltxDirector">LTX Director</span></button>
+                        <button class="menu-btn" onclick="menuAdd('shotBreakdown')"><i data-lucide="scissors" class="w-4 h-4"></i><span data-i18n="canvas.shotBreakdown">逐帧拉片</span></button>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section collapsed" data-section="logic">
+                    <div class="menu-section-header" onclick="toggleMenuSection(this)">
+                        <span class="menu-section-title" data-i18n="canvas.menuGroupLogic">控制 / 逻辑</span>
+                        <i data-lucide="chevron-down" class="menu-section-arrow"></i>
+                    </div>
+                    <div class="menu-section-body">
+                        <button class="menu-btn" onclick="menuAdd('llm')"><i data-lucide="message-square-text" class="w-4 h-4"></i><span data-i18n="canvas.llmNode">LLM 节点</span></button>
+                        <button class="menu-btn" onclick="menuAdd('loop')"><i data-lucide="repeat-2" class="w-4 h-4"></i><span data-i18n="canvas.loopNode">循环节点</span></button>
+                    </div>
+                </div>
             </div>
             <div id="linkCreateMenu" class="create-menu"></div>
             <div id="nodeInputMenu" class="create-menu"></div>
             <div id="nodeOutputMenu" class="create-menu"></div>
             <div id="imageNodeMenu" class="create-menu"></div>
             <div id="world" class="world">
+                <svg id="sketchLayer" class="sketch-layer">
+                    <defs>
+                        <marker id="sketchArrowMarker" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="currentColor" />
+                        </marker>
+                    </defs>
+                    <g id="sketchElementsGroup"></g>
+                    <g id="sketchTempGroup"></g>
+                </svg>
                 <svg id="links" class="links"></svg>
                 <div id="linkControls" class="link-controls"></div>
                 <div id="nodes"></div>
@@ -137,10 +236,196 @@
                     </section>
                 </div>
             </aside>
+            <div id="agentDockTrigger" class="agent-dock-trigger dock-right" title="展开 Agent 创作助手 (Alt+A)">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>Agent</span>
+            </div>
+            <aside id="canvasAgentPanel" class="canvas-agent-panel dock-right" aria-label="Agent 创作助手">
+                <div class="agent-panel-head">
+                    <div class="agent-head-title">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>Agent 创作助手</span>
+                    </div>
+                    <div class="agent-head-actions">
+                        <button id="agentDockSideBtn" class="agent-icon-btn" type="button" title="切换左右停靠 (Alt+S)" aria-label="切换左右停靠"><i data-lucide="arrow-left-right" class="w-4 h-4"></i></button>
+                        <button id="agentNewSessionBtn" class="agent-icon-btn" type="button" title="新对话" aria-label="新对话"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        <button id="agentCloseBtn" class="agent-icon-btn" type="button" title="收起面板 (Alt+A)" aria-label="收起面板"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <div class="agent-settings-bar">
+                    <select id="agentProviderSelect" class="agent-select" title="选择 AI 服务商"></select>
+                    <select id="agentModelSelect" class="agent-select" title="选择模型"></select>
+                </div>
+                <div id="agentMessages" class="agent-messages">
+                    <div class="agent-welcome">
+                        <div class="agent-welcome-icon"><i data-lucide="sparkles" class="w-5 h-5"></i></div>
+                        <div class="agent-welcome-title">输入灵感，协同创作</div>
+                        <div class="agent-welcome-desc">描述你想要生成的画面，或选中画布节点进行调整修图、扩图与风格演进。</div>
+                        <div class="agent-suggestions">
+                            <button class="agent-suggestion-btn" type="button" onclick="agentApplySuggestion('生成一组现代极简主义住宅，暖光木饰面与水面倒影')">现代极简建筑效果图</button>
+                            <button class="agent-suggestion-btn" type="button" onclick="agentApplySuggestion('根据当前选中的图片，帮我构思 3 个不同视角和天气的衍生方案')">分析选中节点并衍生视角</button>
+                            <button class="agent-suggestion-btn" type="button" onclick="agentApplySuggestion('优化我的提示词：大师级杰作，写实摄影，电影感光影')">润色优化提示词</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="agentContextBar" class="agent-context-bar" style="display:none;">
+                    <div class="agent-context-header">
+                        <span class="agent-context-heading" data-i18n="canvas.agentReferences">参考上下文</span>
+                        <div class="agent-context-actions">
+                            <button id="agentExtractAtmosphereBtn" class="agent-context-action-btn" type="button" title="提取空间氛围 JSON (20年设计摄影大师分析)">
+                                <i data-lucide="palette" class="w-3.5 h-3.5"></i>
+                                <span data-i18n="canvas.agentExtractAtmosphere">提取空间氛围 JSON</span>
+                            </button>
+                            <button id="agentInterrogateBtn" class="agent-context-action-btn" type="button" title="反推提示词与视觉特征">
+                                <i data-lucide="scan-search" class="w-3.5 h-3.5"></i>
+                                <span>反推提示词</span>
+                            </button>
+                            <button id="agentContextClearAllBtn" class="agent-context-action-btn" type="button" title="清空全部参考">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span>清空</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="agentContextChips" class="agent-context-chips"></div>
+                </div>
+                <div class="agent-input-wrap">
+                    <div id="agentMentionMenu" class="agent-mention-menu" style="display:none;">
+                        <div class="agent-mention-header">
+                            <span>引用画布节点 (@)</span>
+                            <small id="agentMentionCount">0 个候选</small>
+                        </div>
+                        <div id="agentMentionList" class="agent-mention-list"></div>
+                    </div>
+                    <div class="agent-input-box">
+                        <textarea id="agentInput" class="agent-textarea" rows="2" placeholder="输入灵感或创作指令... (输入 @ 引用节点, Enter 发送)"></textarea>
+                        <div class="agent-input-bottom">
+                            <div class="agent-input-controls">
+                                <button id="agentMentionBtn" class="agent-ctrl-btn" type="button" title="引用画布节点 (@)">
+                                    <i data-lucide="at-sign" class="w-4 h-4"></i>
+                                </button>
+                                <label class="agent-ctrl-btn" title="上传参考图">
+                                    <input type="file" id="agentFileInput" accept="image/*" style="display:none;">
+                                    <i data-lucide="image-plus" class="w-4 h-4"></i>
+                                </label>
+                                <label class="agent-checkbox-label" title="生成成功后自动创建节点并连线">
+                                    <input type="checkbox" id="agentAutoPlaceCheckbox" checked>
+                                    <span>自动入画布连线</span>
+                                </label>
+                            </div>
+                            <button id="agentSendBtn" class="agent-send-btn" type="button" title="发送 (Enter)">
+                                <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </aside>
             <div id="canvasAssetHoverPreview" class="canvas-asset-hover-preview" hidden>
                 <img alt="asset preview">
                 <video muted preload="metadata" playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback" style="display:none"></video>
                 <div class="canvas-asset-hover-name"></div>
+            </div>
+
+            <!-- Jaaz Magic Canvas Sketch Tool Dock (Bottom Center) -->
+            <div id="canvasToolDock" class="canvas-tool-dock" role="toolbar" aria-label="手绘与几何工具栏">
+                <button type="button" class="dock-tool-btn active" data-tool="select" title="选择 (V)"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="hand" title="抓手平移 (H / 空格)"><i data-lucide="hand" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="pen" title="画笔 (P)"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="arrow" title="箭头 (A)"><i data-lucide="arrow-up-right" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="line" title="直线 (L)"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="rect" title="矩形 (R)"><i data-lucide="square" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="ellipse" title="椭圆 (O)"><i data-lucide="circle" class="w-4 h-4"></i></button>
+                <button type="button" class="dock-tool-btn" data-tool="text" title="文字 (T)"><i data-lucide="type" class="w-4 h-4"></i></button>
+                <div class="dock-divider"></div>
+                <button type="button" class="dock-tool-btn" id="sketchClearBtn" title="清空手绘草图"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+
+            <!-- Left Floating Property Inspector -->
+            <div id="sketchPropertyInspector" class="sketch-property-inspector" aria-label="手绘属性">
+                <div class="inspector-section">
+                    <div class="inspector-label">线条颜色</div>
+                    <div class="color-palette" id="sketchStrokePalette">
+                        <button type="button" class="color-swatch active" data-color="#ffffff" style="background:#ffffff;" title="纯白"></button>
+                        <button type="button" class="color-swatch" data-color="#94a3b8" style="background:#94a3b8;" title="中灰"></button>
+                        <button type="button" class="color-swatch" data-color="#1e293b" style="background:#1e293b;" title="深灰"></button>
+                        <button type="button" class="color-swatch" data-color="#f87171" style="background:#f87171;" title="珊瑚红"></button>
+                        <button type="button" class="color-swatch" data-color="#fb923c" style="background:#fb923c;" title="暖橙"></button>
+                        <button type="button" class="color-swatch" data-color="#facc15" style="background:#facc15;" title="明黄"></button>
+                        <button type="button" class="color-swatch" data-color="#4ade80" style="background:#4ade80;" title="翡翠绿"></button>
+                        <button type="button" class="color-swatch" data-color="#38bdf8" style="background:#38bdf8;" title="天蓝"></button>
+                        <button type="button" class="color-swatch" data-color="#818cf8" style="background:#818cf8;" title="靛蓝"></button>
+                        <button type="button" class="color-swatch" data-color="#c084fc" style="background:#c084fc;" title="浅紫"></button>
+                    </div>
+                </div>
+                <div class="inspector-section">
+                    <div class="inspector-label">填充背景</div>
+                    <div class="color-palette" id="sketchFillPalette">
+                        <button type="button" class="color-swatch active" data-color="transparent" style="background:transparent; border:1px dashed #64748b;" title="无填充"></button>
+                        <button type="button" class="color-swatch" data-color="#ffffff" style="background:#ffffff;" title="白底"></button>
+                        <button type="button" class="color-swatch" data-color="#1e293b" style="background:#1e293b;" title="深底"></button>
+                        <button type="button" class="color-swatch" data-color="rgba(255,255,255,0.2)" style="background:rgba(255,255,255,0.2);" title="半透白"></button>
+                        <button type="button" class="color-swatch" data-color="rgba(248,113,113,0.2)" style="background:rgba(248,113,113,0.2);" title="半透红"></button>
+                        <button type="button" class="color-swatch" data-color="rgba(56,189,248,0.2)" style="background:rgba(56,189,248,0.2);" title="半透蓝"></button>
+                    </div>
+                </div>
+                <div class="inspector-section">
+                    <div class="inspector-label">线宽</div>
+                    <div class="width-button-group" id="sketchWidthGroup">
+                        <button type="button" class="width-btn" data-width="2" title="细 (2px)">S</button>
+                        <button type="button" class="width-btn active" data-width="4" title="中 (4px)">M</button>
+                        <button type="button" class="width-btn" data-width="8" title="粗 (8px)">L</button>
+                    </div>
+                </div>
+                <div class="inspector-section">
+                    <div class="inspector-label">线型</div>
+                    <div class="style-button-group" id="sketchLineStyleGroup">
+                        <button type="button" class="style-btn active" data-style="solid" title="实线">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                        </button>
+                        <button type="button" class="style-btn" data-style="dashed" title="虚线">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" stroke-dasharray="5 3" fill="none"><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                        </button>
+                        <button type="button" class="style-btn" data-style="dotted" title="点线">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 4" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="inspector-section">
+                    <div class="inspector-label">不透明度</div>
+                    <div class="opacity-button-group" id="sketchOpacityGroup">
+                        <button type="button" class="opacity-btn" data-opacity="0.25">25%</button>
+                        <button type="button" class="opacity-btn" data-opacity="0.5">50%</button>
+                        <button type="button" class="opacity-btn" data-opacity="0.75">75%</button>
+                        <button type="button" class="opacity-btn active" data-opacity="1">100%</button>
+                    </div>
+                </div>
+                <div class="inspector-actions">
+                    <button type="button" class="inspector-action-btn" id="sketchBringToFrontBtn" title="置于顶层"><i data-lucide="bring-to-front" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" class="inspector-action-btn" id="sketchSendToBackBtn" title="置于底层"><i data-lucide="send-to-back" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" class="inspector-action-btn" id="sketchDuplicateBtn" title="复制元素"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" class="inspector-action-btn danger" id="sketchDeleteBtn" title="删除元素"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                </div>
+            </div>
+
+            <!-- Quick Action Pill (Add to chat ⌘↵) -->
+            <div id="sketchQuickAction" class="sketch-quick-action" title="将草图发送给 Agent 创作助手 (Ctrl+Enter)">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span class="quick-action-text">Add to chat</span>
+                <span class="quick-action-kbd">⌘↵</span>
+            </div>
+
+            <!-- Sketch Selection Bounding Box with 8 Resize Handles + 1 Rotate Handle -->
+            <div id="sketchTransformBox" class="sketch-transform-box" style="display:none;">
+                <div class="sketch-transform-outline"></div>
+                <div class="sketch-rotate-stem"></div>
+                <div class="sketch-handle rotate" data-handle="rotate" title="旋转"></div>
+                <div class="sketch-handle nw" data-handle="nw"></div>
+                <div class="sketch-handle n" data-handle="n"></div>
+                <div class="sketch-handle ne" data-handle="ne"></div>
+                <div class="sketch-handle e" data-handle="e"></div>
+                <div class="sketch-handle se" data-handle="se"></div>
+                <div class="sketch-handle s" data-handle="s"></div>
+                <div class="sketch-handle sw" data-handle="sw"></div>
+                <div class="sketch-handle w" data-handle="w"></div>
             </div>
         </div>
         <div id="outputLightbox" class="output-lightbox" onclick="closeOutputLightbox()">
@@ -167,7 +452,10 @@
                 </div>
             </div>
             <div id="outputPromptPanel" class="output-prompt-panel">
-                <div id="outputPromptText" class="output-prompt-text"></div>
+                <div class="output-prompt-content">
+                    <div id="outputPromptMeta" class="output-prompt-meta"></div>
+                    <div id="outputPromptText" class="output-prompt-text"></div>
+                </div>
                 <div class="output-prompt-actions">
                     <button id="outputCopyPromptBtn" class="preview-text-btn secondary" type="button"><i data-lucide="copy" class="w-3.5 h-3.5"></i><span data-i18n="canvas.copyPrompt">复制提示词</span></button>
                     <button id="outputRerunBtn" class="preview-text-btn" type="button"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span data-i18n="canvas.rerun">再次运行</span></button>
@@ -329,7 +617,7 @@
                     </div>
                 </div>
                 <div class="image-edit-actions">
-                    <span id="imageEditZoomLabel" style="color:#94a3b8;font-size:11px;font-weight:800;padding:0 4px;margin-right:auto;cursor:pointer;user-select:none" title="双击重置缩放" ondblclick="resetImageEditZoom()">100%</span>
+                    <span id="imageEditZoomLabel" style="color:#94a3b8;font-size:11px;font-weight:700;padding:0 4px;margin-right:auto;cursor:pointer;user-select:none" title="双击重置缩放" ondblclick="resetImageEditZoom()">100%</span>
                     <button class="image-edit-btn secondary" type="button" onclick="resetCropBox()"><i data-lucide="rotate-ccw" class="w-4 h-4"></i><span data-i18n="canvas.reset">重置</span></button>
                     <button class="image-edit-btn secondary" type="button" onclick="closeImageEditor()" data-i18n="common.cancel">取消</button>
                     <button id="imageEditApplyBtn" class="image-edit-btn primary" type="button" onclick="applyImageEdit()"><i data-lucide="crop" class="w-4 h-4"></i><span data-i18n="canvas.applyCrop">应用裁剪</span></button>
@@ -351,7 +639,12 @@
         </div>
     </div>
 
-    <script src="/static/js/ltx-director-timeline.js?v=2026.07.29.1785292592"></script>
-    <script src="/static/js/canvas.js?v=2026.07.29.1785467956"></script>
+    <script src="/static/js/ltx-director-timeline.js?v=2026.10.04.1788901416"></script>
+    <script src="/static/js/canvas-shot-breakdown.js?v=2026.10.04.1791386260"></script>
+    <script src="/static/js/canvas.js?v=2026.10.04.1791387155"></script>
+    <script src="/static/js/canvas-agent.js?v=2026.10.04.1789317939"></script>
+    <script src="/static/js/canvas-sketch.js?v=2026.10.04.1790167821"></script>
+    <script src="/static/js/canvas-reve.js?v=2026.10.04.1790997809"></script>
 </body>
 </html>
+

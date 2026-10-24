@@ -134,8 +134,8 @@
     inner.className = 'grid-inner';
     inner.innerHTML = shown.map((item) => {
       const isImg = sources.itemIsImage(item);
-      // WebP 等 UXP 不支持的格式转成小 JPEG；PNG/JPEG 直接用原图（快）
-      const url = net.displayUrl(item.url, net.needsJpeg(item.url) ? 256 : 0);
+      // 保留原始地址；loadThumbs 会统一 fetch 小 JPEG 并转成 UXP 可显示的 Base64 Data URL。
+      const url = item.url;
       const badge = isImg ? '' : `<span class="badge">${escapeHtml(item.kind || '文件')}</span>`;
       const thumb = isImg ? `<img data-src="${escapeHtml(url)}" alt="">` : '';
       const thumbAttr = isImg ? ` data-url="${escapeHtml(url)}"` : '';
@@ -194,7 +194,11 @@
       img.addEventListener('load', done);
       img.addEventListener('error', fail);
       to = setTimeout(fail, 8000);   // 弱网留足时间；超时按失败处理（会重试一次）
-      img.src = src;
+      net.thumbnailDataUrl(src, 256).then((dataUrl) => {
+        if (settled) return;
+        if (token !== gridToken) { done(); return; }
+        img.src = dataUrl;
+      }).catch(fail);
     }
     function pump() {
       if (token !== gridToken) return;
@@ -396,7 +400,7 @@
     localStorage.setItem(DX.LS.exportLayer, state.exportLayer ? '1' : '0');
   });
   els.github.addEventListener('click', () => {
-    ps.openUrl('https://github.com/hero8152/Infinite-Canvas').catch((err) => setConnMsg(`打开 GitHub 失败：${err.message || err}`, 'err'));
+    ps.openUrl('https://github.com/zhoushimiaov/MeansCanvas').catch((err) => setConnMsg(`打开 GitHub 失败：${err.message || err}`, 'err'));
   });
 
   els.place.addEventListener('click', doPlace);

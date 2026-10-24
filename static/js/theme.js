@@ -9,13 +9,18 @@
     }
 
     function applyTheme(theme){
-        const next = theme === 'dark' ? 'dark' : 'light';
+        const next = theme === 'dark' ? 'dark' : (theme === 'warm' ? 'warm' : 'light');
         const dark = next === 'dark';
+        const warm = next === 'warm';
         document.documentElement.classList.toggle('studio-theme-dark', dark);
         document.documentElement.classList.toggle('theme-dark', dark);
+        document.documentElement.classList.toggle('studio-theme-warm', warm);
+        document.documentElement.classList.toggle('theme-warm', warm);
         if(document.body){
             document.body.classList.toggle('studio-theme-dark', dark);
             document.body.classList.toggle('theme-dark', dark);
+            document.body.classList.toggle('studio-theme-warm', warm);
+            document.body.classList.toggle('theme-warm', warm);
         }
         window.dispatchEvent(new CustomEvent('studio-theme-change', { detail: { theme: next } }));
     }
@@ -192,7 +197,7 @@
         const scale = appliedScale();
         document.querySelectorAll('iframe').forEach(frame => {
             try {
-                frame.contentWindow?.postMessage({ type: 'studio-ui-scale', mode, scale }, '*');
+                frame.contentWindow?.postMessage({ type: 'studio-ui-scale', mode, scale }, window.location.origin);
             } catch(e) {}
         });
     }
@@ -234,7 +239,7 @@
         get: currentTheme,
         apply: applyTheme,
         set(theme){
-            const next = theme === 'dark' ? 'dark' : 'light';
+            const next = theme === 'dark' ? 'dark' : (theme === 'warm' ? 'warm' : 'light');
             localStorage.setItem(KEY, next);
             localStorage.setItem(LEGACY_KEY, next);
             applyTheme(next);
@@ -258,6 +263,7 @@
         applyScale(currentScaleMode());
     });
     window.addEventListener('message', event => {
+        if(event.origin && event.origin !== location.origin) return;
         if(event.data?.type === 'studio-theme') applyTheme(event.data.theme);
         if(event.data?.type === 'studio-ui-scale') {
             const incomingScale = normalizeExternalScale(event.data.scale);

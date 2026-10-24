@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Radiant Gradient: Deep Obsidian Slate -->
+    <radialGradient id="bgGlow" cx="50%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#181a24"/>
+      <stop offset="60%" stop-color="#0c0d13"/>
+      <stop offset="100%" stop-color="#06070a"/>
+    </radialGradient>
+
+    <!-- Edge Highlight: Precision Architectural Border -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.35)"/>
+      <stop offset="40%" stop-color="rgba(255, 255, 255, 0.12)"/>
+      <stop offset="100%" stop-color="rgba(79, 141, 249, 0.45)"/>
+    </linearGradient>
+
+    <!-- Node Glow: Active Canvas Pulse -->
+    <filter id="coreGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Drop Shadow for Dimensionality -->
+    <filter id="mElevation" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- 1. Squircle Base with Continuous Curvature -->
+  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#bgGlow)" stroke="url(#borderGrad)" stroke-width="3.5"/>
+
+  <!-- 2. Architectural 'M' Monogram (MeansCanvas Signature) -->
+  <g filter="url(#mElevation)">
+    <path d="M 128 372 L 128 152 Q 128 136 142 136 Q 152 136 160 144 L 256 244 L 352 144 Q 360 136 370 136 Q 384 136 384 152 L 384 372" 
+          fill="none" 
+          stroke="#ffffff" 
+          stroke-width="56" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+  </g>
+
+  <!-- 3. Central Node: Active Spatial Canvas Pulse (MeansGroup Sapphire Blue) -->
+  <g filter="url(#coreGlow)">
+    <circle cx="256" cy="244" r="42" fill="#3b82f6" opacity="0.45"/>
+    <circle cx="256" cy="244" r="28" fill="#4f8df9"/>
+    <circle cx="256" cy="244" r="11" fill="#ffffff"/>
+  </g>
+</svg>

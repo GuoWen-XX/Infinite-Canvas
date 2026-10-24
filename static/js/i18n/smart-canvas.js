@@ -2,6 +2,9 @@
     if(!window.StudioI18n) return;
     window.StudioI18n.register({
         "smart.title": { zh: "智能画布", en: "Smart Canvas" },
+        "smart.minimapNav": { zh: "视口", en: "Viewport" },
+        "smart.arrangeShort": { zh: "整理", en: "Arrange" },
+        "smart.fitShort": { zh: "适应", en: "Fit" },
         "smart.engineApi": { zh: "API生成", en: "API" },
         "smart.engineVolcengine": { zh: "火山引擎", en: "Volcengine" },
         "smart.engineMs": { zh: "Modelscope生成", en: "Modelscope" },

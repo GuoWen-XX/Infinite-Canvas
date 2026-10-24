@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="manifest" href="/static/mobile.webmanifest">
+    <meta name="theme-color" content="#111111" id="metaThemeColor">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MeansCanvas">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+    <title>改图 · MeansCanvas Mobile</title>
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=2026.10.04.1790813007">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
+    <style>
+        :root { --bg: #111; --card: #1a1a1a; --line: #2a2a2a; --txt: #eee; --txt-dim: #999; --acc: #f5d90a; }
+        body.light { --bg: #f5f5f5; --card: #fff; --line: #e5e5e5; --txt: #222; --txt-dim: #777; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--txt); font-family: 'Montserrat', system-ui, sans-serif; }
+        .page { max-width: 480px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 88px); }
+
+        /* 顶部条 */
+        .topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 0 12px; }
+        .brand { font-weight: 700; font-size: 15px; letter-spacing: .5px; }
+        .brand em { color: var(--acc); font-style: normal; }
+        .top-actions { display: flex; gap: 10px; }
+        .icon-btn { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--txt); display: flex; align-items: center; justify-content: center; }
+        .icon-btn:active { transform: scale(.92); }
+        .icon-btn svg { width: 17px; height: 17px; }
+
+        /* 卡片区块 */
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+        .card-label { font-size: 11px; font-weight: 700; color: var(--txt-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .card-label .hint { font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+        /* 参考图 */
+        .ref-zone { display: flex; gap: 8px; flex-wrap: wrap; }
+        .ref-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); flex-shrink: 0; }
+        .ref-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ref-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border: none; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; line-height: 18px; padding: 0; cursor: pointer; }
+        .ref-add { width: 72px; height: 72px; border: 1.5px dashed var(--line); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--txt-dim); gap: 3px; font-size: 10px; background: transparent; }
+        .ref-add svg { width: 20px; height: 20px; }
+        .ref-add:active { border-color: var(--acc); color: var(--acc); }
+
+        /* 输入控件 */
+        textarea, select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--txt); padding: 11px 12px; font-size: 14px; font-family: inherit; outline: none; }
+        textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+        select { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--txt-dim) 50%), linear-gradient(135deg, var(--txt-dim) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
+        textarea:focus, select:focus { border-color: var(--acc); }
+        .row { display: flex; gap: 10px; }
+        .row > * { flex: 1; }
+        .params-grid { display: grid; grid-template-columns: 1.15fr 0.95fr 0.9fr; gap: 8px; margin-top: 10px; }
+        .params-grid select { padding: 9px 8px; font-size: 13px; }
+
+        /* 高级选项折叠 */
+        .adv-details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+        .adv-summary { font-size: 11.5px; font-weight: 700; color: var(--txt-dim); cursor: pointer; display: flex; align-items: center; justify-content: space-between; list-style: none; user-select: none; }
+        .adv-summary::-webkit-details-marker { display: none; }
+        .adv-summary svg { width: 14px; height: 14px; transition: transform 0.2s; }
+        .adv-details[open] .adv-summary svg { transform: rotate(180deg); }
+        .adv-body { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .adv-label { font-size: 10.5px; font-weight: 600; color: var(--txt-dim); margin-bottom: 4px; }
+
+        /* 历史抽屉画布分类筛选条 */
+        .history-canvas-scroll-wrap { position: relative; width: 100%; margin-bottom: 12px; overflow: hidden; flex-shrink: 0; }
+        .history-canvas-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; gap: 6px; padding: 2px 0; }
+        .history-canvas-tabs::-webkit-scrollbar { display: none; }
+        .history-canvas-pill { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 10px; font-size: 11.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--txt-dim); white-space: nowrap; flex-shrink: 0; cursor: pointer; transition: all 0.15s; }
+        .history-canvas-pill:active { transform: scale(0.96); }
+        .history-canvas-pill.active { background: var(--txt); color: var(--bg); border-color: var(--txt); font-weight: 700; }
+        .history-cell { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); cursor: pointer; background: var(--card); }
+        .history-cell img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 0.2s ease; }
+        .history-cell img.loaded { opacity: 1; }
+        .history-cell:active { transform: scale(0.96); }
+        .history-cell-badge { position: absolute; bottom: 2px; left: 2px; right: 2px; font-size: 9px; line-height: 1.2; padding: 2px 4px; background: rgba(0,0,0,0.72); color: #fff; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+
+        /* 骨架屏动画 */
+        @keyframes shimmer { 0% { opacity: 0.35; } 50% { opacity: 0.8; } 100% { opacity: 0.35; } }
+        .skeleton { animation: shimmer 1.4s ease-in-out infinite; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+        .skeleton-cell { position: relative; aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); }
+
+        /* 生成按钮 */
+        .gen-btn { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 14px); width: calc(100% - 28px); max-width: 452px; padding: 14px; border: none; border-radius: 14px; background: var(--acc); color: #111; font-size: 15px; font-weight: 700; letter-spacing: 2px; display: flex; align-items: center; justify-content: center; gap: 8px; z-index: 30; box-shadow: 0 6px 20px rgba(245,217,10,.25); }
+        .gen-btn:disabled { opacity: .55; }
+        .gen-btn:active:not(:disabled) { transform: translateX(-50%) scale(.98); }
+        .gen-btn svg { width: 18px; height: 18px; }
+
+        /* 结果区 */
+        .result-pending { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 36px 0; gap: 10px; color: var(--txt-dim); }
+        .spin-lg { width: 30px; height: 30px; border: 3px solid var(--line); border-top-color: var(--acc); border-radius: 50%; animation: spin 1s linear infinite; }
+        .pending-text { font-size: 12.5px; font-weight: 600; letter-spacing: .5px; }
+        .progress-bar-wrap { width: 100%; max-width: 220px; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+        .progress-bar-fill { height: 100%; background: var(--acc); width: 0%; transition: width 0.35s ease; }
+        .phase-badge { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); color: var(--txt-dim); }
+        .result-card { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 10px; cursor: pointer; }
+        .result-card img { width: 100%; display: block; }
+        .result-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+        .result-btn { text-align: center; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--txt); font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.15s; }
+        .result-btn:active { background: var(--bg); transform: scale(0.98); }
+        .result-btn svg { width: 14px; height: 14px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
+
+        /* 历史抽屉 */
+        .drawer { position: fixed; inset: 0; z-index: 50; visibility: hidden; }
+        .drawer.open { visibility: visible; }
+        .drawer-mask { position: absolute; inset: 0; background: rgba(0,0,0,.55); opacity: 0; transition: opacity .2s; }
+        .drawer.open .drawer-mask { opacity: 1; }
+        .drawer-body { position: absolute; left: 0; right: 0; bottom: 0; max-height: 76vh; background: var(--bg); border-radius: 18px 18px 0 0; padding: 10px 16px calc(env(safe-area-inset-bottom) + 16px); transform: translateY(100%); transition: transform .25s ease; display: flex; flex-direction: column; touch-action: pan-y; }
+        .drawer.open .drawer-body { transform: translateY(0); }
+        .drawer-handle { width: 38px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 10px; cursor: grab; flex-shrink: 0; }
+        .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .drawer-title { font-size: 14px; font-weight: 700; }
+        .drawer-close { border: none; background: none; color: var(--txt-dim); font-size: 20px; padding: 4px 8px; cursor: pointer; }
+        .history-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: max-content; gap: 8px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .drawer-loading { grid-column: 1 / -1; text-align: center; color: var(--txt-dim); padding: 36px 0; font-size: 13px; }
+
+        /* Toast */
+        .toast { position: fixed; top: calc(env(safe-area-inset-top) + 12px); left: 50%; transform: translate(-50%, -140%); background: #2d2d2d; color: #fff; border-radius: 12px; padding: 11px 16px; font-size: 13px; z-index: 80; max-width: 86vw; display: flex; gap: 12px; align-items: center; transition: transform .25s; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+        .toast.show { transform: translate(-50%, 0); }
+        .toast-retry { border: 1px solid rgba(255,255,255,.35); background: none; color: #fff; border-radius: 7px; padding: 4px 10px; font-size: 12px; flex-shrink: 0; }
+
+        /* Lightbox (沉浸大图与微操作) */
+        .lightbox { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.94); display: none; flex-direction: column; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 16px); }
+        .lightbox.show { display: flex; }
+        .lightbox-top { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+        .lightbox-title { font-size: 12px; color: rgba(255,255,255,0.7); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; }
+        .lightbox-close { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.14); border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .lightbox-close svg { width: 16px; height: 16px; }
+        .lightbox-body { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; touch-action: pan-y; margin: 12px 0; }
+        .lightbox-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; transition: transform 0.2s ease; }
+        .lightbox-actions { width: 100%; max-width: 440px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .lightbox-btn { text-align: center; padding: 10px 4px; border-radius: 10px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; text-decoration: none; }
+        .lightbox-btn:active { background: rgba(255,255,255,0.24); }
+        .lightbox-btn svg { width: 13px; height: 13px; }
+
+        /* 桌面版入口 */
+        .footer-hint { text-align: center; color: var(--txt-dim); font-size: 11px; padding: 4px 0 8px; }
+        .footer-hint a { color: var(--txt-dim); text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">改图 <em>·</em> Mobile</div>
+            <div class="top-actions">
+                <button class="icon-btn" id="historyBtn" aria-label="从历史选图"><i data-lucide="history"></i></button>
+                <button class="icon-btn" id="themeBtn" aria-label="切换主题"><i data-lucide="sun-moon"></i></button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">参考图 <span class="hint" id="refHint">相册或历史选取 · 最多 8 张</span></div>
+            <div class="ref-zone" id="refZone">
+                <button class="ref-add" id="pickAlbum" type="button"><i data-lucide="image-plus"></i>相册</button>
+                <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">提示词</div>
+            <textarea id="prompt" placeholder="描述要如何修改图片…"></textarea>
+        </div>
+
+        <div class="card">
+            <div class="card-label">平台 / 模型</div>
+            <select id="provider"></select>
+            <div style="height:10px"></div>
+            <select id="model"></select>
+            <div class="params-grid">
+                <select id="ratio">
+                    <option value="auto">比例: 自动</option>
+                    <option value="square">1:1 正方</option>
+                    <option value="portrait">2:3 纵向</option>
+                    <option value="landscape">3:2 横向</option>
+                    <option value="story">9:16 竖版</option>
+                    <option value="wide">16:9 宽屏</option>
+                </select>
+                <select id="resolution">
+                    <option value="2K">清晰度: 2K</option>
+                    <option value="1K">清晰度: 1K</option>
+                    <option value="4K">清晰度: 4K</option>
+                </select>
+                <select id="count">
+                    <option value="1">张数: 1</option>
+                    <option value="2">张数: 2</option>
+                    <option value="4">张数: 4</option>
+                </select>
+            </div>
+            <details class="adv-details" id="advDetails">
+                <summary class="adv-summary">
+                    <span>高级选项 (负向词 / 画质)</span>
+                    <i data-lucide="chevron-down"></i>
+                </summary>
+                <div class="adv-body">
+                    <div>
+                        <div class="adv-label">负向提示词 (Negative Prompt)</div>
+                        <textarea id="negativePrompt" placeholder="不想出现的元素 (如: 模糊, 畸形, 水印)..." style="min-height:54px;"></textarea>
+                    </div>
+                    <div>
+                        <div class="adv-label">生成品质 (Quality)</div>
+                        <select id="quality">
+                            <option value="standard">品质: 标准 (Standard)</option>
+                            <option value="hd">品质: 高清细腻 (HD)</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <div id="resultZone"></div>
+
+        <div class="footer-hint">在电脑上打开完整画布？<a href="/" id="desktopLink">桌面版</a> · <a href="#" id="desktopHint">不再跳转移动版</a></div>
+    </div>
+
+    <button class="gen-btn" id="genBtn"><i data-lucide="zap"></i>生成</button>
+
+    <div class="drawer" id="historyDrawer">
+        <div class="drawer-mask" id="historyMask"></div>
+        <div class="drawer-body" id="drawerBody">
+            <div class="drawer-handle" id="drawerHandle"></div>
+            <div class="drawer-head">
+                <div class="drawer-title">选择历史与桌面素材</div>
+                <button class="drawer-close" id="drawerClose" aria-label="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="history-canvas-scroll-wrap" id="historyCanvasScrollWrap">
+                <div class="history-canvas-tabs" id="historyCanvasTabs">
+                    <button type="button" class="history-canvas-pill active" data-canvas-id="all">全部历史</button>
+                </div>
+            </div>
+            <div class="history-grid" id="historyGrid"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox-top">
+            <div class="lightbox-title" id="lightboxTitle">预览图片</div>
+            <button class="lightbox-close" id="lightboxClose" aria-label="关闭"><i data-lucide="x"></i></button>
+        </div>
+        <div class="lightbox-body" id="lightboxBody">
+            <img id="lightboxImg" src="" alt="">
+        </div>
+        <div class="lightbox-actions" id="lightboxActions"></div>
+    </div>
+
+    <script src="/static/js/mobile.js?v=2026.10.04.1790799984"></script>
+</body>
+</html>

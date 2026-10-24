@@ -365,7 +365,7 @@
     if (f.type === 'bool') return `<div class="field-stack"><label class="gen-check"><input type="checkbox" data-input data-fi="${fi}" ${g.values[f.key] ? 'checked' : ''}> ${escapeHtml(f.label || f.key)}</label></div>`;
     if (f.type === 'image') {
       const prev = g.imgPreview[f.key];
-      const thumb = prev ? `<div class="ref-tile"><img src="${escapeHtml(net.absUrl(prev))}" alt=""><div class="ref-num">1</div><div class="ref-x" data-imgclr="${fi}">×</div></div>` : '';
+      const thumb = prev ? `<div class="ref-tile"><img data-preview-url="${escapeHtml(prev)}" alt=""><div class="ref-num">1</div><div class="ref-x" data-imgclr="${fi}">×</div></div>` : '';
       const add = `<div class="ref-add img-add" data-rhimg="${fi}" title="加当前画面"><div class="ref-add-plus">＋</div><div class="ref-add-cap">${prev ? '替换' : '加画面'}</div></div>`;
       return `<div class="field-stack">${lbl}<div class="gen-thumbs">${thumb}${add}</div></div>`;
     }
@@ -380,6 +380,7 @@
     const sizeIndex = g.fields.findIndex((f) => f.type === 'size');
     const cfi = countFieldIndex();
     els.params.innerHTML = g.fields.map((f, fi) => (sizeIndex >= 0 && fi === cfi ? '' : renderField(f, fi))).filter(Boolean).join('');
+    DX.ui.loadImagePreviews(els.params);
     els.params.querySelectorAll('[data-chip]').forEach((chip) => {
       chip.addEventListener('click', () => {
         const fi = chip.getAttribute('data-fi');
@@ -501,7 +502,7 @@
   function renderRefs() {
     const tiles = g.refs.map((r, i) => `
       <div class="ref-tile" title="${escapeHtml(r.name || '')}">
-        <img src="${escapeHtml(net.absUrl(r.url))}" alt="">
+        <img data-preview-url="${escapeHtml(r.url)}" alt="">
         <div class="ref-num">${i + 1}</div>
         <div class="ref-x" data-x="${i}">×</div>
         <div class="ref-move">
@@ -510,6 +511,7 @@
         </div>
       </div>`).join('');
     els.refs.innerHTML = tiles + `<div class="ref-add" id="refAddTile" title="加当前画面"><div class="ref-add-plus">＋</div><div class="ref-add-cap">加画面</div></div>`;
+    DX.ui.loadImagePreviews(els.refs);
     els.refs.querySelector('#refAddTile').addEventListener('click', addCurrentLayer);
     els.refs.querySelectorAll('[data-x]').forEach((x) => x.addEventListener('click', (e) => {
       e.stopPropagation(); g.refs.splice(Number(x.getAttribute('data-x')), 1); renderRefs();
@@ -541,7 +543,8 @@
   /* ---------- 结果 ---------- */
   function renderResults() {
     els.results.innerHTML = g.results.map((r, i) =>
-      `<div class="gen-thumb result" data-r="${i}" title="${escapeHtml(r.name || '')}"><img src="${escapeHtml(net.absUrl(r.url))}" alt=""><div class="dl">下载到图层</div></div>`).join('');
+      `<div class="gen-thumb result" data-r="${i}" title="${escapeHtml(r.name || '')}"><img data-preview-url="${escapeHtml(r.url)}" alt=""><div class="dl">下载到图层</div></div>`).join('');
+    DX.ui.loadImagePreviews(els.results);
     els.results.querySelectorAll('[data-r]').forEach((node) => node.addEventListener('click', async () => {
       const r = g.results[Number(node.getAttribute('data-r'))];
       if (!r) return;

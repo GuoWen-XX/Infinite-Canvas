@@ -39,14 +39,30 @@
 
     function apply(root=document){
         root.querySelectorAll('[data-i18n]').forEach(el => {
-            el.textContent = t(el.dataset.i18n);
+            const key = el.dataset.i18n;
+            const val = t(key);
+            if(val !== key || !el.textContent.trim()){
+                el.textContent = val;
+            }
         });
         root.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-            el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+            const key = el.dataset.i18nPlaceholder;
+            const val = t(key);
+            if(val !== key || !el.getAttribute('placeholder')){
+                el.setAttribute('placeholder', val);
+            }
         });
         root.querySelectorAll('[data-i18n-title]').forEach(el => {
-            el.setAttribute('title', t(el.dataset.i18nTitle));
+            const key = el.dataset.i18nTitle;
+            const val = t(key);
+            if(val !== key || !el.getAttribute('title')){
+                el.setAttribute('title', val);
+            }
         });
+        const titleEl = (root.ownerDocument || root).querySelector?.('title[data-i18n]');
+        if(titleEl && titleEl.dataset.i18n){
+            document.title = t(titleEl.dataset.i18n);
+        }
         root.documentElement?.setAttribute('lang', lang() === 'en' ? 'en' : 'zh-CN');
         window.dispatchEvent(new CustomEvent('studio-lang-change', { detail:{ lang:lang() } }));
     }

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+    <title>关于 开卷画布 · MeansCanvas</title>
+    <link rel="stylesheet" href="/static/vendor/css/fonts.css?v=2026.10.04.1790813007">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
+    <script>
+        (function(){
+            try {
+                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+                if(theme === 'dark') {
+                    document.documentElement.classList.add('studio-theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                } else if(theme === 'warm') {
+                    document.documentElement.classList.add('studio-theme-warm');
+                    document.documentElement.classList.add('theme-warm');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --soft: #f1f5f9;
+            --line: #e2e8f0;
+            --line-strong: #cbd5e1;
+            --text: #0f172a;
+            --muted: #475569;
+            --faint: #94a3b8;
+            --accent: #2563eb;
+            --font-mixed: "Montserrat", "Space Grotesk", "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        html.theme-dark, body.theme-dark,
+        html.studio-theme-dark, body.studio-theme-dark {
+            --bg: #0b0f17;
+            --panel: #131b26;
+            --soft: #1a2434;
+            --line: #223044;
+            --line-strong: #33445e;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --faint: #64748b;
+            --accent: #3b82f6;
+        }
+        html.theme-warm, body.theme-warm,
+        html.studio-theme-warm, body.studio-theme-warm {
+            --bg: #f5f1ea;
+            --panel: #fffdf9;
+            --soft: #ede7dc;
+            --line: rgba(60, 50, 40, 0.08);
+            --line-strong: rgba(60, 50, 40, 0.16);
+            --text: #2a2520;
+            --muted: #8a8278;
+            --faint: #b5ad9f;
+            --accent: #c97b5a;
+        }
+        * {
+            box-sizing: border-box;
+            font-family: var(--font-mixed);
+        }
+        body {
+            margin: 0;
+            padding: 40px 24px 80px;
+            background: var(--bg);
+            color: var(--text);
+            font-weight: 500;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+        }
+        .about-wrap {
+            max-width: 820px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+        .hero-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 36px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .hero-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .hero-logo-box {
+            width: 68px;
+            height: 68px;
+            border-radius: 18px;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--panel);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+            flex-shrink: 0;
+        }
+        .hero-title {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hero-version {
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--soft);
+            color: var(--accent);
+            border: 1px solid var(--line);
+            padding: 3px 9px;
+            border-radius: 999px;
+            letter-spacing: 0.04em;
+        }
+        .hero-desc {
+            font-size: 13.5px;
+            color: var(--muted);
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+        .section-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 28px 32px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .section-p {
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: var(--muted);
+            margin: 0 0 12px 0;
+        }
+        .social-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+        .social-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--soft);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .social-card:hover {
+            border-color: var(--line-strong);
+            background: var(--panel);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+        }
+        .social-card-name {
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .social-card-sub {
+            font-size: 11px;
+            color: var(--faint);
+        }
+        .pill-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--soft);
+            border: 1px solid var(--line);
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="about-wrap">
+        <!-- 头部卡片 -->
+        <div class="hero-card">
+            <div class="hero-left">
+                <div class="hero-logo-box">
+                    <svg class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="hero-title">
+                        开卷画布 · MeansCanvas
+                        <span class="hero-version" id="versionBadge">v2026.09.05</span>
+                    </h1>
+                    <div class="hero-desc">面向专业视觉创作者的开源无限思维与 AI 创作画布</div>
+                </div>
+            </div>
+            <div>
+                <a class="social-card" href="https://github.com/zhoushimiaov/MeansCanvas" target="_blank" rel="noopener noreferrer">
+                    <i data-lucide="github" class="w-5 h-5"></i>
+                    <div>
+                        <div class="social-card-name">GitHub 仓库</div>
+                        <div class="social-card-sub">zhoushimiaov/MeansCanvas</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 项目初心 -->
+        <div class="section-card">
+            <div class="section-title">
+                <i data-lucide="compass" class="w-4 h-4" style="color:var(--accent)"></i>
+                <span>项目初心 (Project Vision)</span>
+            </div>
+            <p class="section-p">
+                <strong>打破表单的局限，让创意在开卷画布上自由蔓延。</strong>
+            </p>
+            <p class="section-p">
+                在传统的 AI 生图工具中，创作者往往被限制在单一、静态的文本框与表单里，反复输入、生成、下载，视觉碎片散落各处，思维链条被严重打断。
+            </p>
+            <p class="section-p">
+                <strong>开卷画布 (MeansCanvas)</strong> 由此而生——我们致力于构建一个真正无限、有机、非线性的视觉工作空间。无论是文本生成图片、视频生成、局部编辑、风格迁移，还是多轮大模型对话，一切灵感都作为节点在画布上自由排布、串联与碰撞。
+            </p>
+            <p class="section-p">
+                我们坚持<strong>兼收并蓄与架构解耦</strong>：深度兼容本地私有 ComfyUI 算力与全球前沿云端多模态 API（ModelScope、Pollinations、OpenAI、Gemini 等），并践行 <strong>Andrej Karpathy 军规</strong>（简单至上、外科手术式改动、目标驱动），打造轻量、安全、极简的下一代创作利器。
+            </p>
+            <div class="flex items-center gap-2 mt-4 flex-wrap">
+                <span class="pill-tag"><i data-lucide="shield-check" class="w-3.5 h-3.5" style="color:var(--accent)"></i>安全可控</span>
+                <span class="pill-tag"><i data-lucide="feather" class="w-3.5 h-3.5" style="color:var(--accent)"></i>轻量解耦</span>
+                <span class="pill-tag"><i data-lucide="cpu" class="w-3.5 h-3.5" style="color:var(--accent)"></i>本地 + 云端双驱动</span>
+                <span class="pill-tag"><i data-lucide="sparkles" class="w-3.5 h-3.5" style="color:var(--accent)"></i>创作者优先</span>
+            </div>
+        </div>
+
+        <!-- 当前维护与二次开发团队 -->
+        <div class="section-card">
+            <div class="section-title">
+                <i data-lucide="sparkles" class="w-4 h-4" style="color:var(--accent)"></i>
+                <span>当前维护与二次开发 (Maintainer & Evolution)</span>
+            </div>
+            <p class="section-p">
+                本项目当前由 <strong>有物建筑 (MeansGroup)</strong> 团队进行二次深度改造与持续维护。我们立足于建筑与空间视觉设计的真实生产管线，对多模态引擎解耦、排版美学契约、空间画布交互与极简架构进行系统性演进与落地。
+            </p>
+            <div style="margin-top: 14px;">
+                <a class="social-card" href="https://means.group" target="_blank" rel="noopener noreferrer" style="display:inline-flex; width:auto; padding:10px 16px;">
+                    <i data-lucide="globe" class="w-5 h-5" style="color:var(--accent)"></i>
+                    <div>
+                        <div class="social-card-name">有物建筑 (MeansGroup) 官方网站</div>
+                        <div class="social-card-sub">https://means.group</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 致谢开源原作者与社交矩阵 -->
+        <div class="section-card">
+            <div class="section-title">
+                <i data-lucide="heart" class="w-4 h-4" style="color:var(--accent)"></i>
+                <span>致谢开源原作者 (Original Creator & Community)</span>
+            </div>
+            <p class="section-p">
+                本项目由开源原作者 <strong>DX（wuli大雄）</strong> 独立发起并开源初始版本。衷心感谢大雄为开卷画布生态打下的坚实灵感基石与无私贡献！
+            </p>
+            <p class="section-p">
+                欢迎关注开源原作者大雄的个人社交媒体频道获取第一手教程与动态，同时可访问原版项目仓库与新官网：
+            </p>
+
+            <div class="social-grid">
+                <a class="social-card" href="https://space.bilibili.com/78652351" target="_blank" rel="noopener noreferrer">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.813 4.653h-.854L15.66 3.053a1.147 1.147 0 00-1.63 0l-1.3 1.6h-1.46L9.97 3.053a1.147 1.147 0 00-1.63 0L7.043 4.653h-.854a3.946 3.946 0 00-3.93 3.934v8.117a3.946 3.946 0 003.93 3.934h11.624a3.946 3.946 0 003.93-3.934V8.587a3.946 3.946 0 00-3.93-3.934zM7.152 13.9a1.465 1.465 0 111.47-1.462 1.465 1.465 0 01-1.47 1.462zm7.696 0a1.465 1.465 0 111.47-1.462 1.465 1.465 0 01-1.47 1.462z" />
+                    </svg>
+                    <div>
+                        <div class="social-card-name">哔哩哔哩</div>
+                        <div class="social-card-sub">@wuli大雄</div>
+                    </div>
+                </a>
+
+                <a class="social-card" href="https://www.xiaohongshu.com/user/profile/6433c34c000000001a023538" target="_blank" rel="noopener noreferrer">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" />
+                    </svg>
+                    <div>
+                        <div class="social-card-name">小红书</div>
+                        <div class="social-card-sub">@大雄DX</div>
+                    </div>
+                </a>
+
+                <a class="social-card" href="https://www.youtube.com/@%E5%A4%A7%E9%9B%84dx" target="_blank" rel="noopener noreferrer">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                    </svg>
+                    <div>
+                        <div class="social-card-name">YouTube</div>
+                        <div class="social-card-sub">@大雄dx</div>
+                    </div>
+                </a>
+
+                <a class="social-card" href="https://x.com/dx8152?s=21" target="_blank" rel="noopener noreferrer">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                    <div>
+                        <div class="social-card-name">X (Twitter)</div>
+                        <div class="social-card-sub">@dx8152</div>
+                    </div>
+                </a>
+
+                <a class="social-card" href="https://github.com/hero8152/Infinite-Canvas" target="_blank" rel="noopener noreferrer">
+                    <i data-lucide="github" class="w-5 h-5"></i>
+                    <div>
+                        <div class="social-card-name">原版 GitHub 仓库</div>
+                        <div class="social-card-sub">hero8152/Infinite-Canvas</div>
+                    </div>
+                </a>
+
+                <a class="social-card" href="https://dx-os.com" target="_blank" rel="noopener noreferrer">
+                    <i data-lucide="compass" class="w-5 h-5" style="color:var(--accent)"></i>
+                    <div>
+                        <div class="social-card-name">DX-OS 原作者新系统官网</div>
+                        <div class="social-card-sub">https://dx-os.com</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 开源协议与声明 -->
+        <div class="section-card">
+            <div class="section-title">
+                <i data-lucide="scale" class="w-4 h-4" style="color:var(--accent)"></i>
+                <span>开源协议 (Apache License 2.0)</span>
+            </div>
+            <p class="section-p">
+                本项目采用 <strong>Apache License 2.0（阿帕奇 2.0 协议）</strong> 开源发布。作为对开源原作者 DX（wuli大雄）原版 Infinite-Canvas 的二次深度改造衍生版本，我们保留原作者版权声明与贡献致谢。遵循 Apache 2.0 规范，代码开放供广大创作者自由使用、交流与二次探索。
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if(window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+            fetch('/api/app-info').then(r => r.json()).then(data => {
+                if(data && data.version) {
+                    const badge = document.getElementById('versionBadge');
+                    if(badge) badge.textContent = 'v' + data.version;
+                }
+            }).catch(() => {});
+        });
+    </script>
+</body>
+</html>

@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/static/images/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <title>Flux Klein | 极简一体化终端</title>
     <script>
         (function(){
@@ -17,59 +19,79 @@
             } catch(e) {}
         })();
     </script>
-    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/vendor/js/lucide.js?v=2026.07.29.1785292594"></script>
-    <script src="/static/js/theme.js?v=2026.07.29.1785292593"></script>
-    <script src="/static/js/i18n.js?v=2026.07.29.1785292592"></script>
-    <script src="/static/js/image-preview.js?v=2026.07.29.1785292584"></script>
-    <script src="/static/js/history-bulk-manager.js?v=2026.07.29.1785292584"></script>
+    <link rel="stylesheet" href="/static/vendor/css/tailwind.css?v=2026.10.04.1789919950">
+    <script src="/static/vendor/js/lucide.js?v=2026.10.04.1787932386"></script>
+    <script src="/static/js/utils/escape.js?v=2026.10.04.1789929488"></script>
+    <script src="/static/js/theme.js?v=2026.10.04.1788673394"></script>
+    <script src="/static/js/i18n.js?v=2026.10.04.1790129704"></script>
+    <script src="/static/js/image-preview.js?v=2026.10.04.1787932356"></script>
+    <script src="/static/js/history-bulk-manager.js?v=2026.10.04.1790800008"></script>
     <style>
-        @import url('/static/vendor/css/fonts.css?v=2026.07.29.1785292593');
+        @import url('/static/vendor/css/fonts.css?v=2026.10.04.1790813007');
 
         :root {
             --accent: #111827;
-            --bg: #f9fafb;
+            --bg: #f8fafc;
             --card: #ffffff;
+            --line: rgba(10, 10, 10, 0.08);
+            --line-2: rgba(10, 10, 10, 0.16);
             --easing: cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        *::-webkit-scrollbar { width:10px!important; height:10px!important; background:transparent!important; }
+        *::-webkit-scrollbar { width:8px!important; height:8px!important; background:transparent!important; }
         *::-webkit-scrollbar-track { background:transparent!important; border:none!important; }
-        *::-webkit-scrollbar-thumb { background-color:#d8d8d8!important; border:3px solid transparent!important; border-right-width:5px!important; background-clip:padding-box!important; border-radius:10px!important; }
-        *::-webkit-scrollbar-thumb:hover { background-color:#c0c0c0!important; }
+        *::-webkit-scrollbar-thumb { background-color:rgba(148,163,184,0.4)!important; border:2px solid transparent!important; background-clip:padding-box!important; border-radius:10px!important; }
+        *::-webkit-scrollbar-thumb:hover { background-color:rgba(148,163,184,0.6)!important; }
         *::-webkit-scrollbar-corner { background:transparent!important; }
-        * { scrollbar-width:thin!important; scrollbar-color:#d8d8d8 transparent!important; }
+        * { scrollbar-width:thin!important; scrollbar-color:rgba(148,163,184,0.4) transparent!important; }
 
         body {
             background-color: var(--bg);
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: var(--font-mixed);
             color: var(--accent);
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            font-feature-settings: "palt" 1, "kern" 1;
+            letter-spacing: 0.01em;
         }
 
         .container-box {
-            max-width: 1280px;
+            max-width: 1360px;
             margin: 0 auto;
-            padding: 0 40px;
-            margin-top: 50px;
+            padding: 24px 32px;
+            min-height: 100vh;
         }
 
         .nano-input {
             background: var(--card);
-            border: 1px solid #eef0f2;
-            transition: all 0.3s var(--easing);
+            border: 1px solid var(--line);
+            color: inherit;
+            border-radius: 14px;
+            transition: all 0.25s var(--easing);
         }
-        .nano-input:focus { border-color: #000; box-shadow: 0 0 0 1px #000; }
+        .nano-input:focus {
+            border-color: var(--strong, #000);
+            box-shadow: 0 0 0 1px var(--strong, #000);
+        }
 
         .upload-item {
             background: var(--card);
-            border: 1px dashed #e2e8f0;
-            transition: all 0.4s var(--easing);
+            border: 1px dashed var(--line);
+            border-radius: 14px;
+            transition: all 0.3s var(--easing);
             position: relative;
             overflow: hidden;
         }
-        .upload-item:hover { border-color: #000; background: #fff; transform: translateY(-2px); }
-        .upload-item.drag-over { border-style: solid; border-color: #000; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .upload-item:hover {
+            border-color: var(--strong, #000);
+            transform: translateY(-1px);
+        }
+        .upload-item.drag-over {
+            border-style: solid;
+            border-color: var(--strong, #000);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.05);
+        }
 
         .preview-img {
             position: absolute;
@@ -77,22 +99,15 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            animation: fadeIn 0.5s var(--easing);
+            animation: fadeIn 0.4s var(--easing);
         }
 
-        .glass-btn {
-            background: #111827;
-            transition: all 0.3s var(--easing);
-        }
-        .glass-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
-        .glass-btn:active { transform: scale(0.98); }
-
-        /* Engine panel (above run button) */
+        /* Engine panel */
         .engine-panel {
-            background: #fff;
-            border: 1px solid #edf0f3;
-            border-radius: 24px;
-            padding: 12px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -101,47 +116,49 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            color: #94a3b8;
-            font-size: 10px;
+            color: var(--ink-caption);
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: .04em;
+            letter-spacing: .02em;
         }
         .engine-switch {
-            background: #f8fafc;
-            border: 1px solid #edf2f7;
-            border-radius: 999px;
+            background: var(--soft, #f1f5f9);
+            border: 1px solid var(--line);
+            border-radius: 10px;
             padding: 3px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2px;
+            gap: 4px;
         }
         .engine-btn {
-            border-radius: 999px;
-            height: 34px;
+            border-radius: 8px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-            color: #64748b;
-            font-size: 10px;
+            color: var(--ink-tertiary);
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: .02em;
-            transition: all .25s var(--easing);
+            letter-spacing: .01em;
+            transition: all .2s var(--easing);
             cursor: pointer;
+            background: transparent;
         }
         .engine-btn.active {
-            background: #fff;
-            color: #111827;
-            box-shadow: 0 1px 3px rgba(15,23,42,.08);
+            background: var(--card);
+            color: var(--ink-primary);
+            box-shadow: 0 1px 3px var(--shadow, rgba(0,0,0,0.06));
         }
-        .engine-btn:not(.active):hover { color: #111827; background: rgba(0,0,0,.04); }
+        .engine-btn:not(.active):hover {
+            color: var(--ink-primary);
+            background: rgba(0,0,0,.03);
+        }
 
-        /* Cloud progress */
         .cloud-status {
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.02em;
             color: #64748b;
             display: none;
             align-items: center;
@@ -158,168 +175,273 @@
         @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
 
         .result-frame {
-            background: #ffffff;
-            border-radius: 32px;
-            border: 1px solid #f1f5f9;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.02);
+            background: var(--card);
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            box-shadow: 0 2px 14px var(--shadow, rgba(0,0,0,0.03));
         }
 
         .masonry-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
+            gap: 16px;
         }
         @media (min-width: 768px) { .masonry-grid { grid-template-columns: repeat(4, 1fr); } }
 
         .masonry-item {
             aspect-ratio: 1 / 1;
-            border-radius: 24px;
+            border-radius: 14px;
             overflow: hidden;
-            background: #fff;
-            border: 1px solid #f1f5f9;
-            transition: all 0.5s var(--easing);
+            background: var(--card);
+            border: 1px solid var(--line);
+            transition: all 0.3s var(--easing);
         }
-        .masonry-item:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(0,0,0,0.08); }
+        .masonry-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 14px 28px var(--shadow, rgba(0,0,0,0.06));
+        }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* 细节增强 LoRA 开关轨道：明/暗模式都保持足够对比度 */
-        .lora-track { background: #d1d5db; }
-        .lora-track.on { background: #111827; }
+        .lora-track { background: var(--line-2, #d1d5db); }
+        .lora-track.on { background: var(--strong, #111827); }
         html.studio-theme-dark .lora-track { background: #3a465a; }
         html.studio-theme-dark .lora-track.on { background: #3b82f6; }
+
+        /* --- Studio Page Header & Typography --- */
+        .studio-page-head {
+            display: flex !important;
+            align-items: flex-end !important;
+            justify-content: space-between !important;
+            gap: 20px !important;
+            margin-bottom: 32px !important;
+            padding-bottom: 22px !important;
+            border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.07)) !important;
+        }
+        .studio-title-group {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        .studio-title-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 14px !important;
+            flex-wrap: wrap !important;
+        }
+        .studio-title {
+            margin: 0 !important;
+            font-size: 34px !important;
+            font-weight: 600 !important;
+            line-height: 1.18 !important;
+            letter-spacing: -0.01em !important;
+            color: var(--text, var(--ink-primary, #0f172a)) !important;
+            font-style: normal !important;
+            font-feature-settings: "palt" 1, "kern" 1 !important;
+        .studio-desc {
+            margin: 0 !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.6 !important;
+            letter-spacing: 0.025em !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-style: normal !important;
+        }
+        .studio-head-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            flex-shrink: 0 !important;
+        }
+        .studio-status-pill {
+            height: 34px !important;
+            padding: 0 14px !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--line, rgba(0, 0, 0, 0.08)) !important;
+            background: var(--card, #ffffff) !important;
+            color: var(--ink-secondary, #64748b) !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            box-shadow: 0 1px 3px var(--shadow, rgba(0,0,0,0.04)) !important;
+            font-style: normal !important;
+        }
+        .studio-status-dot {
+            width: 7px !important;
+            height: 7px !important;
+            border-radius: 50% !important;
+            background: #10b981 !important;
+            display: inline-block !important;
+        }
     </style>
-    <link rel="stylesheet" href="/static/css/theme.css?v=2026.07.29.1785292588">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.10.04.1790863528">
 </head>
 
 <body class="antialiased transition-colors duration-300">
-    <div class="container-box min-h-screen flex flex-col">
-        <header class="flex justify-between items-end mb-10">
-            <div class="space-y-1">
-                <h1 class="text-4xl font-extrabold tracking-tighter italic">FLUX KLEIN</h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-400" data-i18n="nav.imageEdit">Next-Gen Generative Interface</p>
+    <div class="container-box max-w-7xl mx-auto px-6 lg:px-8 py-8 min-h-screen flex flex-col">
+        <header class="studio-page-head flex items-end justify-between gap-5 mb-8 pb-6 border-b border-[var(--line,rgba(0,0,0,0.07))]">
+            <div class="studio-title-group flex flex-col gap-2">
+                <div class="studio-title-row flex items-center gap-3.5 flex-wrap">
+                    <h1 class="studio-title text-3xl lg:text-4xl font-semibold tracking-normal text-[var(--text,#0f172a)]" data-i18n="studio.kleinTitle">图片编辑</h1>
+                </div>
+                <p class="studio-desc text-xs md:text-sm text-[var(--ink-secondary,#64748b)]" data-i18n="studio.kleinDesc">基于多图层参考与引导控制的高精度局部图像重绘终端。</p>
+            </div>
+            <div class="studio-head-actions flex items-center gap-2.5 flex-shrink-0">
+                <div id="studioStatus" class="studio-status-pill inline-flex items-center gap-2 h-8 px-3.5 rounded-full border border-[var(--line,rgba(0,0,0,0.08))] bg-[var(--card,#ffffff)] text-[11px] font-semibold text-[var(--ink-secondary,#64748b)] shadow-sm">
+                    <span class="studio-status-dot"></span>
+                    <span id="statusText" data-i18n="studio.systemReady">系统就绪</span>
+                </div>
             </div>
         </header>
 
-        <main class="grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <div class="lg:col-span-5 space-y-10">
-                <section class="space-y-4">
-                    <div class="flex items-center gap-2 text-gray-400">
+        <main class="studio-workbench items-start">
+            <div class="studio-workbench-left">
+                <!-- Prompt Section -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
                         <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="studio.inputPrompt">Input Prompt</span>
+                        <span data-i18n="studio.inputPrompt">输入提示词</span>
                     </div>
-                    <textarea id="promptInput" rows="5"
-                        class="nano-input w-full p-6 rounded-3xl text-sm outline-none resize-none placeholder-gray-300"
-                        placeholder="Describe your vision here..." data-i18n-placeholder="studio.describeVision"></textarea>
+                    <textarea id="promptInput" rows="3"
+                        class="nano-input w-full p-4 rounded-xl text-sm outline-none resize-none placeholder-[var(--ink-tertiary)] bg-[var(--card-subtle)] border border-[var(--line)] text-[var(--text)] transition-colors leading-relaxed"
+                        placeholder="描述想要生成或局部重绘的画面..." data-i18n-placeholder="studio.describeVision"></textarea>
                 </section>
 
-                <section class="space-y-4">
-                    <div class="flex items-center gap-2 text-gray-400">
+                <!-- Reference Layers -->
+                <section class="studio-card-panel">
+                    <div class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
                         <i data-lucide="image" class="w-3.5 h-3.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="studio.referenceLayers">Reference Layers</span>
-                        <span id="cloudImgNote" class="hidden ml-auto text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full" data-i18n="studio.cloudUsesMain">Cloud uses Main image</span>
+                        <span data-i18n="studio.referenceLayers">参考图层</span>
+                        <span id="cloudImgNote" class="hidden ml-auto text-[9px] font-bold text-[var(--accent)] bg-[var(--rule-soft)] px-2 py-0.5 rounded-full" data-i18n="studio.cloudUsesMain">云端仅使用主图</span>
                     </div>
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-3 gap-3">
                         <div id="drop-zone-1" onclick="document.getElementById('file1').click()"
-                            class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
+                            class="upload-item group aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer border border-dashed border-[var(--line-2,#cbd5e1)] hover:border-[var(--strong)] transition-all bg-[var(--card-subtle)]">
                             <input type="file" id="file1" class="hidden" onchange="handleFile(this.files[0], 1)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black transition-colors"></i>
-                            <span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Main</span>
+                            <i data-lucide="plus" class="w-4 h-4 text-[var(--ink-tertiary)] group-hover:text-[var(--text)] transition-colors"></i>
+                            <span class="text-[9px] mt-1.5 font-bold text-[var(--ink-secondary)] uppercase">Main</span>
                             <img id="prev1" class="preview-img hidden">
                             <button id="del1" onclick="clearSlot(1, event)"
-                                class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10 flex items-center justify-center text-xs">×</button>
+                                class="hidden absolute top-2 right-2 w-6 h-6 bg-[var(--card)] rounded-full shadow-sm z-10 flex items-center justify-center text-xs border border-[var(--line)]">×</button>
                         </div>
                         <div id="drop-zone-2" onclick="document.getElementById('file2').click()"
-                            class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
+                            class="upload-item group aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer border border-dashed border-[var(--line-2,#cbd5e1)] hover:border-[var(--strong)] transition-all bg-[var(--card-subtle)]">
                             <input type="file" id="file2" class="hidden" onchange="handleFile(this.files[0], 2)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black transition-colors"></i>
-                            <span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux A</span>
+                            <i data-lucide="plus" class="w-4 h-4 text-[var(--ink-tertiary)] group-hover:text-[var(--text)] transition-colors"></i>
+                            <span class="text-[9px] mt-1.5 font-bold text-[var(--ink-secondary)] uppercase">Aux A</span>
                             <img id="prev2" class="preview-img hidden">
                             <button id="del2" onclick="clearSlot(2, event)"
-                                class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10 flex items-center justify-center text-xs">×</button>
+                                class="hidden absolute top-2 right-2 w-6 h-6 bg-[var(--card)] rounded-full shadow-sm z-10 flex items-center justify-center text-xs border border-[var(--line)]">×</button>
                         </div>
                         <div id="drop-zone-3" onclick="document.getElementById('file3').click()"
-                            class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
+                            class="upload-item group aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer border border-dashed border-[var(--line-2,#cbd5e1)] hover:border-[var(--strong)] transition-all bg-[var(--card-subtle)]">
                             <input type="file" id="file3" class="hidden" onchange="handleFile(this.files[0], 3)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black transition-colors"></i>
-                            <span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux B</span>
+                            <i data-lucide="plus" class="w-4 h-4 text-[var(--ink-tertiary)] group-hover:text-[var(--text)] transition-colors"></i>
+                            <span class="text-[9px] mt-1.5 font-bold text-[var(--ink-secondary)] uppercase">Aux B</span>
                             <img id="prev3" class="preview-img hidden">
                             <button id="del3" onclick="clearSlot(3, event)"
-                                class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10 flex items-center justify-center text-xs">×</button>
+                                class="hidden absolute top-2 right-2 w-6 h-6 bg-[var(--card)] rounded-full shadow-sm z-10 flex items-center justify-center text-xs border border-[var(--line)]">×</button>
                         </div>
                     </div>
                 </section>
 
-                <div class="engine-panel">
-                    <div class="engine-label">
-                        <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
-                        <span data-i18n="studio.engine">Engine</span>
-                    </div>
-                    <div class="engine-switch">
-                        <button id="localBtn" class="engine-btn active" onclick="setEngine('local')">
-                            <i data-lucide="cpu" class="w-3 h-3"></i><span data-i18n="studio.local">Local</span>
-                        </button>
-                        <button id="cloudBtn" class="engine-btn" onclick="setEngine('cloud')">
-                            <i data-lucide="cloud" class="w-3 h-3"></i>ModelScope
-                        </button>
-                    </div>
-                    <div id="cloudStatusBar" class="cloud-status">
-                        <div class="cloud-dot"></div>
-                        <span id="cloudStatusText" data-i18n="studio.connecting">Connecting...</span>
-                    </div>
-                    <div id="loraSection" class="hidden flex-col gap-3 pt-2 border-t border-gray-100">
-                        <label class="flex items-center gap-3 cursor-pointer select-none" onclick="toggleLora()">
-                            <div class="relative w-9 h-5 flex-shrink-0">
-                                <div id="loraTrack" class="lora-track w-full h-full rounded-full transition-colors duration-200"></div>
-                                <div id="loraThumb" class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"></div>
+                <!-- Engine & LoRA Section -->
+                <section class="studio-card-panel">
+                    <div class="engine-panel border-none p-0 bg-transparent">
+                        <div class="engine-label mb-2">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                            <span data-i18n="studio.engine">推理引擎</span>
+                        </div>
+                        <div class="engine-switch">
+                            <button id="localBtn" class="engine-btn active" onclick="setEngine('local')">
+                                <i data-lucide="cpu" class="w-3 h-3"></i><span data-i18n="studio.local">本地 ComfyUI</span>
+                            </button>
+                            <button id="cloudBtn" class="engine-btn" onclick="setEngine('cloud')">
+                                <i data-lucide="cloud" class="w-3 h-3"></i>ModelScope 云端
+                            </button>
+                        </div>
+                        <div id="cloudStatusBar" class="cloud-status mt-2">
+                            <div class="cloud-dot"></div>
+                            <span id="cloudStatusText" data-i18n="studio.connecting">Connecting...</span>
+                        </div>
+                        <div id="loraSection" class="hidden flex-col gap-3 pt-3 mt-3 border-t border-[var(--line)]">
+                            <label class="flex items-center gap-3 cursor-pointer select-none" onclick="toggleLora()">
+                                <div class="relative w-9 h-5 flex-shrink-0">
+                                    <div id="loraTrack" class="lora-track w-full h-full rounded-full transition-colors duration-200"></div>
+                                    <div id="loraThumb" class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-[var(--text)] uppercase tracking-wider" data-i18n="studio.detailLora">细节增强 LoRA</span>
+                            </label>
+                            <div id="loraStrengthRow" class="hidden flex-col gap-1.5">
+                                <div class="flex justify-between">
+                                    <span class="text-[10px] font-semibold text-[var(--ink-secondary)] uppercase tracking-widest" data-i18n="studio.loraStrength">LoRA 权重</span>
+                                    <span id="loraStrengthVal" class="text-xs font-mono font-semibold text-[var(--text)]">0.80</span>
+                                </div>
+                                <input type="range" id="loraStrengthSlider" min="0.1" max="1.0" step="0.05" value="0.8"
+                                    class="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                                    oninput="document.getElementById('loraStrengthVal').textContent=parseFloat(this.value).toFixed(2)">
                             </div>
-                            <span class="text-[10px] font-bold text-gray-600 uppercase tracking-wider" data-i18n="studio.detailLora">细节增强 LoRA</span>
-                        </label>
-                        <div id="loraStrengthRow" class="hidden flex-col gap-1.5">
-                            <div class="flex justify-between">
-                                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest" data-i18n="studio.loraStrength">LoRA Strength</span>
-                                <span id="loraStrengthVal" class="text-[9px] font-bold text-gray-600">0.80</span>
-                            </div>
-                            <input type="range" id="loraStrengthSlider" min="0.1" max="1.0" step="0.05" value="0.8"
-                                class="w-full cursor-pointer accent-black" style="height:2px"
-                                oninput="document.getElementById('loraStrengthVal').textContent=parseFloat(this.value).toFixed(2)">
                         </div>
                     </div>
-                </div>
 
-                <button id="genBtn" onclick="submitWorkflow()"
-                    class="glass-btn w-full py-5 text-white rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg">
-                    <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                    <span id="btnText" class="tracking-[0.3em] text-[11px] uppercase" data-i18n="studio.executeSynthesis">Execute Synthesis</span>
-                </button>
+                    <button id="genBtn" onclick="submitWorkflow()"
+                        class="studio-btn-primary w-full h-12 text-white rounded-xl font-medium flex items-center justify-center gap-2 shadow-sm transition-all text-xs uppercase tracking-wider">
+                        <i data-lucide="sparkles" id="btnIcon" class="w-4 h-4"></i>
+                        <span id="btnText" data-i18n="studio.executeSynthesis">开始重绘生成</span>
+                    </button>
+                </section>
             </div>
 
-            <div class="lg:col-span-7">
+            <!-- Right Canvas Stage -->
+            <div class="studio-workbench-right">
                 <div id="resultBox"
-                    class="result-frame min-h-[500px] lg:h-full flex items-center justify-center relative overflow-hidden group">
-                    <div id="placeholder" class="text-center space-y-4 opacity-20">
-                        <i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i>
-                        <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.canvasReady">Canvas Ready</p>
+                    class="studio-stage-frame group">
+                    <!-- Stage Header Bar -->
+                    <div class="absolute top-0 inset-x-0 h-11 px-5 flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)]/80 backdrop-blur-md z-10">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-[var(--ink-secondary)]">
+                            <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                            <span class="uppercase tracking-wider">CANVAS STAGE</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="zoomImage()" class="p-1.5 rounded-lg hover:bg-[var(--soft)] text-[var(--ink-secondary)] transition-colors" title="全屏查看">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div id="loader" class="hidden text-center space-y-4">
-                        <div class="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
-                        <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.synthesizing">Synthesizing</p>
+
+                    <div id="placeholder" class="text-center space-y-3 opacity-30 py-20">
+                        <div class="w-14 h-14 rounded-2xl border border-dashed border-[var(--line-2,#94a3b8)] flex items-center justify-center mx-auto">
+                            <i data-lucide="image" class="w-6 h-6 stroke-[1.5]"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold uppercase tracking-[0.2em]" data-i18n="studio.canvasReady">CANVAS READY</p>
+                            <p class="text-[11px] text-[var(--ink-tertiary)]">输入提示词并配置参考层，合成画作将在此呈现</p>
+                        </div>
                     </div>
+
+                    <div id="loader" class="hidden text-center space-y-4 py-20">
+                        <div class="w-8 h-8 border-2 border-[var(--strong)] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p class="text-xs font-medium uppercase tracking-[0.2em] text-[var(--ink-secondary)] animate-pulse" data-i18n="studio.synthesizing">Synthesizing...</p>
+                    </div>
+
                     <img id="outputImg"
-                        class="hidden w-full h-full object-contain p-8 cursor-zoom-in transition-all duration-700"
+                        class="hidden w-full h-full object-contain p-6 pt-14 cursor-zoom-in transition-all duration-500"
                         onclick="zoomImage()">
+
                     <a id="downloadBtn" href="#" download
-                        class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white active:scale-95 transition-all">
+                        class="hidden absolute bottom-6 right-6 w-11 h-11 bg-[var(--card)] shadow-lg rounded-xl flex items-center justify-center hover:bg-[var(--strong)] hover:text-[var(--strong-text)] transition-all border border-[var(--line)] z-20">
                         <i data-lucide="download" class="w-4 h-4"></i>
                     </a>
                 </div>
             </div>
         </main>
 
-        <section class="mt-32">
-            <div class="flex items-center gap-6 mb-12">
-                <h2 class="text-[11px] font-black uppercase tracking-[0.5em]" data-i18n="studio.archives">Archives</h2>
-                <div class="h-px flex-1 bg-gray-100"></div>
+        <section class="mt-16">
+            <div class="flex items-center gap-6 mb-8">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ink-secondary)]" data-i18n="studio.archives">Archives</h2>
+                <div class="h-px flex-1 bg-[var(--line)]"></div>
             </div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger"
@@ -359,11 +481,11 @@
             </div>
             <div class="w-full bg-white border border-gray-100 rounded-[2rem] p-8 shadow-sm flex justify-between items-center gap-8">
                 <div class="flex-1">
-                    <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-2" data-i18n="studio.promptExecution">Prompt Execution</span>
+                    <span class="text-[9px] font-bold text-gray-300 uppercase tracking-widest block mb-2" data-i18n="studio.promptExecution">Prompt Execution</span>
                     <p id="lightboxPrompt" class="text-gray-700 text-sm leading-relaxed"></p>
                 </div>
                 <button id="sameStyleBtn" onclick="applySameStyle()"
-                    class="hidden whitespace-nowrap bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all active:scale-95 flex items-center gap-2">
+                    class="hidden whitespace-nowrap bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-all active:scale-95 flex items-center gap-2">
                     <i data-lucide="copy" class="w-4 h-4"></i><span data-i18n="studio.replicate">Replicate</span>
                 </button>
             </div>
@@ -384,6 +506,7 @@
             if(loader && !isLoading) loader.innerText = tr('studio.loadMore');
         }
         window.addEventListener('message', event => {
+            if (event.origin && event.origin !== location.origin) return;
             if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.imageEdit'); });
@@ -515,8 +638,7 @@
             const downloadBtn = document.getElementById('downloadBtn');
 
             btn.disabled = true;
-            btn.style.backgroundColor = '#333';
-            btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400 fill-yellow-400 animate-pulse"></i><span class="tracking-[0.3em] text-[11px] uppercase">Synthesizing...</span>`;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">${tr('studio.synthesizing') || 'Synthesizing...'}</span>`;
             lucide.createIcons();
             placeholder.classList.add('hidden');
             loader.classList.remove('hidden');
@@ -560,8 +682,7 @@
             } finally {
                 loader.classList.add('hidden');
                 btn.disabled = false;
-                btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span class="tracking-[0.3em] text-[11px] uppercase">${tr('studio.executeSynthesis')}</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span class="text-xs uppercase tracking-wider">${tr('studio.executeSynthesis')}</span>`;
                 lucide.createIcons();
             }
         }
@@ -594,8 +715,7 @@
             const downloadBtn = document.getElementById('downloadBtn');
 
             btn.disabled = true;
-            btn.style.backgroundColor = '#333';
-            btn.innerHTML = `<i data-lucide="cloud" class="w-4 h-4 text-blue-400 animate-pulse"></i><span class="tracking-[0.3em] text-[11px] uppercase">${tr('studio.cloudProcessing')}</span>`;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="text-xs uppercase tracking-wider">${tr('studio.cloudProcessing')}</span>`;
             lucide.createIcons();
             placeholder.classList.add('hidden');
             loader.classList.remove('hidden');
@@ -655,8 +775,7 @@
             } finally {
                 loader.classList.add('hidden');
                 btn.disabled = false;
-                btn.style.backgroundColor = '';
-                btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i><span class="tracking-[0.3em] text-[11px] uppercase">${tr('studio.executeSynthesis')}</span>`;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span class="text-xs uppercase tracking-wider">${tr('studio.executeSynthesis')}</span>`;
                 lucide.createIcons();
             }
         }
@@ -755,16 +874,20 @@
         function renderImageCard(data, isNew = false) {
             const masonry = document.getElementById('masonry');
             if (document.getElementById(`history-${data.timestamp}`)) return;
+            const imgSrc = (typeof safeMediaUrl === 'function') ? safeMediaUrl(data.images?.[0]) : (data.images?.[0] || '');
+            if (!imgSrc) return;
+            const safePrompt = (typeof escapeHtml === 'function') ? escapeHtml(data.prompt || "Klein Archive") : (data.prompt || "Klein Archive");
+            const safeModel = data.model ? ((typeof escapeHtml === 'function') ? escapeHtml(data.model.split('/').pop()) : data.model.split('/').pop()) : '';
             const card = document.createElement('div');
             card.id = `history-${data.timestamp}`;
             card.dataset.historyTs = data.timestamp;
             card.className = 'masonry-item group relative cursor-zoom-in';
             card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data); };
             card.innerHTML = `
-                <img src="${data.images[0]}" class="w-full h-full object-cover block transform group-hover:scale-105 transition-transform duration-1000" loading="lazy">
+                <img src="${imgSrc}" class="w-full h-full object-cover block transform group-hover:scale-105 transition-transform duration-1000" loading="lazy">
                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all p-6 flex flex-col justify-end">
-                    <p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${data.prompt || "Klein Archive"}</p>
-                    ${data.model ? `<p class="text-white/50 text-[9px] mt-1">${data.model.split('/').pop()}</p>` : ''}
+                    <p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${safePrompt}</p>
+                    ${safeModel ? `<p class="text-white/50 text-[9px] mt-1">${safeModel}</p>` : ''}
                 </div>
             `;
             isNew ? masonry.prepend(card) : masonry.appendChild(card);

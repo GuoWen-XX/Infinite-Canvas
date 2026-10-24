@@ -335,7 +335,7 @@ function renderPagePreview(payload){
 
   const title = document.createElement('div');
   title.textContent = payload.name || '图片预览';
-  title.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800';
+  title.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700';
 
   const close = document.createElement('button');
   close.type = 'button';
@@ -1353,7 +1353,7 @@ async function downloadSelected(){
 
 els.test.addEventListener('click', () => testConnection().catch(err => setStatus(err.message || '连接失败')));
 els.github?.addEventListener('click', () => {
-  chrome.tabs.create({url: 'https://github.com/hero8152/Infinite-Canvas'});
+  chrome.tabs.create({url: 'https://github.com/zhoushimiaov/MeansCanvas'});
 });
 els.pin.addEventListener('click', () => openSidePanel().catch(err => setStatus(err.message || '固定侧边栏失败')));
 els.settingsToggle.addEventListener('click', () => {

@@ -1,4 +1,4 @@
-/* 下拉组件助手：统一用 UXP 原生 <sp-picker>（原生 <select> 不吃 CSS height，会留白/错位）。
+﻿/* 下拉组件助手：统一用 UXP 原生 <sp-picker>（原生 <select> 不吃 CSS height，会留白/错位）。
  * 用 selectedIndex 作为取值真源（比 .value 在 UXP 里可靠），选项数组缓存在元素上。 */
 window.DX = window.DX || {};
 DX.ui = (function () {
@@ -36,6 +36,54 @@ DX.ui = (function () {
     picker.addEventListener('change', (e) => { if (picker._suppress) return; cb(e); });
   }
 
+  // 生成页的参考图、工作流图片字段和结果共用资产页已验证的 JPEG/Base64 管线。
+  function loadImagePreviews(root) {
+    const net = DX.net;
+    const base = net.httpBase();
+    const token = {};
+    root._imagePreviewToken = token;
+    const images = Array.prototype.slice.call(root.querySelectorAll('img[data-preview-url]'));
+    let next = 0;
+    const current = () => root._imagePreviewToken === token && net.httpBase() === base;
+
+    async function worker() {
+      while (current() && next < images.length) {
+        const img = images[next++];
+        const url = img.getAttribute('data-preview-url');
+        let failed = false;
+        const fail = (message) => {
+          if (failed || !current() || !img.parentElement) return;
+          failed = true;
+          const placeholder = document.createElement('div');
+          placeholder.className = 'thumb-ph';
+          placeholder.textContent = '无预览';
+          placeholder.setAttribute('title', String(message || '缩略图加载失败'));
+          img.style.display = 'none';
+          // 只插入占位，不覆盖父节点，保留删除、调序和下载按钮及事件。
+          img.parentElement.insertBefore(placeholder, img);
+        };
+        img.addEventListener('error', () => fail('无法解码缩略图'));
+        const attempt = async (fn) => { const d = await fn(); if (current()) img.src = d; };
+        try {
+          try { await attempt(() => net.thumbnailDataUrl(url, 256)); }
+          catch (firstErr) {
+            if (!current()) return;
+            try { await attempt(async () => {
+              const res = await fetch(`${net.httpBase()}/api/media-preview?url=${encodeURIComponent(url)}&w=256`, { cache: 'no-store' });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return `data:image/png;base64,${net.toBase64(await res.arrayBuffer())}`;
+            }); }
+            catch (secondErr) { fail((firstErr && firstErr.message) || String(firstErr)); }
+          }
+        } catch (err) { fail(err.message || String(err)); }
+      }
+    }
+
+    const workers = [];
+    for (let i = 0; i < Math.min(6, images.length); i += 1) workers.push(worker());
+    return Promise.all(workers);
+  }
+
   // 自定义细滚动条：scrollEl 是实际滚动容器（原生条被外层裁掉），thumbEl 是叠加的细滑块。
   // 返回 sync()，内容变化后调用以刷新滑块尺寸/位置。
   function thinScroll(scrollEl, thumbEl) {
@@ -67,5 +115,5 @@ DX.ui = (function () {
     return sync;
   }
 
-  return { esc, fillPicker, pickerValue, onPick, thinScroll };
+  return { esc, fillPicker, pickerValue, onPick, loadImagePreviews, thinScroll };
 })();

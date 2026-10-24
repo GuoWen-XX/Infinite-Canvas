@@ -35,7 +35,7 @@ function formatCanvasTime(value){
 }
 
 function renderCanvasIcon(icon, size = 16){
-    if(!icon || icon === '🧩') return `<i data-lucide="layers" style="width:${size}px;height:${size}px"></i>`;
+    if(!icon || icon === '\u{1F9E9}' || icon === 'layers') return `<i data-lucide="layers" style="width:${size}px;height:${size}px"></i>`;
     if(/[^\x00-\x7F]/.test(icon)) return escapeHtml(icon);
     return `<i data-lucide="${escapeHtml(icon)}" style="width:${size}px;height:${size}px"></i>`;
 }
@@ -397,7 +397,7 @@ function buildCard(c){
     // 卡片布局：顶部=类型标签+更多按钮；中部=标题；底部=节点数·时间。已移除图标。
     card.innerHTML = `
         <div class="ws-card-top">
-            <span class="ws-card-kind ${isSmart ? 'smart' : 'classic'}">${isSmart ? compactLabel('智能画布','智能','Smart') : compactLabel('普通画布','普通','Classic')}</span>
+            <span class="ws-card-kind ${isSmart ? 'smart' : 'classic'}">${isSmart ? compactLabel('智能画布','智能','Smart') : compactLabel('全能画布','全能','Omni')}</span>
             <button class="ws-card-menu" type="button" title="${L('更多','More')}" aria-label="${L('更多','More')}"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
         </div>
         <div class="ws-card-title">${escapeHtml(c.title)}</div>
@@ -466,9 +466,10 @@ function openCanvas(c){
     const enc = encodeURIComponent(c.id);
     const project = encodeURIComponent(c.project || currentProjectId || 'default');
     rememberProjectId(c.project || currentProjectId || 'default');
+    const v = '2026.09.19.1789832000';
     window.location.href = (c.kind === 'smart')
-        ? `/static/smart-canvas.html?id=${enc}&project=${project}&v=2026.07.03.4`
-        : `/static/canvas.html?id=${enc}&project=${project}&v=2026.07.03.4`;
+        ? `/static/smart-canvas.html?id=${enc}&project=${project}&v=${v}`
+        : `/static/canvas.html?id=${enc}&project=${project}&v=${v}`;
 }
 
 /* ===== Card create flow ===== */
@@ -487,7 +488,7 @@ function openCreateCard(worldPt){
         <div class="ws-create-title">${L('新建画布','New canvas')}</div>
         <input class="ws-create-input" type="text" maxlength="80" placeholder="${L('画布名称（可留空）','Canvas name (optional)')}">
         <div class="ws-create-toggle">
-            <button class="ws-create-toggle-btn active" type="button" data-kind="classic">${L('普通画布','Classic')}</button>
+            <button class="ws-create-toggle-btn active" type="button" data-kind="classic">${L('全能画布','Omni')}</button>
             <button class="ws-create-toggle-btn" type="button" data-kind="smart">${L('智能画布','Smart')}</button>
         </div>
         <div class="ws-create-actions">
@@ -526,7 +527,7 @@ async function createCanvasOnBoard(title, kind, worldPt){
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: name,
-                icon: isSmart ? 'sparkles' : '🧩',
+                icon: isSmart ? 'sparkles' : 'layers',
                 kind: isSmart ? 'smart' : 'classic',
                 project: currentProjectId,
                 board_x: Math.round(worldPt.x),
@@ -933,7 +934,7 @@ function renderTrash(){
         card.innerHTML = `
             <div class="ws-card-top">
                 <span class="ws-card-icon">${renderCanvasIcon(isSmart && /[^\x00-\x7F]/.test(c.icon || '') ? 'sparkles' : c.icon, 17)}</span>
-                <span class="ws-card-kind ${isSmart ? 'smart' : 'classic'}">${isSmart ? L('智能','Smart') : L('普通','Classic')}</span>
+                <span class="ws-card-kind ${isSmart ? 'smart' : 'classic'}">${isSmart ? L('智能','Smart') : L('全能','Omni')}</span>
             </div>
             <div class="ws-card-title">${escapeHtml(c.title)}</div>
             <div class="ws-card-meta"><span class="ws-card-nodes">${escapeHtml(projName)}</span><span class="ws-card-meta-dot"></span><span class="ws-card-time">${formatCanvasTime(c.deleted_at)}</span></div>
@@ -1049,3 +1050,56 @@ window.StudioI18n?.apply?.();
 applyViewport();
 loadAll();
 refreshIcons();
+
+/* ===== Project Sidebar Resizer (Drag width up to 50% max) ===== */
+(function initSidebarResizer() {
+    const sidebar = document.getElementById('sidebar');
+    const handle = document.getElementById('sidebarResizeHandle');
+    if(!sidebar || !handle) return;
+
+    const savedWidth = localStorage.getItem('canvas_sidebar_width');
+    if(savedWidth){
+        const parsed = parseInt(savedWidth, 10);
+        const maxLimit = Math.floor(window.innerWidth * 0.5);
+        if(!isNaN(parsed) && parsed >= 180 && parsed <= maxLimit){
+            sidebar.style.width = parsed + 'px';
+            sidebar.style.flex = '0 0 ' + parsed + 'px';
+        }
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = sidebar.getBoundingClientRect().width;
+        handle.classList.add('is-dragging');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if(!isDragging) return;
+        const delta = e.clientX - startX;
+        let newWidth = startWidth + delta;
+        const minW = 180;
+        const maxW = Math.floor(window.innerWidth * 0.5);
+        if(newWidth < minW) newWidth = minW;
+        if(newWidth > maxW) newWidth = maxW;
+        sidebar.style.width = newWidth + 'px';
+        sidebar.style.flex = '0 0 ' + newWidth + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+        if(!isDragging) return;
+        isDragging = false;
+        handle.classList.remove('is-dragging');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        const currentWidth = Math.round(sidebar.getBoundingClientRect().width);
+        localStorage.setItem('canvas_sidebar_width', currentWidth);
+    });
+})();
