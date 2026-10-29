@@ -138,6 +138,11 @@ class SSRFVisitor(ast.NodeVisitor):
         if caller in self.dict_vars:
             return False
 
+        # A receiver proven (by AST) to be an HTTP client is outbound no matter how it is named;
+        # name-based exclusions below must never override this (e.g. `gateway_cache`, `REMOTE`).
+        if caller in self.http_client_vars:
+            return True
+
         # Exclude standard dictionary / parameters / mapping / cache objects
         if caller_lower in ("os", "dict", "params", "data", "json", "headers", "request", "environ", "store"):
             return False
@@ -265,6 +270,12 @@ class SSRFVisitor(ast.NodeVisitor):
                     if isinstance(target, ast.Name):
                         self.guarded_vars.add(target.id)
 
+        # Re-assignment from a non-guard expression revokes a previously established guard.
+        if not is_guard_call:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.guarded_vars.discard(target.id)
+
         if not is_safe_literal and not is_guard_call and self._expr_has_taint(node.value):
             for target in node.targets:
                 if isinstance(target, ast.Name):
@@ -299,6 +310,29 @@ class SSRFVisitor(ast.NodeVisitor):
             if all(isinstance(elt, ast.Constant) for elt in iter_node.elts):
                 return True
         return False
+
+    @staticmethod
+    def _terminates(body):
+        return bool(body) and isinstance(body[-1], (ast.Raise, ast.Return, ast.Continue, ast.Break))
+
+    def visit_If(self, node):
+        # A guard only protects code after the `if` when it holds on every fall-through path.
+        self.visit(node.test)
+        base_v, base_a = set(self.guarded_vars), set(self.guarded_attrs)
+        for stmt in node.body:
+            self.visit(stmt)
+        body_v, body_a = self.guarded_vars, self.guarded_attrs
+        self.guarded_vars, self.guarded_attrs = set(base_v), set(base_a)
+        for stmt in node.orelse:
+            self.visit(stmt)
+        else_v, else_a = self.guarded_vars, self.guarded_attrs
+        body_ends, else_ends = self._terminates(node.body), self._terminates(node.orelse)
+        if body_ends and not else_ends:
+            self.guarded_vars, self.guarded_attrs = else_v, else_a
+        elif else_ends and not body_ends:
+            self.guarded_vars, self.guarded_attrs = body_v, body_a
+        else:
+            self.guarded_vars, self.guarded_attrs = body_v & else_v, body_a & else_a
 
     def visit_For(self, node):
         if not self._is_safe_iter(node.iter):

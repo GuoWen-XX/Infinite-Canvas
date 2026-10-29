@@ -75,6 +75,6 @@ if errorlevel 1 (
 :done
 echo.
 echo ============================================
-echo   Done. Run start.bat to launch the server.
+echo   Done. Run run.bat to launch the server.
 echo ============================================
 pause

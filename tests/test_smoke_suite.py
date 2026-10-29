@@ -10,8 +10,8 @@ try:
 except ImportError:
     websockets = None
 
-BASE_URL = "http://127.0.0.1:3000"
-WS_URL = "ws://127.0.0.1:3000/ws/stats"
+BASE_URL = os.getenv("IC_SMOKE_BASE_URL", "http://127.0.0.1:3333").rstrip("/")
+WS_URL = os.getenv("IC_SMOKE_WS_URL") or (BASE_URL.replace("https://", "wss://").replace("http://", "ws://") + "/ws/stats")
 
 
 def _is_server_reachable():
@@ -22,7 +22,7 @@ def _is_server_reachable():
         return False
 
 
-@unittest.skipUnless(_is_server_reachable(), "Infinite-Canvas server is not running on 127.0.0.1:3000")
+@unittest.skipUnless(_is_server_reachable(), f"Infinite-Canvas server is not running on {BASE_URL}")
 class FullSmokeTestSuite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

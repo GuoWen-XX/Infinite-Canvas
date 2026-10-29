@@ -1,4 +1,5 @@
 import io
+import os
 import time
 import base64
 import asyncio
@@ -6,7 +7,7 @@ import unittest
 import requests
 from PIL import Image
 
-BASE_URL = "http://127.0.0.1:3000"
+BASE_URL = os.getenv("IC_SMOKE_BASE_URL", "http://127.0.0.1:3333").rstrip("/")
 
 
 def _is_server_reachable():
@@ -17,7 +18,7 @@ def _is_server_reachable():
         return False
 
 
-@unittest.skipUnless(_is_server_reachable(), "Infinite-Canvas server is not running on 127.0.0.1:3000")
+@unittest.skipUnless(_is_server_reachable(), f"Infinite-Canvas server is not running on {BASE_URL}")
 class AdversarialSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

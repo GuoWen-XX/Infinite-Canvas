@@ -66,6 +66,7 @@ from core.providers import (
     friendly_validation_error,
     update_env_values,
     read_api_env_value,
+    get_configured_access_token,
 )
 
 # --- Domain Routers & Re-exports ---
@@ -465,16 +466,16 @@ async def csrf_protection_middleware(request: Request, call_next):
                 )
     return await call_next(request)
 
-def get_configured_access_token() -> str:
-    return (os.getenv("IC_ACCESS_TOKEN") or read_api_env_value("IC_ACCESS_TOKEN") or "").strip()
-
 @app.middleware("http")
 async def access_token_middleware(request: Request, call_next):
     """Enforce IC_ACCESS_TOKEN if configured in API/.env or environment."""
     configured_token = get_configured_access_token()
     if configured_token:
         path = request.url.path
-        if path.startswith("/api/") and not path.startswith(("/api/auth/", "/api/ping")):
+        # 素材文件(/output/ /assets/)与 API 同属令牌保护范围；浏览器 <img>/<video> 自动携带登录 Cookie。
+        # 需要让上游模型服务回源抓取本机素材时，可设 IC_PUBLIC_MEDIA=1 保持旧的公开读取行为。
+        media_protected = path.startswith(("/output/", "/assets/")) and os.getenv("IC_PUBLIC_MEDIA", "").strip() != "1"
+        if media_protected or (path.startswith("/api/") and not path.startswith(("/api/auth/", "/api/ping"))):
             auth_header = request.headers.get("authorization", "")
             provided_token = ""
             if auth_header.lower().startswith("bearer "):
@@ -541,7 +542,8 @@ async def security_headers_middleware(request: Request, call_next):
         elif path.startswith(("/api/media-preview", "/api/image-jpeg")):
             response.headers["Cache-Control"] = "public, max-age=604800, immutable"
         elif path.startswith(("/static/", "/output/", "/assets/")):
-            response.headers["Cache-Control"] = "public, max-age=86400"
+            private = bool(get_configured_access_token()) and path.startswith(("/output/", "/assets/"))
+            response.headers["Cache-Control"] = "private, max-age=86400" if private else "public, max-age=86400"
     return response
 
 # --- Managers & History ---
@@ -721,7 +723,7 @@ async def lifespan(app):
     except Exception as exc:
         _server_logger.warning(f"预热画布缓存失败: {exc}")
 
-    # Tailscale 代理白名单自动守护 (防止 SakuraCat TUN 重启/重载后拦截 Tailscale UDP)
+    # Tailscale 代理白名单自动守护（默认关闭；仅在显式配置 IC_ENABLE_TAILSCALE_BYPASS_WATCHDOG=1 时启用）
     async def _tailscale_bypass_watchdog():
         try:
             from scripts.ensure_tailscale_bypass import check_and_patch
@@ -734,11 +736,17 @@ async def lifespan(app):
         except asyncio.CancelledError:
             pass
 
-    watchdog_task = asyncio.create_task(_tailscale_bypass_watchdog())
+    enable_watchdog = (
+        os.getenv("IC_ENABLE_TAILSCALE_BYPASS_WATCHDOG")
+        or read_api_env_value("IC_ENABLE_TAILSCALE_BYPASS_WATCHDOG")
+        or ""
+    ).strip() == "1"
+    watchdog_task = asyncio.create_task(_tailscale_bypass_watchdog()) if enable_watchdog else None
     try:
         yield
     finally:
-        watchdog_task.cancel()
+        if watchdog_task is not None:
+            watchdog_task.cancel()
 
 app.router.lifespan_context = lifespan
 

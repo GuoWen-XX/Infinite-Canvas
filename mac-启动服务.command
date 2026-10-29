@@ -22,17 +22,14 @@ echo "权限已修复！"
 echo ""
 
 # 清理占用 3333 端口的旧进程，避免 address already in use
-OLD_PID=$(lsof -ti :3333 2>/dev/null)
-if [ -n "$OLD_PID" ]; then
-    echo "检测到 3333 端口被占用，正在停止旧进程 (PID: $OLD_PID)..."
-    kill $OLD_PID 2>/dev/null
-    sleep 1
-    # 仍未退出则强制结束
-    if lsof -ti :3333 >/dev/null 2>&1; then
-        kill -9 $(lsof -ti :3333) 2>/dev/null
-    fi
-    echo "旧进程已停止。"
-    echo ""
+# 端口被占用时只提示，不结束任何进程（占用者可能是其他应用）
+PORT_PID=$(lsof -ti tcp:3333 -sTCP:LISTEN 2>/dev/null | head -n 1)
+if [ -n "$PORT_PID" ]; then
+    echo "检测到 3333 端口已被占用 (PID: $PORT_PID: $(ps -p "$PORT_PID" -o comm= 2>/dev/null))。"
+    echo "为避免误伤其他程序，本脚本不会结束该进程。"
+    echo "请先自行关闭占用者，或在 API/.env 中修改 PORT 后重试。"
+    read -p "按 Enter 退出..."
+    exit 1
 fi
 
 echo "正在启动服务..."

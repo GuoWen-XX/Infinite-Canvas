@@ -161,6 +161,9 @@ def test_save_network_ports_updates_memory_and_active_port():
                 }
                 resp = client.post("/api/network/ports/save", json=payload)
                 assert resp.status_code == 200
+                r_data = resp.json()
+                assert r_data["restart_required"] is True
+                assert "重启服务后生效" in r_data["message"]
                 assert cp.COMFYUI_INSTANCES == ["192.168.1.50:8188", "127.0.0.1:8188"]
                 mock_sync.assert_called_once_with(["192.168.1.50:8188", "127.0.0.1:8188"])
 

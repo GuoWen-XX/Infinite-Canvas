@@ -290,35 +290,38 @@ def api_list_projects():
 
 @router.post("/api/projects")
 def api_create_project(payload: ProjectCreateRequest):
-    return {"project": project_record(new_project(payload.name))}
+    with CANVAS_LOCK:  # 读取列表→追加→整体替换必须是同一事务
+        return {"project": project_record(new_project(payload.name))}
 
 @router.post("/api/projects/{project_id}")
 def api_update_project(project_id: str, payload: ProjectUpdateRequest):
-    projects = ensure_default_project()
-    target = next((p for p in projects if p.get("id") == project_id), None)
-    if not target:
-        raise HTTPException(status_code=404, detail="项目不存在")
-    if payload.name is not None:
-        target["name"] = (str(payload.name).strip() or target.get("name") or "未命名项目")[:60]
-    if payload.order is not None:
-        target["order"] = int(payload.order)
-    target["updated_at"] = now_ms()
-    save_projects(projects)
-    return {"project": project_record(target)}
+    with CANVAS_LOCK:
+        projects = ensure_default_project()
+        target = next((p for p in projects if p.get("id") == project_id), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="项目不存在")
+        if payload.name is not None:
+            target["name"] = (str(payload.name).strip() or target.get("name") or "未命名项目")[:60]
+        if payload.order is not None:
+            target["order"] = int(payload.order)
+        target["updated_at"] = now_ms()
+        save_projects(projects)
+        return {"project": project_record(target)}
 
 @router.delete("/api/projects/{project_id}")
 def api_delete_project(project_id: str):
     """删除项目；默认项目不可删除；项目删除后其下画布自动归入默认项目。"""
     if project_id == DEFAULT_PROJECT_ID:
         raise HTTPException(status_code=400, detail="默认项目不可删除")
-    projects = ensure_default_project()
-    if not any(p.get("id") == project_id for p in projects):
-        raise HTTPException(status_code=404, detail="项目不存在")
-    projects = [p for p in projects if p.get("id") != project_id]
-    save_projects(projects)
-    # 把该项目下的画布迁移到默认项目
+    # 项目列表修改与画布迁移处于同一把锁内
     moved = 0
     with CANVAS_LOCK:
+        projects = ensure_default_project()
+        if not any(p.get("id") == project_id for p in projects):
+            raise HTTPException(status_code=404, detail="项目不存在")
+        projects = [p for p in projects if p.get("id") != project_id]
+        save_projects(projects)
+        # 把该项目下的画布迁移到默认项目
         for filename in os.listdir(CANVAS_DIR):
             if not filename.endswith(".json"):
                 continue
@@ -412,9 +415,10 @@ def api_get_canvas(canvas_id: str):
 
 @router.post("/api/canvases/{canvas_id}/touch")
 def api_touch_canvas(canvas_id: str):
-    canvas = load_canvas(canvas_id)
-    save_canvas(canvas)
-    return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
+    with CANVAS_LOCK:  # 读取与写回之间不得被保存/删除插入
+        canvas = load_canvas(canvas_id)
+        save_canvas(canvas)
+        return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 MAX_CANVAS_NODES = 2000
 MAX_CANVAS_CONNECTIONS = 5000
@@ -487,28 +491,31 @@ async def api_update_canvas(canvas_id: str, payload: CanvasSaveRequest):
 
 @router.delete("/api/canvases/{canvas_id}")
 def api_delete_canvas(canvas_id: str):
-    canvas = load_canvas_any(canvas_id)
-    if not canvas.get("deleted_at"):
-        canvas["deleted_at"] = now_ms()
-        save_canvas(canvas)
-    return {"ok": True}
+    with CANVAS_LOCK:
+        canvas = load_canvas_any(canvas_id)
+        if not canvas.get("deleted_at"):
+            canvas["deleted_at"] = now_ms()
+            save_canvas(canvas)
+        return {"ok": True}
 
 @router.post("/api/canvases/{canvas_id}/restore")
 def api_restore_canvas(canvas_id: str):
-    canvas = load_canvas_any(canvas_id)
-    if canvas.get("deleted_at"):
-        canvas.pop("deleted_at", None)
-        save_canvas(canvas)
-    return {"canvas": canvas}
+    with CANVAS_LOCK:
+        canvas = load_canvas_any(canvas_id)
+        if canvas.get("deleted_at"):
+            canvas.pop("deleted_at", None)
+            save_canvas(canvas)
+        return {"canvas": canvas}
 
 @router.delete("/api/canvases/{canvas_id}/purge")
 def api_purge_canvas(canvas_id: str):
     path = canvas_path(canvas_id)
-    if os.path.exists(path):
-        os.remove(path)
-    if canvas_cache:
-        filename = f"{re.sub(r'[^a-zA-Z0-9_-]', '', canvas_id)}.json"
-        canvas_cache.invalidate(filename)
+    with CANVAS_LOCK:  # 与保存串行：删除与缓存失效对并发保存呈现单一先后顺序
+        if os.path.exists(path):
+            os.remove(path)
+        if canvas_cache:
+            filename = f"{re.sub(r'[^a-zA-Z0-9_-]', '', canvas_id)}.json"
+            canvas_cache.invalidate(filename)
     return {"ok": True}
 
 

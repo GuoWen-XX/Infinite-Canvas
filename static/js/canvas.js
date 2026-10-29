@@ -1670,8 +1670,9 @@ async function saveCanvas(){
     sanitizeConnections();
     savingCanvasNow = true;
     saveCanvasAgain = false;
+    const savingCanvasId = canvas.id;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}`, {
+        const res = await fetch(`/api/canvases/${savingCanvasId}`, {
             method:'PUT',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
@@ -1686,6 +1687,8 @@ async function saveCanvas(){
                 base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
             })
         });
+        // 响应返回前已切换到别的画布：该响应只属于发起请求的画布，不得合并进当前画布。
+        if(!canvas || canvas.id !== savingCanvasId) return;
         if(res.status === 409){
             const data = await res.json().catch(() => ({}));
             const remote = data.detail?.canvas || data.canvas;
@@ -2314,6 +2317,8 @@ async function openCanvas(id){
         resetCascadeRuntimeState();
         if(typeof clearRemoteCursors === 'function') clearRemoteCursors();
         canvas = data.canvas;
+        undoStack.length = 0;
+        redoStack.length = 0;
         rememberCanvasListProject(canvas.project || 'default');
         const touched = await touchCanvasOpened(canvas.id);
         if(touched?.updated_at) canvas.updated_at = Number(touched.updated_at);
@@ -6538,7 +6543,7 @@ function renderNode(node){
     el.style.top = `${node.y}px`;
     el.style.width = `${node.w || size.w}px`;
     if(node.h || size.h) el.style.height = `${node.h || size.h}px`;
-    el.dataset.id = node.id;
+    el.dataset.id = node.id; el.tabIndex = 0; el.setAttribute('role', 'group'); el.setAttribute('aria-label', String(node.title || node.type || 'node'));
     el.onclick = (e) => {
         e.stopPropagation();
         if(isNodeControl(e.target)) return;
@@ -15672,7 +15677,7 @@ function finishSelection(){
 function renderFrameGroupNode(node){
     const el = document.createElement('div');
     el.className = `node frame-group-node ${selected.has(node.id) ? 'selected' : ''}`;
-    el.dataset.id = node.id;
+    el.dataset.id = node.id; el.tabIndex = 0; el.setAttribute('role', 'group'); el.setAttribute('aria-label', String(node.title || node.type || 'node'));
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
     el.style.width = `${node.w || 400}px`;
@@ -16156,7 +16161,7 @@ function connectSelectionToGenerator(kind, genId){
 }
 
 function captureUndoState(){
-    return { nodes: JSON.parse(JSON.stringify(serializableCanvasNodes())), connections: JSON.parse(JSON.stringify(connections)), selected: [...selected] };
+    return { canvasId: canvas?.id || '', nodes: JSON.parse(JSON.stringify(serializableCanvasNodes())), connections: JSON.parse(JSON.stringify(connections)), selected: [...selected] };
 }
 function pushUndo(snapshot = null){
     if(!canvas) return;
@@ -16168,6 +16173,7 @@ function performUndo(){
     if(!canvas || !undoStack.length) return;
     redoStack.push(captureUndoState());
     const state = undoStack.pop();
+    if(state.canvasId && canvas && state.canvasId !== canvas.id){ redoStack.pop(); return; }
     nodes = state.nodes; connections = state.connections; selected.clear();
     if(Array.isArray(state.selected)) state.selected.forEach(id => { if(nodes.some(n => n.id === id)) selected.add(id); });
     render(); scheduleSave();
@@ -16177,6 +16183,7 @@ function performRedo(){
     undoStack.push(captureUndoState());
     if(undoStack.length > UNDO_MAX) undoStack.shift();
     const state = redoStack.pop();
+    if(state.canvasId && canvas && state.canvasId !== canvas.id){ undoStack.pop(); return; }
     nodes = state.nodes; connections = state.connections; selected.clear();
     if(Array.isArray(state.selected)) state.selected.forEach(id => { if(nodes.some(n => n.id === id)) selected.add(id); });
     render(); scheduleSave();

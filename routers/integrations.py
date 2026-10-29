@@ -2678,8 +2678,7 @@ async def fetch_runninghub_model_registry(provider=None, include_fallback=True, 
                     with open(url, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                 else:
-                    if source_name == "openapi":
-                        validate_safe_url(url, allow_private=False)
+                    validate_safe_url(url, allow_private=False)
                     req_headers = headers if source_name == "openapi" else {"Accept": "application/json"}
                     resp = await client.get(url, headers=req_headers)
                     if resp.status_code >= 400 or looks_like_html_response(resp.text):

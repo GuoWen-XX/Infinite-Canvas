@@ -77,14 +77,14 @@ async def probe_proxy_handshake(host: str, port: int, timeout: float = 3.0) -> T
     target_url = "https://www.google.com/generate_204"
     start_t = time.perf_counter()
     try:
-        async with httpx.AsyncClient(proxy=proxy_url, timeout=timeout, verify=False) as client:
+        async with httpx.AsyncClient(proxy=proxy_url, timeout=timeout) as client:
             resp = await client.get(target_url)
             elapsed_ms = int((time.perf_counter() - start_t) * 1000)
             return True, max(1, elapsed_ms), resp.status_code, ""
     except Exception as e:
         # Fallback to test with api.openai.com
         try:
-            async with httpx.AsyncClient(proxy=proxy_url, timeout=timeout, verify=False) as client:
+            async with httpx.AsyncClient(proxy=proxy_url, timeout=timeout) as client:
                 resp = await client.get("https://api.openai.com/v1/models")
                 elapsed_ms = int((time.perf_counter() - start_t) * 1000)
                 return True, max(1, elapsed_ms), resp.status_code, ""
@@ -265,9 +265,17 @@ def save_network_ports(payload: NetworkPortsSavePayload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"写入环境配置文件失败: {e}")
 
+    current_port = int(os.getenv("IC_ACTIVE_PORT") or os.getenv("PORT", "3333"))
+    restart_required = payload.server_port != current_port
+    message = (
+        f"代理与 ComfyUI 配置已热生效；画布服务监听端口已保存为 {payload.server_port}，重启服务后生效"
+        if restart_required
+        else "网络与端口配置已保存并热生效"
+    )
     return {
         "ok": True,
-        "message": "网络与端口配置已保存并热生效",
+        "message": message,
+        "restart_required": restart_required,
         "updates": updates,
     }
 

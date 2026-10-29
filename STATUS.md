@@ -1,6 +1,35 @@
 # STATUS - 开卷画布 · MeansCanvas (原 Infinite-Canvas) 功能迭代
 
-> 更新: 2026-10-21 10:50 | 状态: **本地代理默认端口切回 7897（agy/codex CLI 动态环境与批处理全链路同步），新增全景「端口与网络管理」面板与热重载系统，全量门禁与测试全绿**
+> 更新: 2026-10-28 13:40 | 状态: **完成 2026-10-28 全量审计（Astra 本地深度审计 + 线上仓库上线风险审计）外科手术式修复与闭环门禁验证（371 Python tests + 9 Node concurrency tests + 4 CI Guard Gates 全绿）**
+
+## 2026-10-28 全量审计修复（Astra 本地深度审计 & 线上仓库风险审计）
+
+- **审计基准**：`docs/MeansCanvas_Full_Audit_2026-10-28.md`（E01–E09、F01–F05、O01–O08）与 GitHub 线上仓库上线后全量审核报告（P0/P1/P2）。
+- **CI 工作流与依赖门禁修复 (Online P0, E01, E02, E04)**：
+  - `.github/workflows/ci.yml`：为所有含冒号的 `- name: "Guard: ..."` 步骤名补齐双引号，消除 YAML `ScannerError`。
+  - `requirements.txt`：补入 `websockets==16.1.1`，确保生产基础安装具备 `/ws/stats` WebSocket 升级支持。
+  - `tests/test_runtime_issues_fix.py`：移除对开发者私有画布 UUID 文件的硬编码断言，改为基于 `TestClient` 的自包含临时画布创建、保存与清理闭环验证。
+  - `tests/test_key_exfiltration.py`：使用隔离临时目录与合成测试密钥替代 `skipTest`，使 6 项密钥防泄漏回归测试在无真实配置环境下 100% 确定性执行且零跳过。
+  - `tests/test_smoke_suite.py` / `tests/test_smoke_adversarial.py`：支持 `IC_SMOKE_BASE_URL` 环境变量并将默认端口对齐至 `3333`。
+  - `pytest.ini` / `scripts/__init__.py`：显式声明 `pythonpath = .` 与 `scripts` 包初始化文件，消除 Windows 下同名目录遮蔽。
+- **AST SSRF 门禁与国际化校验器加固 (E03, E05)**：
+  - `scripts/check_ssrf_guards.py`：修复客户端变量名后缀/全大写豁免绕过、变量二次赋值失敏及单分支 `if` 守护泄露三大盲区；同步为 `routers/integrations.py:2681` 补齐无条件 `validate_safe_url` 校验；新增 `tests/test_ssrf_guard_gate.py`（11 项对抗测试）并完成对抗自测闭环。
+  - `static/js/i18n/validate-i18n.js`：在 `i18n-core.js` 回填默认值前拦截原始语言包注册，精准捕获单语缺失与空译文；完成 4 类违规样本对抗自测。
+- **鉴权边界、并发事务锁与网络探针安全 (F04, E09, Online P1/P2)**：
+  - `main.py`：`access_token_middleware` 将 `/output/` 与 `/assets/` 纳入 `IC_ACCESS_TOKEN` 鉴权保护（支持 `IC_PUBLIC_MEDIA=1` 显式豁免），开启鉴权时下发 `Cache-Control: private, max-age=86400`；新增 `tests/test_media_auth_boundary.py`。
+  - `routers/canvas.py`：为画布 `touch`、`delete`、`restore`、`purge` 及项目 CRUD 全链路补齐 `with CANVAS_LOCK:` 互斥保护，消除并发读改写丢更新窗口；新增 `tests/test_canvas_transactions.py`。
+  - `routers/network.py`：移除代理 HTTPS 探测中的 `verify=False` 以保留证书校验；保存端口时比对当前监听端口并返回 `restart_required` 状态与准确提示文案。
+- **前端画布并发竞态、撤销栈隔离与无障碍增强 (F01, F02, F03, F05)**：
+  - `static/js/canvas.js`：`saveCanvas()` 绑定请求发起时的 `savingCanvasId`，阻断切画布后旧响应串改新画布数据；`openCanvas()` 清空跨画布 `undoStack`/`redoStack` 并在快照中校验 `canvasId`；节点容器增补 `tabIndex=0`、`role="group"` 与 `aria-label`。
+  - `static/js/smart-canvas.js`：实现 `canvasSyncInFlight` 期间的 `canvasSaveQueued` 串行排队保存，非 2xx/409 响应显式抛错、弹出 Toast 提示并触发重试；节点补齐键盘聚焦无障碍属性。
+  - `static/index.html`：为工作台全部 11 个内置工具 `<iframe>` 补齐语义化 `title` 属性。
+- **跨平台启动/安装脚本与外部代理守护收敛 (E06, E07, E08, O05, Online P1/P2)**：
+  - `core/providers.py` / `main.py`：提取无副作用的 `get_configured_access_token()` 供 `run_lan.bat`、`run_lan_3100.bat`、`mac-启动服务.sh` 统一调用。
+  - `mac-启动服务.command` / `mac-启动服务.sh`：将 3333 端口检测改为只读告警退出（移除误杀任意进程的 `kill -9`），并将局域网脚本绑定至 `--host 0.0.0.0 --port 3333`。
+  - `main.py` / `run.bat`：将修改外部代理配置的 Tailscale 旁路守护收敛为 `IC_ENABLE_TAILSCALE_BYPASS_WATCHDOG=1` 显式开启。
+  - `mac-安装依赖.sh` / `安装依赖.bat`：补齐在线 `pip install` 失败退出码拦截并修正启动脚本文件名指引。
+
+---
 
 ## First-Principles Adversarial Audit & Surgical Fixes (2026-10-24 02:50)\n\n- **Audit Report**: md/adversarial_audit_first_principles_2026-10-24.md\n- **Implementation Plan**: docs/superpowers/plans/2026-10-24-adversarial-audit-fixes.md\n- **Task 1 (Backend Correctness & Async Concurrency)**: Unpacked safe_download_bytes (bytes, content_type) tuples in core/image_edit.py; fixed reference_to_data_url dict input and asyncio.to_thread wrapping in generate_meigen_image; aligned CANVAS_IMAGE_TASK_TIMEOUT=1800 and routed run_canvas_image_task through _online_image_dispatch; added wan2.6/2.5/2.2 cost estimation in routers/tasks.py.\n- **Task 2 (Config Decoupling, Smart Provider Fallback & API Settings)**: Removed hardcoded Tailscale IP from default COMFYUI_INSTANCES; implemented smart primary provider fallback (keyed enabled provider -> pollinations -> first enabled); fixed cli_subprocess_env() to respect API/.env proxy settings; synced runtime host/port and COMFYUI_INSTANCES[:] on save; added FIFO/TTL pruning and cost tracking to comfy_canvas_tasks; fixed probeAsync suffix ReferenceError, autoTestConnections payload/response, colorful emojis, and openRecommendApi headless modal side-effect in static/js/api-settings.js.\n- **Task 3 (Security Hardening, SSRF AST Gate & I/O Caching)**: Added _DNS_LOCK to core/security.py; enforced allow_private=False on remote media downloads in routers/common.py; confined CLI local media paths via _is_confined_local_media_path and removed --approval-mode yolo in routers/integrations.py; added DNS resolution verification against metadata/link-local IPs in routers/network.py; upgraded scripts/check_ssrf_guards.py with _expr_has_taint sub-expression taint tracking (verified via 3 adversarial self-tests); wired GET /api/canvases/{id}/meta to canvas_cache.get_record() and sliced /api/storage-files before PIL.Image.open.\n- **Task 4 (Canvas Undo/Redo Integrity, Select Marquee & Incremental DOM)**: Fixed canvas-reve.js window.connections wiring and pushUndo(); resolved Ctrl+Z conflict in canvas-sketch.js, added V/H/P/O/A/T single-key tool shortcuts, and shared /ws/stats via canvas:ws-message; gated canvas-agent.js 400ms selection poll when closed; added redoStack (Ctrl+Y/Ctrl+Shift+Z), drag/resize/alt-duplicate/rerun undo snapshots, viewport dot-grid sync, incremental DOM updates in finishSelection/startLink, and direct marquee box-selection on empty-canvas drag in Select (V) mode in static/js/canvas.js.\n\n---\n\n## 全景「端口与网络管理」面板与热重载系统 (Full-Spectrum Network & Port Management Dashboard) (2026-10-18 15:35)
 

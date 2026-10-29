@@ -13,6 +13,7 @@ import asyncio
 import io
 import os
 import sys
+import tempfile
 import types
 import unittest
 from unittest import mock
@@ -50,17 +51,29 @@ class TestKeyExfiltrationRegression(unittest.TestCase):
     """Round 8 CRITICAL: stored API key could be sent to an attacker host."""
 
     def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        temp_env = os.path.join(self._tmpdir.name, ".env")
+        temp_providers = os.path.join(self._tmpdir.name, "api_providers.json")
+        with open(temp_env, "w", encoding="utf-8") as f:
+            f.write("MODELSCOPE_API_KEY=ms-synthetic-audit-key-123456\n")
+        self._env_patch = mock.patch.dict(os.environ, {"MODELSCOPE_API_KEY": "ms-synthetic-audit-key-123456"}, clear=False)
+        self._file_patch_env = mock.patch.object(CP, "API_ENV_FILE", temp_env)
+        self._file_patch_prov = mock.patch.object(CP, "API_PROVIDERS_FILE", temp_providers)
+        self._env_patch.start()
+        self._file_patch_env.start()
+        self._file_patch_prov.start()
+        CP.invalidate_api_env_cache()
+        CP.invalidate_api_providers_cache()
         self.original = {p["id"]: p.get("base_url") for p in load_api_providers()}
         self.modelscope = next((p for p in load_api_providers() if p["id"] == "modelscope"), None)
-        if not self.modelscope or not CP.provider_env_key_value("modelscope"):
-            self.skipTest("modelscope provider 未配置 API Key，跳过")
 
     def tearDown(self):
-        # 还原配置，避免 PoC 污染 API/.env
-        try:
-            asyncio.run(RP.save_providers(_payload_with_base_url(self.original["modelscope"])))
-        except Exception:
-            pass
+        self._file_patch_prov.stop()
+        self._file_patch_env.stop()
+        self._env_patch.stop()
+        CP.invalidate_api_env_cache()
+        CP.invalidate_api_providers_cache()
+        self._tmpdir.cleanup()
 
     # ------------------------------------------------------------------
     # 第一层：写入路径（save_providers）

@@ -1230,6 +1230,11 @@ def read_api_env_value(key: str) -> str:
     return _api_env_cache.get().get(key, "")
 
 
+def get_configured_access_token() -> str:
+    """IC_ACCESS_TOKEN from the environment or API/.env (no side effects; shared by main.py and launchers)."""
+    return (os.getenv("IC_ACCESS_TOKEN") or read_api_env_value("IC_ACCESS_TOKEN") or "").strip()
+
+
 
 def provider_env_key_value(provider_id: str) -> str:
     provider_id = str(provider_id or "").strip().lower()

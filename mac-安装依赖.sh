@@ -30,8 +30,14 @@ if [ $? -ne 0 ]; then
     echo ""
     echo "[WARN] Offline install failed, trying online..."
     python3 -m pip install -r requirements.txt
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "[ERROR] Online install failed. Please check your network connection."
+        read -p "Press Enter to exit..."
+        exit 1
+    fi
 fi
 
 echo ""
-echo "Done. Run './启动服务.sh' to start."
+echo "Done. Double-click 'mac-启动服务.command' or run './mac-启动服务.sh' to start."
 read -p "Press Enter to exit..."

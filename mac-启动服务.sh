@@ -25,7 +25,7 @@ echo ""
 # Open browser after 3 seconds
 sleep 3 && open "${APP_URL}" &
 
-python3 main.py
+python3 main.py --host 0.0.0.0 --port 3333
 
 echo ""
 echo "Server stopped."

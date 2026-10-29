@@ -88,12 +88,26 @@ class TestRuntimeIssuesFix(unittest.TestCase):
         self.assertIn('hasVisibleNode', js)
         self.assertIn('fitAllNodesViewport()', js)
 
-        # Check data canvas viewport
-        canvas_json_path = os.path.join("data", "canvases", "0ce47899ea4741e49140420c4e1f526a.json")
-        with open(canvas_json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.assertIn("viewport", data)
-        self.assertGreater(data["viewport"].get("scale", 0), 0)
+        # 视口往返：自建临时画布，不依赖作者本机 data/ 下的固定 UUID 文件
+        from starlette.testclient import TestClient
+        from main import app
+        client = TestClient(app)
+        created = client.post("/api/canvases", json={"title": "viewport-roundtrip", "kind": "classic"})
+        self.assertEqual(created.status_code, 200)
+        canvas_id = created.json()["canvas"]["id"]
+        try:
+            saved = client.put(f"/api/canvases/{canvas_id}", json={
+                "title": "viewport-roundtrip",
+                "nodes": [], "connections": [],
+                "viewport": {"x": 10, "y": 20, "scale": 0.75},
+            })
+            self.assertEqual(saved.status_code, 200)
+            data = client.get(f"/api/canvases/{canvas_id}").json()["canvas"]
+            self.assertIn("viewport", data)
+            self.assertGreater(data["viewport"].get("scale", 0), 0)
+        finally:
+            client.delete(f"/api/canvases/{canvas_id}")
+            client.delete(f"/api/canvases/{canvas_id}/purge")
 
 if __name__ == "__main__":
     unittest.main()

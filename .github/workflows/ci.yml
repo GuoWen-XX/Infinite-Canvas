@@ -39,11 +39,11 @@ jobs:
       run: |
         ruff check --select F821,F822,F823,E9 core/ routers/ tests/ scripts/ main.py
 
-    - name: Guard: file length budget & ratchet limits
+    - name: "Guard: file length budget & ratchet limits"
       run: |
         python scripts/check_file_lengths.py
 
-    - name: Guard: tracked files must exist
+    - name: "Guard: tracked files must exist"
       run: |
         missing=0
         for f in $(git ls-files 'static/**/*.js' 'static/**/*.css' 'static/**/*.html'); do
@@ -51,16 +51,16 @@ jobs:
         done
         [ $missing -eq 0 ] || exit 1
 
-    - name: Guard: no reverse import of main
+    - name: "Guard: no reverse import of main"
       run: |
         ! grep -rnE "^[[:space:]]*from main import|^[[:space:]]*import main([[:space:]]|$)" routers/ core/ \
           || (echo "FAIL: routers/core 反向导入 main.py，会形成循环依赖"; exit 1)
 
-    - name: Guard: outbound fetch must be SSRF-guarded
+    - name: "Guard: outbound fetch must be SSRF-guarded"
       run: |
         python scripts/check_ssrf_guards.py
 
-    - name: Guard: typography and aesthetic contracts (AGENTS.md)
+    - name: "Guard: typography and aesthetic contracts (AGENTS.md)"
       run: |
         python scripts/check_aesthetics.py
 

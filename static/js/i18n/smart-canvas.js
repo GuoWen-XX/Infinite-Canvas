@@ -226,6 +226,7 @@
         "smart.toastUploadFail": { zh: "素材上传失败", en: "Media upload failed" },
         "smart.toastApiSettingsFail": { zh: "API 设置加载失败", en: "Failed to load API settings" },
         "smart.toastCanvasFail": { zh: "智能画布加载失败", en: "Failed to load smart canvas" },
+        "smart.toastSaveFailed": { zh: "保存失败，改动尚未写入，将自动重试", en: "Save failed. Changes are not stored yet; retrying automatically" },
         "smart.errNoApiModel": { zh: "请先选择可用的 API 生图模型", en: "Please select an available API image model" },
         "smart.errNoVideoModel": { zh: "请先选择视频模型", en: "Please select a video model" },
         "smart.errNoOutImages": { zh: "没有返回图片", en: "No images returned" },

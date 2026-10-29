@@ -217,3 +217,109 @@ test('canvas.js: selection is preserved across pushUndo and performUndo', () => 
   env.undo();
   assert.deepEqual(env.getSelected(), ['n1', 'n2'], 'Undo must restore exact selected node IDs');
 });
+
+
+test('canvas.js: delayed save response never merges into a different canvas (audit F01)', async () => {
+  const m = canvasJs.match(/async function saveCanvas\(\)\{[\s\S]*?\n\}/);
+  assert.ok(m, 'saveCanvas must exist');
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const env = new Function('fetch', `
+    let canvas = { id: 'A', title: 'A', updated_at: 1 };
+    let nodes = [{ id: 'a-node' }];
+    let connections = [];
+    let viewport = { x: 0, y: 0, scale: 1 };
+    let applyingRemoteCanvas = false, savingCanvasNow = false, saveCanvasAgain = false, localCanvasDirty = false;
+    let lastCanvasUpdatedAt = 1;
+    const CLIENT_ID = 'c';
+    const currentCanvasTime = null;
+    const sanitizeConnections = () => {};
+    const serializableCanvasNodes = () => nodes;
+    const setStatus = () => {};
+    const loadCanvasList = () => {};
+    const formatCanvasTime = () => '';
+    const mergeRemoteNodesAndConnections = () => {};
+    const applyRemoteCanvasData = () => {};
+    ${m[0]}
+    return {
+      save: saveCanvas,
+      switchTo: () => { canvas = { id: 'B', title: 'B', updated_at: 7 }; nodes = [{ id: 'b-node' }]; },
+      state: () => ({ id: canvas.id, nodeIds: nodes.map(n => n.id), updated_at: canvas.updated_at }),
+    };
+  `)(async () => {
+    await gate;
+    return { ok: true, status: 200, json: async () => ({ canvas: { id: 'A', title: 'A', updated_at: 99 } }) };
+  });
+  const pending = env.save();
+  env.switchTo();
+  release();
+  await pending;
+  assert.deepEqual(env.state(), { id: 'B', nodeIds: ['b-node'], updated_at: 7 },
+    'late response for canvas A must not overwrite canvas B');
+});
+
+test('canvas.js: undo/redo history cannot cross canvases (audit F02)', () => {
+  const open = canvasJs.match(/async function openCanvas\(id\)\{[\s\S]*?\n\}/);
+  assert.ok(open && /undoStack\.length\s*=\s*0/.test(open[0]) && /redoStack\.length\s*=\s*0/.test(open[0]),
+    'openCanvas must clear undo/redo stacks');
+  const cap = canvasJs.match(/function captureUndoState\(\)\{[\s\S]*?\n\}/)[0];
+  const push = canvasJs.match(/function pushUndo\([^)]*\)\{[\s\S]*?\n\}/)[0];
+  const undo = canvasJs.match(/function performUndo\(\)\{[\s\S]*?\n\}/)[0];
+  const env = new Function(`
+    let canvas = { id: 'A' };
+    let nodes = [{ id: 'a-node' }];
+    let connections = [];
+    let selected = new Set();
+    let undoStack = [];
+    let redoStack = [];
+    const UNDO_MAX = 50;
+    const serializableCanvasNodes = () => nodes;
+    const render = () => {};
+    const scheduleSave = () => {};
+    ${cap}
+    ${push}
+    ${undo}
+    return {
+      push: pushUndo, undo: performUndo,
+      // simulate a switch that forgot to clear the stack
+      switchTo: () => { canvas = { id: 'B' }; nodes = [{ id: 'b-node' }]; },
+      ids: () => nodes.map(n => n.id),
+    };
+  `)();
+  env.push();
+  env.switchTo();
+  env.undo();
+  assert.deepEqual(env.ids(), ['b-node'], 'stale snapshot from canvas A must not be applied to canvas B');
+});
+
+test('smart-canvas.js: saves are serialised and failures are surfaced (audit F03)', async () => {
+  const m = smartCanvasJs.match(/async function saveCanvas\(\)\{[\s\S]*?\n\}/);
+  assert.ok(m, 'smart saveCanvas must exist');
+  const toasts = [];
+  let calls = 0;
+  const releases = [];
+  const mk = new Function('fetch', 'toast', `
+    let canvasId = 'S', canvas = { id: 'S', updated_at: 1, nodes: [] };
+    let nodes = [], viewport = { x: 0, y: 0, scale: 1 };
+    let canvasSyncInFlight = false, canvasSaveQueued = false, canvasSaveFailed = false;
+    let saveTimer = null, canvasDefaultSmartSettings = {}, initialSmartSettings = {};
+    const smartClientId = 'c';
+    const savePromptDraftForCurrent = () => {};
+    const mediaItemForStorage = x => x, stripImageGenerationMeta = x => x, settingsForStorage = x => x;
+    const canvasForStorage = () => ({ title: 't', nodes: [], connections: [], viewport, logs: [], settings: {}, updated_at: canvas.updated_at });
+    const applyMergedServerCanvas = () => {};
+    const tr = k => k;
+    ${m[0]}
+    return { save: saveCanvas, flags: () => ({ inFlight: canvasSyncInFlight, queued: canvasSaveQueued, failed: canvasSaveFailed }), stop: () => clearTimeout(saveTimer) };
+  `);
+  const env = mk(() => { calls++; return new Promise(r => releases.push(r)); }, msg => toasts.push(msg));
+  const p1 = env.save();
+  env.save();
+  assert.equal(calls, 1, 'a second save while one is in flight must not issue a second request');
+  assert.equal(env.flags().queued, true, 'the newer edit must be remembered');
+  releases[0]({ ok: false, status: 500, json: async () => ({}) });
+  await p1;
+  assert.equal(env.flags().failed, true, 'a 500 must leave the failure flag set');
+  assert.deepEqual(toasts, ['smart.toastSaveFailed'], 'failure must be shown to the user');
+  env.stop();
+});
