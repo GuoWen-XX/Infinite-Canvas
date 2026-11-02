@@ -8,6 +8,7 @@ import socket
 import urllib3
 import hmac
 import datetime
+import email.utils
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -42,7 +43,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
-from storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
+# The pre-S03 updater only copies main.py, VERSION and static/*.
+# Keep its first upgrade bootable with a byte-identical security helper in static/.
+try:
+    from storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
+except ModuleNotFoundError as exc:
+    if exc.name != "storage_guard":
+        raise
+    from static.storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
 from fastapi.middleware.cors import CORSMiddleware
 
 class UntrustedProbeTarget(ValueError):
@@ -2683,7 +2691,16 @@ def validate_staged_update(staging_root: str, root_files: List[str], static_file
         if "storage_guard.py" not in (root_files or []) or not os.path.isfile(guard_path):
             raise RuntimeError("更新暂存缺少 storage_guard.py，拒绝安装不完整版本")
         with open(guard_path, "rb") as f:
-            compile(f.read(), guard_path, "exec")
+            guard_source = f.read()
+            compile(guard_source, guard_path, "exec")
+        # Older installed updaters can only stage static/*, not a new root file.
+        compat_path = os.path.join(staging_root, "static", "storage_guard.py")
+        if ("static/storage_guard.py" not in (static_files or [])
+                or not os.path.isfile(compat_path)):
+            raise RuntimeError("更新暂存缺少旧版升级兼容模块 static/storage_guard.py")
+        with open(compat_path, "rb") as f:
+            if f.read() != guard_source:
+                raise RuntimeError("更新暂存的句柄安全模块与兼容副本不一致")
     with open(version_path, "r", encoding="utf-8") as f:
         version = (f.read().strip().splitlines() or [""])[0].strip()
     if not version or len(version) > 80 or any(ch in version for ch in "<>\\r\\n"):
@@ -7638,11 +7655,20 @@ def scoped_local_file_response(root, path, *, media_type, request=None, filename
         raise HTTPException(status_code=400, detail="文件不在许可存储目录中") from exc
     except OSError as exc:
         raise HTTPException(status_code=404, detail="本地文件不可读取") from exc
-    size = os.fstat(source.fileno()).st_size
+    metadata = os.fstat(source.fileno())
+    size = metadata.st_size
+    # Generate validators from the *opened* file, not from a mutable filename.
+    etag = f'"{metadata.st_dev:x}-{metadata.st_ino:x}-{metadata.st_size:x}-{metadata.st_mtime_ns:x}"'
+    last_modified = email.utils.formatdate(metadata.st_mtime, usegmt=True)
     start, end = 0, size - 1
     status = 200
-    headers = {"Accept-Ranges": "bytes"}
+    headers = {"Accept-Ranges": "bytes", "ETag": etag, "Last-Modified": last_modified}
     requested = request.headers.get("range") if request is not None else None
+    if requested and request is not None:
+        if_range = request.headers.get("if-range")
+        # If-Range requires a strong matching validator. On doubt, send 200.
+        if if_range is not None and if_range.strip() not in (etag, last_modified):
+            requested = None
     if requested:
         match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip(), flags=re.I)
         if not match or not size or not (match.group(1) or match.group(2)):
