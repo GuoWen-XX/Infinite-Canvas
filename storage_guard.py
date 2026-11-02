@@ -125,7 +125,7 @@ def open_scoped_file(root, path):
             raise
     parent = _open_posix_parent(root_abs, parts)
     try:
-        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
     finally:
         os.close(parent)
     try:
