@@ -6082,10 +6082,21 @@ function scheduleSave(){
         if(record) window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
         return;
     }
+    if(canvasSyncInFlight){
+        // Coalesce edits made while a previous PUT is pending.
+        saveCanvas.queued = true;
+        return;
+    }
     saveTimer = setTimeout(saveCanvas, 450);
 }
 async function saveCanvas(){
     if(!canvasId || !canvas || smartCanvasConflictPending) return;
+    if(canvasSyncInFlight){
+        saveCanvas.queued = true;
+        return;
+    }
+    const saveTargetId = canvasId;
+    saveCanvas.queued = false;
     savePromptDraftForCurrent();
     nodes.forEach(node => {
         node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -6113,8 +6124,11 @@ async function saveCanvas(){
                 client_id:smartClientId
             })
         });
+        // The active canvas may have changed while the HTTP request was pending.
+        if(!canvas || canvasId !== saveTargetId || canvas.id !== saveTargetId) return;
         if(res.ok){
             const data = await res.json();
+            if(!canvas || canvasId !== saveTargetId || canvas.id !== saveTargetId) return;
             if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
             if(data.canvas?.revision != null) canvas.revision = Number(data.canvas.revision);
         } else if(res.status === 409 || res.status === 404 || res.status === 410) {
@@ -6122,14 +6136,27 @@ async function saveCanvas(){
             // Preserve a recoverable draft until the user explicitly resolves it.
             smartCanvasConflictPending = true;
             clearTimeout(saveTimer);
-            const record = persistSmartConflictDraft(storageCanvas);
+            // Capture current nodes/settings, not the stale pre-request snapshot.
+            const record = persistSmartConflictDraft();
             window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
             toast(res.status === 409
                 ? '画布版本冲突：请导出本地草稿或保存为独立副本'
                 : '服务器中的画布已被删除：本地编辑已保留，可保存为独立副本');
+        } else {
+            persistSmartConflictDraft();
+            toast('画布保存失败：本地草稿已保留，请稍后重试');
         }
-    } catch(e) {} finally {
+    } catch(e) {
+        if(canvasId === saveTargetId){
+            persistSmartConflictDraft();
+            toast('画布保存失败：本地草稿已保留，请稍后重试');
+        }
+    } finally {
         canvasSyncInFlight = false;
+        if(saveCanvas.queued && canvasId && canvas && !smartCanvasConflictPending){
+            saveCanvas.queued = false;
+            scheduleSave();
+        }
     }
 }
 function imageMetaFromNode(node){
