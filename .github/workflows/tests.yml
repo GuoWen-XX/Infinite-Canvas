@@ -1,9 +1,9 @@
 name: Tests
 
+# 仅手动运行：保护 GitHub Actions 免费额度。
+# 不在 push / pull_request 自动触发；必要时由用户明确许可后手动运行。
 on:
-  push:
-    branches: ["**"]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
