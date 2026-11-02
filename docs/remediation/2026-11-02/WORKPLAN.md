@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 已完成，S01 实施 PR 准备中`；**S01 审查通过并合并 main 前，不启动 S02**。  
+> 当前状态：`S00 已完成，S01 PR #4 等待远端评审`；**S01 审查通过并合并 main 前，不启动 S02**。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -22,7 +22,7 @@
 | 阶段 | 状态 | 目标 | 主文件 | 交付与验收 |
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
-| S01 | IN_PROGRESS | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
+| S01 | PR_OPEN | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
 | S02 | NOT_STARTED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
@@ -50,10 +50,10 @@
 - [x] 已增加虚构 Key/离线独立策略测试及 Mock 路由测试；修复前的缺陷由源码调用链确认，未在真实机器上发出恶意请求。
 - [x] 使用严格 URL 基址校验并保证 mismatched URL 时尚未读取保存 Key；RunningHub 只使用已经解析/验证的本次 Key；不额外记录完整凭据。
 - [x] 所有共用 `TestConnectionPayload` 的模型列表/探测入口已接入统一密钥绑定；为 Ark 无 ID 借用与 RunningHub 钱包 fallback 增加专门回归。
-- [ ] 提交实施 PR，填写风险、兼容性说明与验证证据。
+- [x] 已提交实施 PR #4（`fix/S01-provider-key-binding` → `main`），列明凭据出站风险、变更、离线测试、运行限制与回滚。
 - [ ] 远端审查通过，合入后才能解锁 S02。
 
-**验证现状（S01）：** 在隔离的 Python 环境执行独立 `provider_probe_security.py` 8 项单元测试：8/8 PASS；完整仓库回归及 HTTP 路由集成测试已编写但当前执行环境无法克隆完整仓库，因此**尚未执行**，需在 PR 远端独立审查/维护者本地测试中完成。**GitHub Actions 运行次数：0。**
+**验证现状（S01，PR #4）：** 在隔离的 Python 环境执行独立 `provider_probe_security.py` 8 项单元测试：8/8 PASS；新增了 `tests/test_provider_probe_endpoints.py` 路由/配置重新绑定 Mock 回归，完整仓库回归及该路由测试当前**尚未执行**，需在 PR 远端独立审查/维护者本地测试中完成。已修复“删除平台配置后使用残留 env Key 同 ID 重建”的路径；**GitHub Actions 运行次数：0。**
 
 ### S02 — 身份和 Token（SEC-02）
 
