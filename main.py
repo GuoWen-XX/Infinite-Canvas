@@ -18613,8 +18613,15 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     return {"canvas": canvas}
 
 @app.delete("/api/canvases/{canvas_id}")
-async def delete_canvas(canvas_id: str):
+async def delete_canvas(canvas_id: str, base_revision: Optional[int] = None,
+                        base_updated_at: Optional[int] = None):
+    """Soft-delete only the version the user actually selected.
+
+    A stale tab must not delete a newer canvas. Legacy timestamp-aware
+    clients may use base_updated_at; callers without a version get 409.
+    """
     def apply(canvas):
+        check_canvas_base_revision(canvas, base_revision, base_updated_at)
         if canvas.get("deleted_at"):
             return False
         canvas["deleted_at"] = now_ms()
