@@ -44,7 +44,18 @@ INFINITE_CANVAS_LAN_PASSWORD=<由用户自己生成的12字符以上强密码>
 - WebSocket 客户端不一定都自动附带浏览器 Basic 凭据；同源浏览器使用收到的 HttpOnly Session Cookie。非浏览器连接器如使用远端 LAN，应在其独立客户端实现安全会话/凭据提供，并做联调后才能标记为兼容通过。
 - **无法验证的部分**：此阶段的真实 Windows Photoshop/Chrome 插件联调尚须在运行环境执行，不能将配置说明当作实际联调成功。
 
-## 4. 验收计划与回滚
+## 4. 云端素材下载：最小权限临时授权
+
+在使用 API Mart/视频服务的本地音视频参考素材时，云端服务可能需要回调下载 `/assets/...` 或 `/output/...`。这些服务不会携带浏览器 LAN Basic 密码和 HttpOnly Cookie，因此 S02 提供**只读、只限一个文件、30 分钟有效**的签名链接：
+
+- 需要同时配置 `PUBLIC_MEDIA_BASE_URL`（或 `PUBLIC_BASE_URL`）及**至少 24 字符的私密随机密钥** `PUBLIC_MEDIA_TOKEN`；密钥仅在服务端签名，不再直接出现在 URL 中。
+- `local_asset_public_url()` 自动生成 `?ic_exp=到期时间&ic_sig=HMAC签名`；签名包括文件路径与到期时间。只允许 GET/HEAD 访问准确的 `/assets/` 或 `/output/` 文件，其他 API、其他文件、到期请求均不能复用授权。
+- 公网反向代理仍需保护其余路径，且明确设置 `INFINITE_CANVAS_TRUSTED_HOSTS` 包含实际公网媒体主机名；不要因公网下载需求开放未授权 API。
+- 没有配置足够强的 `PUBLIC_MEDIA_TOKEN`，则不产生此类可被云端下载的公网回调链接；应改用已存在的上传素材服务作为替代。
+- URL 属于暂时的、可转发的只读授权；云端请求日志可能记录它，所以不要把带签名的 URL 长期保存、公开或放入代码仓库。旧 `?token=<固定密钥>` 形式不再被认可，需要重新生成 URL。
+- 此处只解决 S02 回调下载权限，不替代 S03 的存储路径、符号链接、SSRF 和大小/总量限制。
+
+## 5. 验收计划与回滚
 
 隔离测试：Host/DNS rebinding、loopback、非 loopback、Basic（含畸形）、Cookie 生命周期、跨源、合法扩展 Origin、WebSocket 鉴权；Mock ModelScope Token，不调用真实生成接口。必须验证 `/api/config/token` 响应不含原始 Token，并确认 `/generate` 和 `/api/angle/generate` 能使用服务端保存的 Token。
 
@@ -52,6 +63,6 @@ INFINITE_CANVAS_LAN_PASSWORD=<由用户自己生成的12字符以上强密码>
 
 如认证造成连接器回归，应在 S02 PR 内修复或提出安全的迁移实现，不应退回 `allow_origins=["*"]` / 公开 Token 的旧状态。为回滚做单阶段 revert 前须确认是否会重新开放风险。
 
-## 5. 尚未覆盖的风险
+## 6. 尚未覆盖的风险
 
 S02 不解决 S03 的存储路径越权与 SSRF，也不解决 S04 画布并发写入；`127.0.0.1` 的本机访问允许无密码，但对本机恶意进程不构成安全边界。LAN HTTP Basic 的防嗅探依赖 HTTPS/VPN；不要把缺失实际设备联调结果标记为已通过。
