@@ -65,6 +65,7 @@
 - [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**仅编写，尚未在完整仓库执行。**
 - [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。正在等待最新 HEAD 独立 Code Review；未运行 GitHub Actions。
 - [x] 对初轮 Review 的三个 P2 已提交修复：API/.env 加载后初始化 LAN/CORS；Basic 非 ASCII 密码改成 UTF-8 字节恒定时间比较；公网媒体变为绑定 `/assets/` / `/output/` 单文件、30 分钟的 HMAC 签名 GET/HEAD。补充安全回归与迁移说明。
+- [x] 第二轮 Review 对签名 URL 的二次解码及字面 `%` 文件名提出 2 个 P2。已修复为“生成端 URL 解码一次 / 验证端使用已解码 ASGI 路径原样签名”，并修正 URL 序列化对字面 `%` 的重新编码；新增 `%23` / `%3F` / `%2520` 回归；提取安全函数隔离测试 **9/9 PASS**。完整后端与实际 LAN/插件联调**尚未运行**。
 - [ ] 等待**最新 HEAD** 的独立 Review 复核上述修复；在完整运行环境验证 LAN/插件/本地云生图，审查通过且合并 main 后解锁 S03。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
