@@ -2038,35 +2038,9 @@ function toggleEmojiPicker(id, event){
 async function setCanvasIcon(id, icon, event){
     event?.preventDefault();
     event?.stopPropagation();
-    const item = canvases.find(c => c.id === id);
-    if(item) item.icon = icon || 'layers';
     closeCanvasMetaPopover();
-    renderCanvasList();
-    try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target) {
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
-            target = data.canvas;
-        }
-        target.icon = icon || 'layers';
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
-        });
-        if(!res.ok) throw new Error('图标保存失败');
-        if(canvas?.id === id) canvas.icon = target.icon;
-        await loadCanvasList(false);
-    } catch(e) {
-        setStatus('图标保存失败');
-        console.error(e);
-    }
+    // This is a metadata-only edit. Never PUT a stale full canvas snapshot.
+    await patchCanvasMeta(id, {icon: icon || 'layers'});
 }
 function startTitleEdit(id, titleEl){
     if(!titleEl || titleEl.querySelector('input')) return;
@@ -2102,34 +2076,11 @@ function startTitleEdit(id, titleEl){
     };
 }
 async function setCanvasTitle(id, title){
-    const item = canvases.find(c => c.id === id);
-    if(item) item.title = title;
-    if(canvas?.id === id) canvas.title = title;
-    renderCanvasList();
-    try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target){
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
-            target = data.canvas;
-        }
-        target.title = title;
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
-        });
-        if(!res.ok) throw new Error('重命名失败');
-        if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
-        await loadCanvasList(false);
-    } catch(e){
-        setStatus('重命名失败');
-        console.error(e);
+    // A full-canvas PUT without base_revision would fail CAS or erase nodes.
+    // patchCanvasMeta handles revision and keeps a recoverable copy on 409.
+    await patchCanvasMeta(id, {title});
+    if(currentCanvasTitle && canvas?.id === id){
+        currentCanvasTitle.textContent = canvas.title || title;
     }
 }
 async function openCanvas(id){
