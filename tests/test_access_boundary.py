@@ -1,6 +1,7 @@
 """S02: run locally with no external services or real account credentials."""
 import base64
 import os
+import urllib.parse
 import tempfile
 import time
 import unittest
@@ -85,6 +86,63 @@ class AccessBoundaryTests(unittest.TestCase):
 
     def test_malformed_basic_authorization_does_not_throw(self):
         self.assertFalse(main.canvas_basic_auth({"authorization": "Basic not-base64??"}, "dummy-password-long"))
+
+    def test_unicode_basic_password_matches_as_utf8(self):
+        password = "中文验证密码abcd123456"
+        basic = base64.b64encode(("canvas:" + password).encode("utf-8")).decode("ascii")
+        self.assertTrue(main.canvas_basic_auth({"authorization": "Basic " + basic}, password))
+        wrong = base64.b64encode("canvas:错误密码abcd123456".encode("utf-8")).decode("ascii")
+        self.assertFalse(main.canvas_basic_auth({"authorization": "Basic " + wrong}, password))
+
+    def test_cors_list_is_loaded_after_project_env(self):
+        # Regression for early initialization: API/.env is read at import,
+        # so middleware must be registered only after load_env_file().
+        from pathlib import Path
+        source = Path(main.__file__).read_text(encoding="utf-8")
+        self.assertLess(source.index("\nload_env_file()\n"), source.index("\napp.add_middleware(\n    CORSMiddleware"))
+        middleware = next(m for m in main.app.user_middleware if m.cls.__name__ == "CORSMiddleware")
+        self.assertEqual(set(middleware.kwargs["allow_origins"]), main.CANVAS_TRUSTED_ORIGINS)
+
+    def test_signed_media_token_is_bound_to_one_file_and_short_lived(self):
+        secret = "test-only-s02-media-signing-key-" + "a" * 32
+        path = "/assets/input/test-reference.png"
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}):
+            with patch("main.time.time", return_value=10_000_000):
+                suffix = main.public_media_url_suffix(path)
+            self.assertNotIn(secret, suffix)
+            query = urllib.parse.parse_qs(suffix.lstrip("?"))
+            exp, sig = query["ic_exp"][0], query["ic_sig"][0]
+            self.assertTrue(main.canvas_signed_public_media_valid(path, exp, sig, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/input/another.png", exp, sig, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid(path, exp, sig, now=int(exp) + 1))
+            self.assertFalse(main.canvas_signed_public_media_valid(path, exp, sig, now=10_000_000 - 3600))
+            self.assertFalse(main.canvas_signed_public_media_valid(path, exp, "0"*64, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid("/api/config/token", exp, sig, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/../global_config.json", exp, sig, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/%252e%252e/global_config.json", exp, sig, now=10_000_003))
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/foo\\\\secret.png", exp, sig, now=10_000_003))
+
+    def test_without_public_media_secret_cannot_generate_signed_url(self):
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": ""}):
+            self.assertEqual(main.public_media_url_suffix("/output/image.png"), "")
+            self.assertFalse(main.canvas_signed_public_media_valid("/output/image.png", "9999999999", "0"*64))
+
+    def test_signed_media_does_not_bypass_other_http_routes(self):
+        secret = "test-only-s02-media-signing-key-" + "a"*32
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), \\
+             patch("main.time.time", return_value=10_000_000):
+            suffix = main.public_media_url_suffix("/output/dummy.png")
+            with patch.object(main, "canvas_trusted_host", return_value=True), \\
+                 patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
+                with TestClient(main.app) as client:
+                    # Signed media should reach StaticFiles, which 404s on
+                    # non-existent dummy media, not authentication middleware.
+                    allowed = client.get("/output/dummy.png" + suffix)
+                    self.assertEqual(allowed.status_code, 404)
+                    denied = client.get("/output/dummy.png")
+                    self.assertEqual(denied.status_code, 401)
+                    api = client.get("/api/config/token" + suffix)
+                    self.assertEqual(api.status_code, 401)
 
     def test_expired_session_rejected(self):
         with patch("main.time.time", return_value=2_000_000):
