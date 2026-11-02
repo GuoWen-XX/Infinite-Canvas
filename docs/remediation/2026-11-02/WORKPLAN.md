@@ -266,3 +266,11 @@ Final merge SHA:
 - [x] 同一 PR 修复：未保存/正在保存/冲突状态下，编辑器内返回管理页按钮先保存最新草稿并展示恢复面板，阻止直接跳转；`beforeunload` 保存草稿并请求浏览器确认；网络异常/5xx 保留草稿、进入人工恢复状态且禁止盲目重试。无未保存修改时仍正常返回。
 - [x] 新增 `tests/test_canvas_navigation_failure.cjs` 4 项原生 Node 可执行测试**源码**；在准确提交 `a792a08484b129333125fab95d7fbe9f8cc07d65` 通过 GitHub 读取真实 `canvas.js`，在独立 V8 对四个行为进行隔离验证 **4/4 PASS**，另 `canvas.js` 和新增 CJS 语法解析 **2/2 PASS**。**不是** `node --test`、完整 Python `main.py` 或浏览器双标签集成通过。
 - [ ] 门禁不变：PR #7 仍 Draft；正式独立 Review 0，仓库 Codex environment 尚未配置；原生 Node、Python 21 项及完整项目、浏览器/Windows 联调未执行。不得合并 S04 或开始 S05。S02/S03 延期测试仍须 S08 发布前补齐；GitHub Actions 不运行。
+
+
+## S04 连续元数据失败草稿合并（2026-11-03）
+
+- 真实旧函数隔离复现：离线先改名再改图标，两次失败共用 canvas_meta_conflict_<id> 键，后一次覆盖前一次，恢复草稿仅剩 icon，丢失 title。
+- 已在 classic patchCanvasMeta 与列表 persistMeta 修复：按字段合并既有失败草稿，同字段最新编辑优先；localStorage 不可写时恢复面板明确警告，并提供属性 JSON 导出；更新 HTML 资源版本避免旧缓存。
+- 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
+- S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。
