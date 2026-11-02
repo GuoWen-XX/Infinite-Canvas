@@ -106,6 +106,14 @@
 - [ ] 正确 HEAD 上实际运行完整 Python unittest discover、必要 HTTP/Range/ZIP/自动更新和 Windows/UNC/FFmpeg 验证；当前本地执行容器 `git ls-remote` 因 github.com DNS 失败，仍没有可核实全仓 PASS。不得使用原 `zcode/iteration-01` Actions 成功作为证据；**不得自动运行 Actions**。
 - [ ] 审查与必要门禁通过后方可 merge PR #6 → main，记录实际 merge SHA，再新建 `fix/S04-canvas-conflicts` 分支/PR。
 
+**S03 再次安全复审（2026-11-02）**：
+
+- [x] `216cec7f222d580df1d03f08966edaa4f7030b13` 的 Codex 审查 `completed / findings=true / unresolved=true`，三项旧版 updater / FIFO / If-Range 修复未被再次提出，但新增 **P2 Windows root/junction 竞态**（`PRRT_kwDOUaWIpM6yr_6S`）和 **P2 POSIX 搜索权限目录兼容**（`PRRT_kwDOUaWIpM6yr_6f`）。原 TOCTOU P2 和前三项线程尚待最新审查确认，绝不提前按已通过处理。
+- [x] 实施：`storage_guard.py` Windows 开始使用 pre-open 捕获的 `trusted_root`，在 child open 前固定根目录 HANDLE，并检查 Win32 文件/删除句柄相对于可信根而不再次 `realpath(root)`；POSIX 目录链接逐级打开使用平台允许时的 `O_PATH/O_SEARCH` 替代要求读权限的 `O_RDONLY`。同步 `static/storage_guard.py`，避免旧版首次升级回退到有漏洞的副本。
+- [x] 增加 **3 项**句柄测试：根目录换成 symlink 不能读根外文件（POSIX）；0711 搜索权限目录可读取和 unlink（POSIX）；Win32 opened-handle 校验不跟随后来变化的根（Mock 函数级）。S03 目前 **45 项已编写**（storage safety 16，handles 13，remote 8，ZIP 5，legacy updater 3），**并非完整仓库 45/45 通过**，Windows junction/UNC 仍须真实设备验收。
+- [ ] 已发现 `main.py` 自动更新源常量当前指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，与本修复 PR 的目标 `GuoWen-XX/Infinite-Canvas@main` 不同；**S03 兼容修复仅在发布来源实际含 static helper 时生效**。这属于 S08 发布/更新源和分支一致性门禁，不能假定本 PR 合并后旧客户端会收到修复。不要擅自改线上更新源或默认分支。
+- [ ] 最新 HEAD 独立复审、阻断线程核查与正确 SHA 的可靠回归仍是 S03 合并门禁；未经完成不进入 S04。禁止触发 GitHub Actions / 真实用户数据 / 付费模型。
+
 ### S04 — 画布保存（R1/R6）
 
 - [ ] 从 PR #2 的 `review_conflict_probe.cjs` 提炼正确行为回归（旧 probe 的“通过”不能复用）。
