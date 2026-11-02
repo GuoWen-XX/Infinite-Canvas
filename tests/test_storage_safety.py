@@ -128,6 +128,20 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"NEW-FILE-222")
 
+    def test_if_range_matching_stable_date_returns_partial_content(self):
+        from fastapi.testclient import TestClient
+        file = self.root / "resume.png"
+        file.write_bytes(b"0123456789")
+        os.utime(file, (1600000000, 1600000000))
+        with TestClient(main.app) as client:
+            initial = client.get("/api/storage-files/generated/resume.png")
+            response = client.get(
+                "/api/storage-files/generated/resume.png",
+                headers={"Range": "bytes=4-", "If-Range": initial.headers["last-modified"]},
+            )
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response.content, b"456789")
+
     def test_if_range_stale_date_returns_full_new_file(self):
         from fastapi.testclient import TestClient
         file = self.root / "resume.png"
