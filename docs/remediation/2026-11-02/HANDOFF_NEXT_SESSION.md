@@ -1,0 +1,69 @@
+# Infinite-Canvas 修复工程 · 新会话交接（Handoff）
+
+> 记录日期：2026-11-02。**这是执行快照，不是“所有测试通过”的报告。**
+> 新会话必须首先读取 GitHub 最新状态；本文中提交 SHA 可能过时。
+
+## 一、仓库、分支、已完成阶段
+
+- 仓库：[GuoWen-XX/Infinite-Canvas](https://github.com/GuoWen-XX/Infinite-Canvas)。
+- **所有修复 PR 的目标分支是 `main`**。仓库默认分支仍为 `zcode/iteration-01`，**不要误将默认分支的 CI 成功当作 main 或修复分支的测试结果，也不要擅自调整默认分支**。
+- 计划、门禁、技术方案：`docs/remediation/2026-11-02/{WORKPLAN.md,REVIEW_GATE.md,TECHNICAL_PLAN.md}`。
+- S00 [PR #3](https://github.com/GuoWen-XX/Infinite-Canvas/pull/3) 已合并。
+- S01 [PR #4](https://github.com/GuoWen-XX/Infinite-Canvas/pull/4) 已合并。
+- S02 [PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5) 已合并；`main` 在本次 S03 启动时为 `ae042d816c7881005a6e180a8e38aeaa8f9f07f5`。**S02 是有限风险例外合并**：正确分支下完整 `tests/test_access_boundary.py` 28 项、全套后端测试和 Windows/LAN/Chrome/Photoshop/ModelScope 兼容联调未实际执行，必须在 S08 发布门禁补齐。放行解释见 [PR #5 评论](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5#issuecomment-6577109854)。
+- 现阶段 S03：[PR #6](https://github.com/GuoWen-XX/Infinite-Canvas/pull/6)，工作分支 `fix/S03-storage-ssrf`，目标 `main`。编写本文时仍是 **draft / open / not merged**；**务必先重新读取 PR head、Codex Review Summary 和所有 threads**。
+- S04–S08 尚未实施。
+
+## 二、S03 已实现的代码与测试
+
+S03 目标：SEC-03 本地存储路径越权、SEC-04 SSRF/重定向、SEC-05 ZIP 资源限制。
+
+1. 存储访问：`main.py` 原 `realpath/commonpath` 用于软链接路径越权检查；已修复根内软链接别名删除误删目标的问题；新增独立文件 `storage_guard.py`，真正打开文件时按 root 限制（POSIX：从根的目录 FD 链逐级 `O_NOFOLLOW`、最后使用 pinned file FD，删除按 pinned parent dir_fd；Windows：文件打开后 `GetFinalPathNameByHandleW` 核对实际句柄目标，删除使用 WinAPI HANDLE）；`main.py` 的存储 GET、共享文件 GET、`/api/download-output` 本地分支、素材 ZIP、workflow ZIP、媒体预览/JPEG/视频输入改用受约束句柄。文件发送以 `StreamingResponse` 保留单段 HTTP Range。**Windows 真实句柄/UNC 删除行为未验证，必须做平台联调**。
+2. 新文件部署：自更新 `update_allowed_file` 允许 `storage_guard.py` 且 `validate_staged_update` 对新模块做存在性/编译验证，避免 main.py 更新后找不到依赖。
+3. 远程媒体：`validate_remote_media_target` / `open_safe_remote_media_stream` 检查公网 DNS 和每跳重定向，禁用环境代理，自定义 urllib3 HTTP/HTTPS connection 在 TCP 建连后、HTTP 请求和 TLS 握手前拒绝实际 socket peer 非公网 IP。请复查 HTTPS SNI/证书、真实代理设置及全量调用方。
+4. ZIP：canvas-assets 导出使用 `SpooledTemporaryFile` + 流式响应，250 文件、单项 200 MiB、总输入 512 MiB、ZIP 输出 550 MiB 配额；本地文件按实际读取字节计量。workflow ZIP 同样对素材使用 pinned 文件句柄与单项/总量配额。
+5. 当前新增 S03 测试文件：`tests/test_storage_safety.py` **12 项**，`tests/test_storage_handles.py` **8 项**，`tests/test_remote_media_security.py` **8 项**，`tests/test_canvas_zip_budget.py` **5 项**，总计 **33 项**。这些测试**未在完整仓库主程序中跑完**；不能把“已编写”当成“通过”。
+6. 已有一份独立的 POSIX FD 操作提取验证：`python -m unittest -v /mnt/data/s03_handle_repro/test_handle_races.py` 的结果 `Ran 7 tests / OK`，**不代表 GitHub 仓库 33 项实际 PASS**。原代码和风险记录见 `S03_AUDIT.md`、`S03_TOCTOU_HANDLE_PLAN.md`。
+
+## 三、审查历史与未解决风险
+
+PR #6 初轮 Code Review 曾有 5 个安全线程：P1 DNS rebinding、P1 删除别名误删原目标、P2 文件句柄 TOCTOU、P2 ZIP stale size、P2 redirect 测试 DNS mock 错误。其中 DNS、别名、ZIP、DNS mock 四项已有修复并标记 resolved。
+
+第五项 P2 TOCTOU 线程 ID：`PRRT_kwDOUaWIpM6yq3uo`。**本次新代码已做 pinned-FD / Windows HANDLE 修复，但仍须等待最新 HEAD 独立 Codex 复审、验证测试和核查是否产生新 P1/P2 才能关闭**。不要把旧提交 Review Summary 上的 “completed” 当成新提交审查通过。尤其需要检查新的 `storage_guard.py` 跨平台行为、Image.open/FFmpeg 兼容性、HTTP Range、文件句柄释放、自动更新回滚的完整性。
+
+如 review 报新 findings，严格同一 PR #6 修复、加失败回归、提交、`@codex review` 复审，再检查 Review Summary 最新 HEAD、全部 threads 与真正测试证据。
+
+## 四、测试设施和成本约束
+
+- **绝不自动启动或重跑 GitHub Actions**。用户此前授权的唯一一次手动 Actions [#41439808653](https://github.com/GuoWen-XX/Infinite-Canvas/actions/runs/41439808653) 成功 78 项，但检出 `zcode/iteration-01@bb778e26`，**不是 S02/S03 的正确 HEAD**；不得复用绿灯。已有 Actions workflow 为 `workflow_dispatch` only。
+- 先前本地执行容器对 github.com DNS 解析失败；Vercel sandbox 创建返回 403，故真实完整仓库 checkout 尚无证据。若新会话具备可用的安全执行环境，应在**PR #6 精确 HEAD**运行 `python -m unittest discover -s tests -p 'test_*.py' -v`、安全独立测试、启动器/浏览器/Windows-UNC 兼容验证；记录命令、SHA、返回码和日志。禁止虚构全套测试结果。
+- 不修改真实用户画布、Key、生产配置；不调用计费生图或真实恶意网络目标。测试网络、DNS/metadata、ZIP 等全部 Mock 或本地临时 fixture。
+- 为避免技术环境无穷期阻断，可以公开评估有限风险与延期验收，但**不得对已知阻断性安全问题无条件放行**，且 S08 发布门必须补齐 S01/S02/S03 遗留真实测试。
+
+## 五、后续阶段依序推进
+
+| 阶段 | 工作 |
+|---|---|
+| S03 | 最新 HEAD 独立复审 → 逐条解决 blocking threads → 正确 HEAD 可信验证 → 按门禁合并 PR #6 main → 更新 WORKPLAN 合并 SHA |
+| S04 | 画布并发数据丢失 R1、标题/图标 revision R6；两标签增改删/重命名冲突、保留草稿与 409，独立 PR |
+| S05 | Skill frontmatter 未知字段和编辑 body 稳定 R2、variant ID 稳定 R7，独立 PR |
+| S06 | PyYAML 生产依赖 R4、GitHub Skill tracking_ref 与 commit_sha R3，ZIP/覆盖/更新回滚，独立 PR |
+| S07 | Codex 自定义存储媒体路径 R5，Mock Codex，独立 PR |
+| S08 | 全套 Python/JS/浏览器、Windows/Linux/macOS、LAN/Chrome/Photoshop/ModelScope、自动更新/安装发布质量门与残余风险报告；**发布前必须补完之前延期的联调** |
+
+## 六、直接复制到下一会话的提示词
+
+```text
+继续处理 GitHub 仓库 GuoWen-XX/Infinite-Canvas 的无限画布 S00-S08 修复工程。先实际读取 main、PR #6 最新 HEAD、最新 Codex Review Summary、所有 review threads，并读取仓库 docs/remediation/2026-11-02/HANDOFF_NEXT_SESSION.md、WORKPLAN.md、REVIEW_GATE.md、S03_AUDIT.md 和 S03_TOCTOU_HANDLE_PLAN.md（handoff 在 fix/S03-storage-ssrf 分支，若 PR #6 已合并则在 main）。不要用旧 SHA 代替实时状态。
+
+S00–S02 已合并；S02 以明确延期完整测试/Windows/LAN/Chrome/Photoshop 联调的有限风险例外合并，必须在 S08 发布前补齐。S03 draft PR #6 已实施存储软链接/TOCTOU pinned 文件句柄修复、连接时公网 peer IP 检查防 DNS rebinding、ZIP 限额与分块复制，新增 S03 测试 33 项。旧评审 5 条中 4 条已 resolved；文件句柄 TOCTOU P2 thread PRRT_kwDOUaWIpM6yq3uo 本次已提交修复但尚未经过最新 HEAD 验证。请先核对最新 HEAD 审查：如有 P1/P2，直接同 PR 修复并补回归、请求 Codex 最新 HEAD 复审、继续检查结果；若独立审查、必要可信验证及风险门禁已满足，立刻合并 PR #6 到 main 并记录 merge SHA，然后创建独立 S04 分支/PR，依序持续推进 S04–S08。每阶段修改后提交、主动检查 review/threads、解决后继续，不要反复等我催促。
+
+不自动触发/重跑 GitHub Actions；之前单次授权已消耗在错误默认分支，GitHub 仓库默认 zcode/iteration-01 不等于目标 main。禁止真实 Key、用户数据、计费 AI 调用。完整 repo 测试环境先前因 GitHub DNS 与云 sandbox 403 不可用；继续寻找无额外费用的执行办法，但绝不把隔离 Mock 当成全套 PASS；可文档化明确可接受的延期验收风险，**不能跳过已确认的阻断性安全缺陷**。及时在 GitHub 实际操作并更新仓库台账/交接文档。 
+```
+
+## 七、链接
+
+- [S03 PR #6](https://github.com/GuoWen-XX/Infinite-Canvas/pull/6)
+- [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)
+- [S03 review thread](https://github.com/GuoWen-XX/Infinite-Canvas/pull/6/files)
+- 本文：`docs/remediation/2026-11-02/HANDOFF_NEXT_SESSION.md`。
