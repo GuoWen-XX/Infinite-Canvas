@@ -14436,11 +14436,13 @@ async def fetch_upstream_models(provider_id: str):
         return await fetch_models_from_upstream("", "", "codex", provider.get("image_request_mode") or "openai")
     if is_gemini_cli_provider(provider):
         return await fetch_models_from_upstream("", "", "gemini-cli", provider.get("image_request_mode") or "openai")
-    api_key = os.getenv(runninghub_wallet_key_env(), "") if provider["id"] == "runninghub" else ""
+    # RunningHub's model registry requires its wallet credential, not the free key.
+    # Pass the selected stored key explicitly; never allow a second fallback
+    # inside the HTTP helper that could attach a different saved credential.
+    api_key = runninghub_wallet_key_value() if provider["id"] == "runninghub" else provider_env_key_value(provider["id"])
     if not api_key:
-        api_key = provider_env_key_value(provider["id"])
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 API Key")
+        label = "账户余额 API Key" if provider["id"] == "runninghub" else "API Key"
+        raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 {label}")
     return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai")
 
 async def build_online_image_result(payload: OnlineImageRequest):
