@@ -129,11 +129,9 @@ class AccessBoundaryTests(unittest.TestCase):
 
     def test_signed_media_does_not_bypass_other_http_routes(self):
         secret = "test-only-s02-media-signing-key-" + "a"*32
-        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), \\
-             patch("main.time.time", return_value=10_000_000):
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), patch("main.time.time", return_value=10_000_000):
             suffix = main.public_media_url_suffix("/output/dummy.png")
-            with patch.object(main, "canvas_trusted_host", return_value=True), \\
-                 patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
+            with patch.object(main, "canvas_trusted_host", return_value=True), patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
                 with TestClient(main.app) as client:
                     # Signed media should reach StaticFiles, which 404s on
                     # non-existent dummy media, not authentication middleware.
