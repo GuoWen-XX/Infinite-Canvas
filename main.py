@@ -138,14 +138,6 @@ CANVAS_LAN_PASSWORD_ENV = "INFINITE_CANVAS_LAN_PASSWORD"
 CANVAS_SESSION_NAME = "ic_studio_session"
 CANVAS_SESSION_TTL = 12 * 60 * 60
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=sorted(CANVAS_TRUSTED_ORIGINS),
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
-)
-
 
 def canvas_is_loopback(host):
     try:
@@ -229,7 +221,8 @@ def canvas_basic_auth(headers, password):
         return False
     try:
         username, supplied = base64.b64decode(raw[6:].strip(), validate=True).decode("utf-8").split(":", 1)
-        return hmac.compare_digest(username, "canvas") and hmac.compare_digest(supplied, password)
+        return (hmac.compare_digest(username.encode("utf-8"), b"canvas")
+                and hmac.compare_digest(supplied.encode("utf-8"), password.encode("utf-8")))
     except (ValueError, UnicodeDecodeError, TypeError, binascii.Error):
         return False
 
@@ -277,7 +270,7 @@ async def canvas_http_access_boundary(request: Request, call_next):
         client_host, host, request.headers, request.cookies, request.url.scheme
     )
     if status:
-        headers = {"WWW-Authenticate": 'Basic realm="Infinite Canvas Studio"'} if status == 401 else {}
+        headers = {"WWW-Authenticate": 'Basic realm="Infinite Canvas Studio", charset="UTF-8"'} if status == 401 else {}
         return JSONResponse(status_code=status, content={"detail": message}, headers=headers)
     response = await call_next(request)
     if grant:
@@ -825,6 +818,22 @@ def load_env_file():
         print(f"加载 API/.env 失败: {e}")
 ensure_runtime_config_files()
 load_env_file()
+
+# The project loads API/.env at runtime, after creating the FastAPI app.
+# Refresh LAN/Origin options *after* that load, before the ASGI stack starts.
+CANVAS_LAN_ENABLED = os.getenv("INFINITE_CANVAS_LAN", "").strip().lower() in {"1", "true", "yes"}
+CANVAS_TRUSTED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("INFINITE_CANVAS_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=sorted(CANVAS_TRUSTED_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+)
 
 COMFYUI_INSTANCES = [s.strip() for s in os.getenv("COMFYUI_INSTANCES", "127.0.0.1:8188").split(",") if s.strip()]
 COMFYUI_ADDRESS = COMFYUI_INSTANCES[0]
