@@ -26,6 +26,12 @@
 - 安全发布的重要限制：现有 `main.py` 的自动更新源硬编码为 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，而本次 PR 合并目标为 `GuoWen-XX/Infinite-Canvas@main`，因此只有修复代码实际被发布到客户端使用的源时旧 updater 才能收到 `static/storage_guard.py`。这是 S08 更新渠道验收的明确阻断事项，不能将“兼容策略已写”称为“老客户端已经能自动升级”，也不要擅自改线上发布源。
 - 下一步：对最终 HEAD 请求独立 Codex Review；核对旧 TOCTOU、首轮三条新发现、Windows/权限两条新发现及全部线程状态，有新问题必须继续同 PR 修复。完整项目、Windows/UNC、Chrome/Photoshop/LAN 等仍缺证据，S02 的延期联调必须在 S08 发布前补齐。禁止 GitHub Actions、真实用户画布、真实 Key、付费模型。
 
+## 第三次复审与权限测试修复（2026-11-02）
+
+- Codex 对 `cb702594aa7169ab2b619cecadab0700b430d9d0` 的审查 **completed / findings=true / unresolved=true**。新增 P2 `PRRT_kwDOUaWIpM6ysRGk`：此前所谓 0711 搜索权限测试仍由拥有目录读取权限的所有者执行，不能证明修复。
+- 已在 `tests/test_storage_handles.py` 将该 fixture 修订为可复现测试：非 root 时 chmod 0311（拥有者只有 write/search）；root 时在仅含临时 fixture 的子进程 `setgroups([]); setgid(nobody); setuid(nobody)` 并使目标目录权限 0733（other write/search，无 read）。子进程先断言**旧 `os.O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开必然 PermissionError**，随后使用源码相同的 `storage_guard.open_scoped_file` 安全读取，并使用 `unlink_scoped_file` 删除临时测试文件。不能把这项源码更新冒充执行 PASS。
+- 本阶段回归代码总数仍为 **45**，完整项目、Windows/UNC/LAN/插件/FFmpeg 未完成。所有 7 条未解决审查线程需最新 HEAD 核验后才能逐条标记解决。S03 PR #6 仍为 draft，未合并；切勿提前开始 S04，不要运行 Actions 或真实/计费链路。
+
 ## 一、仓库、分支、已完成阶段
 
 - 仓库：[GuoWen-XX/Infinite-Canvas](https://github.com/GuoWen-XX/Infinite-Canvas)。
