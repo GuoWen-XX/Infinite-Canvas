@@ -1,5 +1,14 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## 2026-11-02 最新 S03 Review 门禁（独立核查后更新）
+
+- GitHub `main` 在本次核查为 `ae042d816c7881005a6e180a8e38aeaa8f9f07f5`；S03 PR #6（draft、base main）在本次**文档更新前** HEAD 为 `b3b02ae56d9d4c604439337c192b006e59ff1d86`。
+- Codex 对该代码 HEAD 的 Code Review Summary 为 **completed / 0 findings / 0 unresolved findings**（2026-11-02 14:07:51 UTC）；已核查并解决全部历史 10 条未关闭线程，当前共 14/14 resolved。此处仅表示**代码审查意见已处理**，不表示执行测试通过；后续提交须重新核对最新 HEAD Review。
+- **TEST_GATE 仍 BLOCKED**：S03 新增 45 项测试为源码编写数量，完整 `main.py` / `python -m unittest discover -s tests -p 'test_*.py' -v` 未运行；Windows WinAPI、junction、UNC、FFmpeg、Range/Streaming 真实集成仍未验证。原独立 Linux syscall/Mock 实验不能替代完整项目测试。S02 的 28 项与 LAN/Windows/Chrome/Photoshop/ModelScope 延期验证仍是 S08 发布前阻断项。
+- 本次执行容器中 `/mnt/data` 无仓库 checkout，`github.com` DNS 仍失败；不得凭连接器读到源码就宣称已在本地运行全仓。未触发/重跑 GitHub Actions，未使用真实用户文件、Key 或付费 AI。
+- PR #6 **不合并，不启动 S04**；先获取可核实的正确 HEAD 离线/完整项目测试与 Windows/UNC 兼容证据，若需有限风险例外须明确列出不可延期的安全验证及 S08 前补测责任，不能把审查 0 findings 当成 TEST_GATE_PASS。
+
+
 > 记录日期：2026-11-02。**这是执行快照，不是“所有测试通过”的报告。**
 > 新会话必须首先读取 GitHub 最新状态；本文中提交 SHA 可能过时。
 
