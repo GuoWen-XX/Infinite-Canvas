@@ -1,5 +1,15 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## S04 最新增量：Smart Canvas 并发保存（2026-11-02）
+
+- 以实时 GitHub PR #7 HEAD 为准；本次代码修复提交 `5c98abbc9ca24b8057003b62ed5c7c74589b1233`，之后另有台账提交。
+- 在真实仓库 Smart Canvas 保存函数的隔离 V8 执行中，修复前两个 PUT 并发使用同一 revision，409 草稿仅保存旧节点，可能丢失请求期间的新编辑。已在同一 PR 串行化保存，排队使用已确认 revision 的后续 PUT，409/404/410 保存最新草稿，并避免切换画布后的迟到响应污染新画布；临时网络失败也保留本地草稿。
+- 新增 `tests/test_smart_canvas_save_serialization.cjs` 5 项。精确 GitHub 代码与 CJS 测试原文经 V8/Node built-in shim 执行合计 **32/32 PASS**，不等于真实 Node、浏览器或完整 Python 回归。正式 Python、双标签及跨平台联调尚未执行。
+- PR #7 仍 Draft，0 个正式 Review、0 个行内线程；Codex connector bot 要求先为该仓库创建 environment。无独立审查和完整必要验证，不能合并或启动 S05。S02/S03 的延期验证仍是 S08 发布前阻断。
+- 不运行/重跑 GitHub Actions；workflow_dispatch-only；不碰真实 Key、用户画布、付费模型。下一步优先补正确 HEAD 的真实 Node/Python/浏览器测试与独立审查，并在同一 PR 闭环发现的问题。
+
+
+
 ## 最新实时核查与 S04 续接（2026-11-02；优先于以下历史快照）
 
 - `main@081edae763ec73505bed9f82e4274bfeaabc16c3`：S03 PR #6 于 2026-11-02 15:00:18 UTC 合并，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65`；独立 Codex Review 0 findings、14/14 threads resolved。维护者明确记录 **DEFERRED_VALIDATION** 风险例外，S03 的 45 项新增测试及完整主程序/Windows UNC/FFmpeg/Range/更新渠道实测尚未执行；不得视为 TEST_GATE_PASS。S02 的 28 项及 LAN/Chrome/Photoshop/ModelScope 延期验收仍须 S08 发布前补齐。
