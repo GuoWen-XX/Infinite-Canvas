@@ -91,6 +91,40 @@ class CanvasRevisionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(main.load_canvas(self.canvas["id"])["title"], "first")
 
+    def test_stale_delete_rejected_without_trashing_newer_canvas(self):
+        before = main.load_canvas(self.canvas["id"])
+        self._save(title="newer editor", nodes=[{"id": "keep-new"}])
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=before["revision"]))
+        self.assertEqual(ctx.exception.status_code, 409)
+        still_present = main.load_canvas(self.canvas["id"])
+        self.assertEqual(still_present["nodes"], [{"id": "keep-new"}])
+        self.assertFalse(still_present.get("deleted_at"))
+
+    def test_delete_without_version_rejected(self):
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.delete_canvas(self.canvas["id"]))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertFalse(main.load_canvas(self.canvas["id"]).get("deleted_at"))
+
+    def test_matching_revision_soft_delete_succeeds(self):
+        latest = main.load_canvas(self.canvas["id"])
+        result = asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=latest["revision"]))
+        self.assertEqual(result, {"ok": True})
+        trashed = main.load_canvas_any(self.canvas["id"])
+        self.assertTrue(trashed.get("deleted_at"))
+        self.assertEqual(trashed["revision"], latest["revision"] + 1)
+        with self.assertRaises(HTTPException) as ctx:
+            main.load_canvas(self.canvas["id"])
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_legacy_timestamp_soft_delete_checks_version(self):
+        initial = main.load_canvas(self.canvas["id"])
+        self._save(title="remote new version")
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.delete_canvas(self.canvas["id"], base_updated_at=initial["updated_at"]))
+        self.assertEqual(ctx.exception.status_code, 409)
+
     def test_meta_and_list_include_revision(self):
         meta = asyncio.run(main.get_canvas_meta(self.canvas["id"]))
         record = main.canvas_record(main.load_canvas(self.canvas["id"]))
