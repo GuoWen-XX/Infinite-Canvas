@@ -7885,16 +7885,45 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
         raise RuntimeError("未找到 ffmpeg，无法生成视频预览图")
     fd, frame_path = tempfile.mkstemp(prefix="media_preview_frame_", suffix=".jpg")
     os.close(fd)
+    safe_video_copy = None
     try:
-        cmd = [
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", "0.5",
-            "-i", path,
-            "-frames:v", "1",
-            "-vf", f"scale='min({width},iw)':-2",
-            frame_path,
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # ffmpeg must never reopen a mutable user path after a security check.
+        # On POSIX inherit only the pinned media descriptor; on Windows, give
+        # ffmpeg a private bounded staging copy from the verified descriptor.
+        with open_local_media_scoped(path) as video:
+            input_path = None
+            run_options = {}
+            if os.name != "nt":
+                fd_root = "/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"
+                if os.path.isdir(fd_root):
+                    input_path = f"{fd_root}/{video.fileno()}"
+                    run_options["pass_fds"] = (video.fileno(),)
+            if input_path is None:
+                with tempfile.NamedTemporaryFile(
+                    prefix="media_preview_secure_", suffix=os.path.splitext(path)[1],
+                    delete=False,
+                ) as stage:
+                    safe_video_copy = stage.name
+                    copied = 0
+                    while True:
+                        chunk = video.read(1 << 20)
+                        if not chunk:
+                            break
+                        copied += len(chunk)
+                        if copied > 1024 * 1024 * 1024:
+                            raise RuntimeError("预览视频超过 1GB 暂存上限")
+                        stage.write(chunk)
+                input_path = safe_video_copy
+            cmd = [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", "0.5", "-i", input_path,
+                "-frames:v", "1",
+                "-vf", f"scale='min({width},iw)':-2",
+                frame_path,
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=60, **run_options
+            )
         if proc.returncode != 0 or not os.path.exists(frame_path) or os.path.getsize(frame_path) <= 0:
             raise RuntimeError((proc.stderr or "ffmpeg 未能抽取视频首帧").strip()[:300])
         with Image.open(frame_path) as frame:
@@ -7902,10 +7931,12 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
             img.thumbnail((width, width), Image.LANCZOS)
             return img.convert("RGB")
     finally:
-        try:
-            os.remove(frame_path)
-        except OSError:
-            pass
+        for temp_path in (frame_path, safe_video_copy):
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
 @app.get("/api/media-preview")
 async def media_preview(url: str, w: int = 512):
