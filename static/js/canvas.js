@@ -1496,7 +1496,8 @@ async function saveCanvas(){
                 viewport,
                 logs:canvas.logs || [],
                 client_id:CLIENT_ID,
-                base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
+                base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0),
+                base_revision:Number(canvas.revision || 0)
             })
         });
         if(res.status === 409){
@@ -1693,11 +1694,22 @@ async function patchCanvasMeta(id, patch){
         const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(patch)
+            body:JSON.stringify({...patch, base_revision:item?.revision ?? canvas?.revision ?? null})
         });
+        if(res.status === 409){
+            try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+            throw new Error('metadata revision conflict; attempted changes preserved locally');
+        }
         if(!res.ok) throw new Error('meta save failed');
         const data = await res.json();
-        if(data.canvas) updateCanvasListRecord(data.canvas);
+        if(data.canvas){
+            updateCanvasListRecord(data.canvas);
+            if(canvas?.id === id){
+                canvas.revision = Number(data.canvas.revision || 0);
+                canvas.updated_at = Number(data.canvas.updated_at || canvas.updated_at || 0);
+                lastCanvasUpdatedAt = canvas.updated_at;
+            }
+        }
     } catch(e){
         setStatus(tr('canvas.metaSaveFailed') || '保存失败');
         console.error(e);
@@ -2104,6 +2116,7 @@ async function openCanvas(id){
         rememberCanvasListProject(canvas.project || 'default');
         const touched = await touchCanvasOpened(canvas.id);
         if(touched?.updated_at) canvas.updated_at = Number(touched.updated_at);
+        if(touched?.canvas?.revision != null) canvas.revision = Number(touched.canvas.revision);
         if((canvas.kind || 'classic') === 'smart'){
             openSmartCanvasPage(canvas.id);
             return;
@@ -2224,7 +2237,8 @@ async function syncRemoteCanvasNow(){
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
         const data = await res.json();
         const remote = data.canvas;
-        if(Number(remote?.updated_at || 0) >= Number(lastCanvasUpdatedAt || 0)){
+        if(Number(remote?.revision || 0) > Number(canvas.revision || 0) ||
+           Number(remote?.updated_at || 0) > Number(lastCanvasUpdatedAt || 0)){
             applyRemoteCanvasData(remote);
         }
     } catch(e) {
@@ -2241,7 +2255,8 @@ async function checkRemoteCanvasVersion(){
         if(!res.ok) throw new Error('meta failed');
         const meta = await res.json();
         const remoteUpdatedAt = Number(meta.updated_at || 0);
-        if(remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
+        if(Number(meta.revision || 0) > Number(canvas.revision || 0) ||
+           remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
             await syncRemoteCanvasNow();
         }
     } catch(e) {
