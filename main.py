@@ -4,8 +4,11 @@ import base64
 import binascii
 import hashlib
 import ipaddress
+import socket
+import urllib3
 import hmac
 import datetime
+import email.utils
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -39,6 +42,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
+# The pre-S03 updater only copies main.py, VERSION and static/*.
+# Keep its first upgrade bootable with a byte-identical security helper in static/.
+try:
+    from storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
+except ModuleNotFoundError as exc:
+    if exc.name != "storage_guard":
+        raise
+    from static.storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
 from fastapi.middleware.cors import CORSMiddleware
 
 class UntrustedProbeTarget(ValueError):
@@ -2377,7 +2389,7 @@ def update_allowed_file(path: str) -> bool:
     path = str(path or "").replace("\\", "/").lstrip("/")
     if not path or any(part in {"", ".", ".."} for part in path.split("/")):
         return False
-    return path in {"main.py", "VERSION"} or path.startswith("static/")
+    return path in {"main.py", "VERSION", "storage_guard.py"} or path.startswith("static/")
 
 # 缓存 GitHub Tree API 响应（含 ETag），减少 60 次/h 限流压力
 GITHUB_TREE_CACHE: Dict[str, Any] = {"etag": "", "data": None, "expires_at": 0.0}
@@ -2670,7 +2682,25 @@ def validate_staged_update(staging_root: str, root_files: List[str], static_file
     if not os.path.isfile(main_path) or not os.path.isfile(version_path):
         raise RuntimeError("更新暂存缺少 main.py 或 VERSION")
     with open(main_path, "rb") as f:
-        compile(f.read(), main_path, "exec")
+        main_source = f.read()
+        compile(main_source, main_path, "exec")
+    # The new media handler is a required dependency. Never replace main.py
+    # while leaving storage_guard.py absent or syntactically invalid.
+    if b"from storage_guard import" in main_source:
+        guard_path = os.path.join(staging_root, "storage_guard.py")
+        if "storage_guard.py" not in (root_files or []) or not os.path.isfile(guard_path):
+            raise RuntimeError("更新暂存缺少 storage_guard.py，拒绝安装不完整版本")
+        with open(guard_path, "rb") as f:
+            guard_source = f.read()
+            compile(guard_source, guard_path, "exec")
+        # Older installed updaters can only stage static/*, not a new root file.
+        compat_path = os.path.join(staging_root, "static", "storage_guard.py")
+        if ("static/storage_guard.py" not in (static_files or [])
+                or not os.path.isfile(compat_path)):
+            raise RuntimeError("更新暂存缺少旧版升级兼容模块 static/storage_guard.py")
+        with open(compat_path, "rb") as f:
+            if f.read() != guard_source:
+                raise RuntimeError("更新暂存的句柄安全模块与兼容副本不一致")
     with open(version_path, "r", encoding="utf-8") as f:
         version = (f.read().strip().splitlines() or [""])[0].strip()
     if not version or len(version) > 80 or any(ch in version for ch in "<>\\r\\n"):
@@ -7589,18 +7619,136 @@ def storage_kind_dir(kind):
         return os.path.abspath(LOCAL_UPLOAD_DIR)
     raise HTTPException(status_code=404, detail="未知存储目录")
 
-def storage_file_path(kind, rel):
+def storage_contained_realpath(root, candidate):
+    """Resolve symlinks before checking membership in the operator-chosen root.
+
+    Custom absolute/UNC/mounted roots are allowed. Only a requested file
+    *outside* the selected root is denied. Return the resolved file path to
+    avoid passing a traversable symlink back to FileResponse/ZIP callers.
+    """
+    resolved_root = os.path.realpath(root)
+    resolved = os.path.realpath(candidate)
+    try:
+        return resolved if os.path.commonpath([resolved_root, resolved]) == resolved_root else None
+    except ValueError:  # different Windows drives, malformed paths
+        return None
+
+
+def open_local_media_scoped(path):
+    """Read from a pinned descriptor belonging to a configured media root.
+
+    Do not return to path-based open after this point: a writable volume
+    may be changed by another process after an earlier realpath check.
+    """
+    roots = (OUTPUT_OUTPUT_DIR, OUTPUT_INPUT_DIR, LOCAL_UPLOAD_DIR, ASSETS_DIR, OUTPUT_DIR)
+    for root in roots:
+        if storage_contained_realpath(root, path) is not None:
+            return open_scoped_file(root, path)
+    raise UnsafeStoragePath("file is outside configured media roots")
+
+
+def scoped_local_file_response(root, path, *, media_type, request=None, filename=None):
+    """Stream an already-validated file descriptor, including single ranges."""
+    try:
+        source = open_scoped_file(root, path)
+    except UnsafeStoragePath as exc:
+        raise HTTPException(status_code=400, detail="文件不在许可存储目录中") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="本地文件不可读取") from exc
+    metadata = os.fstat(source.fileno())
+    size = metadata.st_size
+    # Generate validators from the *opened* file, not from a mutable filename.
+    etag = f'"{metadata.st_dev:x}-{metadata.st_ino:x}-{metadata.st_size:x}-{metadata.st_mtime_ns:x}"'
+    last_modified = email.utils.formatdate(metadata.st_mtime, usegmt=True)
+    start, end = 0, size - 1
+    status = 200
+    headers = {"Accept-Ranges": "bytes", "ETag": etag, "Last-Modified": last_modified}
+    requested = request.headers.get("range") if request is not None else None
+    if requested and request is not None:
+        if_range = request.headers.get("if-range")
+        # A file date is a strong validator only if it has whole-second
+        # precision and is sufficiently old (RFC 9110, 8.8.2.2). Fresh
+        # dates and weak/unknown tags always fall back to a full 200.
+        if if_range is not None:
+            candidate = if_range.strip()
+            strong_date = (candidate == last_modified
+                           and metadata.st_mtime_ns % 1_000_000_000 == 0
+                           and time.time() - metadata.st_mtime >= 60)
+            if candidate != etag and not strong_date:
+                requested = None
+    if requested:
+        match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip(), flags=re.I)
+        if not match or not size or not (match.group(1) or match.group(2)):
+            source.close()
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        first, last = match.group(1), match.group(2)
+        if not first:
+            suffix = int(last)
+            if suffix < 1:
+                source.close()
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+            start = max(0, size - suffix)
+        else:
+            start = int(first)
+            end = min(int(last), size - 1) if last else size - 1
+        if start > end or start >= size:
+            source.close()
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        status = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers["Content-Length"] = str(end - start + 1 if size else 0)
+    if filename:
+        headers["Content-Disposition"] = (
+            "attachment; filename*=UTF-8''" + urllib.parse.quote(str(filename))
+        )
+
+    def read_pinned():
+        try:
+            source.seek(start)
+            remaining = end - start + 1 if size else 0
+            while remaining > 0:
+                chunk = source.read(min(256 * 1024, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+        finally:
+            source.close()
+
+    return StreamingResponse(
+        read_pinned(), status_code=status, media_type=media_type,
+        headers=headers, background=BackgroundTask(source.close),
+    )
+
+
+def scoped_media_file_response(path, *, media_type, request=None, filename=None):
+    roots = (OUTPUT_OUTPUT_DIR, OUTPUT_INPUT_DIR, LOCAL_UPLOAD_DIR, ASSETS_DIR, OUTPUT_DIR)
+    for root in roots:
+        if storage_contained_realpath(root, path) is not None:
+            return scoped_local_file_response(
+                root, path, media_type=media_type, request=request, filename=filename
+            )
+    raise HTTPException(status_code=400, detail="本地文件不在许可的媒体目录中")
+
+
+def storage_file_path(kind, rel, *, preserve_entry=False):
     root = storage_kind_dir(kind)
     rel_path = str(rel or "").replace("\\", "/").lstrip("/")
     rel_path = os.path.normpath(rel_path).replace("\\", "/")
     if not rel_path or rel_path == "." or rel_path == ".." or rel_path.startswith("../") or os.path.isabs(rel_path):
         raise HTTPException(status_code=400, detail="非法文件路径")
-    path = os.path.abspath(os.path.join(root, rel_path))
-    try:
-        if os.path.commonpath([root, path]) != root:
-            raise HTTPException(status_code=400, detail="非法文件路径")
-    except ValueError:
+    candidate = os.path.join(root, rel_path)
+    path = storage_contained_realpath(root, candidate)
+    if path is None:
         raise HTTPException(status_code=400, detail="非法文件路径")
+    if preserve_entry:
+        # Delete the directory entry itself, not the dereferenced target.
+        # Never follow a parent symlink outside the selected storage root.
+        parent = storage_contained_realpath(root, os.path.dirname(candidate))
+        if parent is None:
+            raise HTTPException(status_code=400, detail="非法文件路径")
+        entry = os.path.join(parent, os.path.basename(candidate))
+        return entry if os.path.lexists(entry) else None
     return path if os.path.exists(path) else None
 
 def output_file_from_url(url):
@@ -7625,9 +7773,8 @@ def output_file_from_url(url):
         return None
     roots = [ASSETS_DIR] if clean.startswith("/assets/") else [OUTPUT_OUTPUT_DIR, OUTPUT_DIR]
     for root in roots:
-        path = os.path.abspath(os.path.join(root, rel))
-        output_root = os.path.abspath(root)
-        if os.path.commonpath([output_root, path]) == output_root and os.path.exists(path):
+        path = storage_contained_realpath(root, os.path.join(root, rel))
+        if path and os.path.isfile(path):
             return path
     return None
 
@@ -7641,6 +7788,9 @@ def image_has_alpha(img: Image.Image) -> bool:
 STORAGE_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}
 
 def storage_file_item(kind, root, path):
+    # Do not leak filenames/sizes from files reached via an outbound symlink.
+    if storage_contained_realpath(root, path) is None:
+        return None
     rel = os.path.relpath(path, root).replace("\\", "/")
     try:
         stat = os.stat(path)
@@ -7706,11 +7856,14 @@ async def list_storage_files(kind: str = "generated", offset: int = 0, limit: in
     }
 
 @app.get("/api/storage-files/{kind}/{rel_path:path}")
-async def get_storage_file(kind: str, rel_path: str):
+async def get_storage_file(kind: str, rel_path: str, request: Request):
     path = storage_file_path(kind, rel_path)
-    if not path or not os.path.isfile(path):
+    if not path:
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(path, media_type=content_type_for_path(path))
+    return scoped_local_file_response(
+        storage_kind_dir(kind), path,
+        media_type=content_type_for_path(path), request=request,
+    )
 
 @app.post("/api/storage-files/delete")
 async def delete_storage_files(payload: Dict[str, Any]):
@@ -7720,12 +7873,14 @@ async def delete_storage_files(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="请选择要删除的文件")
     removed = 0
     for rel in rels:
-        path = storage_file_path(kind, rel)
+        path = storage_file_path(kind, rel, preserve_entry=True)
         if not path or not os.path.isfile(path):
             continue
         try:
-            os.remove(path)
+            unlink_scoped_file(storage_kind_dir(kind), path)
             removed += 1
+        except UnsafeStoragePath as exc:
+            raise HTTPException(status_code=400, detail="文件路径发生越界变更") from exc
         except OSError:
             pass
     return {"removed": removed}
@@ -7763,16 +7918,45 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
         raise RuntimeError("未找到 ffmpeg，无法生成视频预览图")
     fd, frame_path = tempfile.mkstemp(prefix="media_preview_frame_", suffix=".jpg")
     os.close(fd)
+    safe_video_copy = None
     try:
-        cmd = [
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", "0.5",
-            "-i", path,
-            "-frames:v", "1",
-            "-vf", f"scale='min({width},iw)':-2",
-            frame_path,
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # ffmpeg must never reopen a mutable user path after a security check.
+        # On POSIX inherit only the pinned media descriptor; on Windows, give
+        # ffmpeg a private bounded staging copy from the verified descriptor.
+        with open_local_media_scoped(path) as video:
+            input_path = None
+            run_options = {}
+            if os.name != "nt":
+                fd_root = "/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"
+                if os.path.isdir(fd_root):
+                    input_path = f"{fd_root}/{video.fileno()}"
+                    run_options["pass_fds"] = (video.fileno(),)
+            if input_path is None:
+                with tempfile.NamedTemporaryFile(
+                    prefix="media_preview_secure_", suffix=os.path.splitext(path)[1],
+                    delete=False,
+                ) as stage:
+                    safe_video_copy = stage.name
+                    copied = 0
+                    while True:
+                        chunk = video.read(1 << 20)
+                        if not chunk:
+                            break
+                        copied += len(chunk)
+                        if copied > 1024 * 1024 * 1024:
+                            raise RuntimeError("预览视频超过 1GB 暂存上限")
+                        stage.write(chunk)
+                input_path = safe_video_copy
+            cmd = [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", "0.5", "-i", input_path,
+                "-frames:v", "1",
+                "-vf", f"scale='min({width},iw)':-2",
+                frame_path,
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=60, **run_options
+            )
         if proc.returncode != 0 or not os.path.exists(frame_path) or os.path.getsize(frame_path) <= 0:
             raise RuntimeError((proc.stderr or "ffmpeg 未能抽取视频首帧").strip()[:300])
         with Image.open(frame_path) as frame:
@@ -7780,10 +7964,12 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
             img.thumbnail((width, width), Image.LANCZOS)
             return img.convert("RGB")
     finally:
-        try:
-            os.remove(frame_path)
-        except OSError:
-            pass
+        for temp_path in (frame_path, safe_video_copy):
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
 @app.get("/api/media-preview")
 async def media_preview(url: str, w: int = 512):
@@ -7795,9 +7981,13 @@ async def media_preview(url: str, w: int = 512):
     webp_path, png_path = media_preview_cache_paths(path, width)
 
     if os.path.exists(webp_path):
-        return FileResponse(webp_path, media_type="image/webp")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, webp_path, media_type="image/webp"
+        )
     if os.path.exists(png_path):
-        return FileResponse(png_path, media_type="image/png")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, png_path, media_type="image/png"
+        )
 
     def _build_preview():
         # 同步 PIL 处理 + 落盘，放到线程里执行，避免阻塞事件循环（几十张首次生成会卡死整个 loop → 缩略图全空白）
@@ -7805,10 +7995,11 @@ async def media_preview(url: str, w: int = 512):
         if is_video_preview_file(path):
             img = generate_video_preview_image(path, width)
         else:
-            with Image.open(path) as source:
-                img = ImageOps.exif_transpose(source)
-                img.thumbnail((width, width), Image.LANCZOS)
-                img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
+            with open_local_media_scoped(path) as verified_source:
+                with Image.open(verified_source) as source:
+                    img = ImageOps.exif_transpose(source)
+                    img.thumbnail((width, width), Image.LANCZOS)
+                    img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
         try:
             img.save(webp_path, format="WEBP", quality=80, method=1)   # method=1 生成更快（缩略图不追求极致压缩）
             return webp_path, "image/webp"
@@ -7818,7 +8009,9 @@ async def media_preview(url: str, w: int = 512):
 
     try:
         out_path, media_type = await asyncio.to_thread(_build_preview)
-        return FileResponse(out_path, media_type=media_type)
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, out_path, media_type=media_type
+        )
     except Exception as exc:
         raise HTTPException(status_code=415, detail=f"无法生成预览图：{exc}") from exc
 
@@ -7834,27 +8027,32 @@ async def image_jpeg(url: str, w: int = 0):
     key = hashlib.sha1(f"{os.path.abspath(path)}|{stat.st_mtime_ns}|{stat.st_size}|{width}|jpg".encode("utf-8", "ignore")).hexdigest()
     cache_path = os.path.join(MEDIA_PREVIEW_DIR, f"{key}.jpg")
     if os.path.exists(cache_path):
-        return FileResponse(cache_path, media_type="image/jpeg")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, cache_path, media_type="image/jpeg"
+        )
 
     def _build():
         os.makedirs(MEDIA_PREVIEW_DIR, exist_ok=True)
-        with Image.open(path) as src:
-            img = ImageOps.exif_transpose(src)
-            if width:
-                img.thumbnail((width, width), Image.LANCZOS)
-            if img.mode in ("RGBA", "LA", "P"):
-                bg = Image.new("RGB", img.size, (255, 255, 255))
-                rgba = img.convert("RGBA")
-                bg.paste(rgba, mask=rgba.split()[-1])
-                img = bg
-            else:
-                img = img.convert("RGB")
-            img.save(cache_path, format="JPEG", quality=86)
+        with open_local_media_scoped(path) as verified_source:
+            with Image.open(verified_source) as src:
+                img = ImageOps.exif_transpose(src)
+                if width:
+                    img.thumbnail((width, width), Image.LANCZOS)
+                if img.mode in ("RGBA", "LA", "P"):
+                    bg = Image.new("RGB", img.size, (255, 255, 255))
+                    rgba = img.convert("RGBA")
+                    bg.paste(rgba, mask=rgba.split()[-1])
+                    img = bg
+                else:
+                    img = img.convert("RGB")
+                img.save(cache_path, format="JPEG", quality=86)
         return cache_path
 
     try:
         out_path = await asyncio.to_thread(_build)
-        return FileResponse(out_path, media_type="image/jpeg")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, out_path, media_type="image/jpeg"
+        )
     except Exception as exc:
         raise HTTPException(status_code=415, detail=f"无法转换图片：{exc}") from exc
 
@@ -7870,9 +8068,8 @@ def local_media_file_by_basename(name: str):
         os.path.join(ASSETS_DIR, "library"),
     ]
     for root in roots:
-        path = os.path.abspath(os.path.join(root, safe))
-        root_abs = os.path.abspath(root)
-        if os.path.commonpath([root_abs, path]) == root_abs and os.path.isfile(path):
+        path = storage_contained_realpath(root, os.path.join(root, safe))
+        if path and os.path.isfile(path):
             return path
     return None
 
@@ -7881,14 +8078,163 @@ def filename_from_media_url(url: str, fallback: str = "download.bin") -> str:
     name = os.path.basename(urllib.parse.unquote(path))
     return sanitize_export_filename(name or fallback, fallback)
 
+def validate_remote_media_target(value: str) -> str:
+    """Fail closed on private, loopback, metadata and ambiguous remote targets.
+
+    Keep user-defined remote media hosts working when DNS returns exclusively
+    globally routed IP addresses. Any invalid DNS record denies the entire host.
+    """
+    text = str(value or "").strip()
+    if not text or any(ord(ch) < 33 or ord(ch) == 127 for ch in text):
+        raise HTTPException(status_code=400, detail="远程媒体地址无效")
+    try:
+        parsed = urllib.parse.urlsplit(text)
+        if (parsed.scheme.lower() not in {"https", "http"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            raise ValueError("Invalid remote URL")
+        host = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+        # Refuse protocol-ambiguous host forms and internal DNS suffixes.
+        if not host.isascii() or host.endswith(".") or host.lower() in {"localhost", "localhost.localdomain"}:
+            raise ValueError("Untrusted remote host")
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        if not addresses:
+            raise ValueError("No DNS records")
+        for record in addresses:
+            ip = ipaddress.ip_address(record[4][0].split("%", 1)[0])
+            if not ip.is_global:
+                raise ValueError("Private/reserved media target")
+    except (ValueError, UnicodeError, OSError, IndexError, OverflowError) as exc:
+        raise HTTPException(status_code=400, detail="远程媒体地址指向非公网目标或格式无效") from exc
+    return text
+
+
+class _RemoteMediaPublicSocketGuard:
+    """Verify the *connected peer* before TLS/HTTP sends any URL or headers.
+
+    A DNS check before connect alone is vulnerable to DNS rebinding. This guard
+    runs inside urllib3's socket creation, after connect but before the HTTP
+    request or HTTPS handshake, and rejects non-public peers.
+    """
+    def _new_conn(self):
+        sock = super()._new_conn()
+        try:
+            peer_ip = ipaddress.ip_address(str(sock.getpeername()[0]).split("%", 1)[0])
+            if not peer_ip.is_global:
+                raise OSError("remote media socket is not publicly routed")
+            return sock
+        except Exception:
+            sock.close()
+            raise
+
+
+class _RemoteMediaHTTPConnection(_RemoteMediaPublicSocketGuard, urllib3.connection.HTTPConnection):
+    pass
+
+
+class _RemoteMediaHTTPSConnection(_RemoteMediaPublicSocketGuard, urllib3.connection.HTTPSConnection):
+    pass
+
+
+class _RemoteMediaHTTPPool(urllib3.connectionpool.HTTPConnectionPool):
+    ConnectionCls = _RemoteMediaHTTPConnection
+
+
+class _RemoteMediaHTTPSPool(urllib3.connectionpool.HTTPSConnectionPool):
+    ConnectionCls = _RemoteMediaHTTPSConnection
+
+
+class _RemoteMediaPoolManager(urllib3.PoolManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pool_classes_by_scheme = {
+            "http": _RemoteMediaHTTPPool,
+            "https": _RemoteMediaHTTPSPool,
+        }
+
+
+class _RemoteMediaHTTPAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        self._pool_connections = connections
+        self._pool_maxsize = maxsize
+        self._pool_block = block
+        self.poolmanager = _RemoteMediaPoolManager(
+            num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs
+        )
+
+
+class _RemoteMediaOwnedResponse:
+    """Keep a guarded session alive until the streaming caller closes it."""
+    def __init__(self, session, response):
+        self._session = session
+        self._response = response
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
+    def close(self):
+        try:
+            self._response.close()
+        finally:
+            self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
+
+
+def open_safe_remote_media_stream(url: str, *, timeout=30.0, headers=None):
+    """Allow only public media, validate every redirect and actual socket peer.
+
+    Requests runs with trust_env=False (no untrusted HTTP_PROXY, HTTPS_PROXY or
+    NO_PROXY routing); original host is preserved for HTTPS SNI/cert checks.
+    """
+    target = str(url or "").strip()
+    visited = set()
+    session = requests.Session()
+    session.trust_env = False
+    session.mount("http://", _RemoteMediaHTTPAdapter())
+    session.mount("https://", _RemoteMediaHTTPAdapter())
+    try:
+        for _ in range(5):
+            validate_remote_media_target(target)
+            if target in visited:
+                raise HTTPException(status_code=400, detail="远程媒体地址存在重定向循环")
+            visited.add(target)
+            response = session.get(
+                target, stream=True, timeout=timeout,
+                headers=headers or {"User-Agent": "ComfyUI-API-Modelscope/1.0"},
+                allow_redirects=False,
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("location")
+                response.close()
+                if not location:
+                    raise HTTPException(status_code=502, detail="远程媒体重定向缺少 Location")
+                target = urllib.parse.urljoin(target, location)
+                continue
+            try:
+                response.raise_for_status()
+            except Exception:
+                response.close()
+                raise
+            return _RemoteMediaOwnedResponse(session, response)
+        raise HTTPException(status_code=400, detail="远程媒体重定向次数超限")
+    except Exception:
+        session.close()
+        raise
+
+
 def fetch_remote_media_bytes(url: str, timeout: float = 30.0, max_bytes: int = 200 * 1024 * 1024):
     text = rewrite_runninghub_file_url(str(url or "").strip())
-    parsed = urllib.parse.urlparse(text)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return None
-    with requests.get(text, stream=True, timeout=timeout, headers={"User-Agent": "ComfyUI-API-Modelscope/1.0"}) as response:
-        response.raise_for_status()
+    with open_safe_remote_media_stream(text, timeout=timeout) as response:
         content_type = response.headers.get("content-type") or "application/octet-stream"
+        declared = str(response.headers.get("content-length") or "")
+        if declared.isascii() and declared.isdigit() and int(declared) > max_bytes:
+            raise HTTPException(status_code=413, detail="文件太大，无法下载")
         chunks = []
         total = 0
         for chunk in response.iter_content(chunk_size=1024 * 256):
@@ -12447,7 +12793,7 @@ def view_image(filename: str, type: str = "input", subfolder: str = ""):
         if safe_name:
             local_path = output_path_for(safe_name, "input" if type == "input" else "output")
             if os.path.isfile(local_path):
-                return FileResponse(local_path, media_type=content_type_for_path(local_path))
+                return scoped_media_file_response(local_path, media_type=content_type_for_path(local_path))
     raise HTTPException(status_code=404, detail="Image not found on any available backend")
 
 @app.get("/api/download-output")
@@ -12458,21 +12804,19 @@ def download_output(request: Request, url: str, name: str = "", inline: bool = F
         path = local_media_file_by_basename(filename_from_media_url(url, ""))
     if path:
         filename = sanitize_export_filename(os.path.basename(name) if name else os.path.basename(path), os.path.basename(path))
-        return FileResponse(path, media_type=content_type_for_path(path), filename=None if inline else filename)
+        return scoped_media_file_response(
+            path, media_type=content_type_for_path(path), request=request,
+            filename=None if inline else filename,
+        )
     # 远程文件：流式代理，绝不把整段视频/大文件读进内存（否则多个视频同时代理会撑爆内存、拖垮单进程服务）。
-    parsed = urllib.parse.urlparse(str(url or "").strip())
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(status_code=400, detail="无效的下载地址")
     try:
         upstream_headers = {"User-Agent": "ComfyUI-API-Modelscope/1.0"}
         range_header = request.headers.get("range")
         if range_header:
             upstream_headers["Range"] = range_header
-        upstream = requests.get(
-            url, stream=True, timeout=(10, 60),
-            headers=upstream_headers,
+        upstream = open_safe_remote_media_stream(
+            url, timeout=(10, 60), headers=upstream_headers,
         )
-        upstream.raise_for_status()
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"远程文件下载失败：{exc}")
     content_type = upstream.headers.get("content-type") or "application/octet-stream"
@@ -17071,62 +17415,116 @@ async def check_canvas_assets(payload: CanvasAssetCheckRequest):
             result[text] = True
     return {"exists": result}
 
+# SEC-05: no unbounded in-memory ZIPs or 1000 x 200MiB remote downloads.
+CANVAS_ASSET_ZIP_MAX_FILES = 250
+CANVAS_ASSET_ZIP_MAX_FILE_BYTES = 200 * 1024 * 1024
+CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES = 512 * 1024 * 1024
+CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES = 550 * 1024 * 1024
+
+
 @app.post("/api/canvas-assets/download")
 async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
-    buffer = BytesIO()
+    raw_items = payload.items or [{"url": url} for url in payload.urls]
+    if len(raw_items) > CANVAS_ASSET_ZIP_MAX_FILES:
+        raise HTTPException(status_code=413, detail="导出素材数量超过上限")
+    # SpooledTemporaryFile moves large output to disk instead of retaining
+    # the full ZIP in the worker's memory.
+    buffer = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
     used_names = set()
     count = 0
-    raw_items = payload.items or [{"url": url} for url in payload.urls]
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for raw in raw_items[:1000]:
-            if isinstance(raw, dict):
-                text = str(raw.get("url") or "").strip()
-                requested_name = str(raw.get("name") or "").strip()
-            else:
-                text = str(raw or "").strip()
-                requested_name = ""
-            if not text:
-                continue
-            path = output_file_from_url(text)
-            content = None
-            content_type = ""
-            if path and os.path.isfile(path):
-                base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
-            else:
-                local_by_name = local_media_file_by_basename(filename_from_media_url(text, ""))
-                if local_by_name and os.path.isfile(local_by_name):
-                    path = local_by_name
+    total_input = 0
+    try:
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for raw in raw_items:
+                if isinstance(raw, dict):
+                    text = str(raw.get("url") or "").strip()
+                    requested_name = str(raw.get("name") or "").strip()
+                else:
+                    text = str(raw or "").strip()
+                    requested_name = ""
+                if not text:
+                    continue
+                path = output_file_from_url(text)
+                content = None
+                if path and os.path.isfile(path):
                     base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
                 else:
-                    try:
-                        remote = fetch_remote_media_bytes(text)
-                    except Exception:
-                        remote = None
-                    if not remote:
-                        continue
-                    content, content_type = remote
-                    base = sanitize_export_filename(requested_name or filename_from_media_url(text, f"image-{count + 1}.bin"), f"image-{count + 1}.bin")
-            name, ext = os.path.splitext(base)
-            archive_name = base
-            suffix = 2
-            while archive_name in used_names:
-                archive_name = f"{name}-{suffix}{ext}"
-                suffix += 1
-            used_names.add(archive_name)
-            if path and os.path.isfile(path):
-                zf.write(path, archive_name)
-            else:
-                zf.writestr(archive_name, content)
-            count += 1
-    if count <= 0:
-        raise HTTPException(status_code=404, detail="没有可下载的本地图片")
-    buffer.seek(0)
+                    local_by_name = local_media_file_by_basename(filename_from_media_url(text, ""))
+                    if local_by_name and os.path.isfile(local_by_name):
+                        path = local_by_name
+                        base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
+                    else:
+                        remaining = CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES - total_input
+                        if remaining <= 0:
+                            raise HTTPException(status_code=413, detail="导出素材总量超过上限")
+                        try:
+                            remote = fetch_remote_media_bytes(
+                                text, max_bytes=min(CANVAS_ASSET_ZIP_MAX_FILE_BYTES, remaining)
+                            )
+                        except HTTPException as exc:
+                            if exc.status_code == 413:
+                                raise
+                            remote = None
+                        except Exception:
+                            remote = None
+                        if not remote:
+                            continue
+                        content, _content_type = remote
+                        base = sanitize_export_filename(requested_name or filename_from_media_url(text, f"image-{count + 1}.bin"), f"image-{count + 1}.bin")
+                size = os.path.getsize(path) if path and os.path.isfile(path) else len(content or b"")
+                if size > CANVAS_ASSET_ZIP_MAX_FILE_BYTES or total_input + size > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES:
+                    raise HTTPException(status_code=413, detail="导出素材单文件或总量超过上限")
+                if not path:
+                    total_input += size
+                name, ext = os.path.splitext(base)
+                archive_name = base
+                suffix = 2
+                while archive_name in used_names:
+                    archive_name = f"{name}-{suffix}{ext}"
+                    suffix += 1
+                used_names.add(archive_name)
+                if path and os.path.isfile(path):
+                    read_bytes = 0
+                    with open_local_media_scoped(path) as source, zf.open(archive_name, "w") as dest:
+                        while True:
+                            chunk = source.read(256 * 1024)
+                            if not chunk:
+                                break
+                            if read_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_FILE_BYTES or total_input + len(chunk) > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES:
+                                raise HTTPException(status_code=413, detail="导出素材实际大小超过限制")
+                            dest.write(chunk)
+                            read_bytes += len(chunk)
+                            total_input += len(chunk)
+                else:
+                    zf.writestr(archive_name, content)
+                if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+                    raise HTTPException(status_code=413, detail="ZIP 输出大小超过限制")
+                count += 1
+        if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+            raise HTTPException(status_code=413, detail="ZIP 输出大小超过限制")
+        if count <= 0:
+            raise HTTPException(status_code=404, detail="没有可下载的本地图片")
+        buffer.seek(0)
+    except Exception:
+        buffer.close()
+        raise
     filename = re.sub(r'[\\/:*?"<>|]+', "_", payload.filename or "canvas-output-images.zip")
     if not filename.lower().endswith(".zip"):
         filename += ".zip"
     encoded = urllib.parse.quote(filename)
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"}
-    return Response(buffer.getvalue(), media_type="application/zip", headers=headers)
+
+    def stream_zip():
+        try:
+            while True:
+                chunk = buffer.read(256 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            buffer.close()
+
+    return StreamingResponse(stream_zip(), media_type="application/zip", headers=headers)
 
 def sanitize_export_filename(name: str, fallback: str) -> str:
     base = os.path.basename(str(name or "").strip()) or fallback
@@ -17186,25 +17584,41 @@ def build_canvas_workflow_archive(payload: CanvasWorkflowExportRequest) -> Tuple
     buffer = BytesIO()
     resources = []
     used = set()
+    resource_bytes = 0
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         if payload.include_resources:
             for url in canvas_workflow_collect_resource_refs(nodes_payload):
                 if any(item.get("url") == url for item in resources):
                     continue
+                if len(resources) >= CANVAS_ASSET_ZIP_MAX_FILES:
+                    raise HTTPException(status_code=413, detail="工作流导出素材数量超过限制")
                 path = output_file_from_url(url)
                 if not path or not os.path.isfile(path):
                     continue
                 archive_name = canvas_workflow_unique_archive_name(os.path.basename(path), used)
                 archive_path = f"resources/{archive_name}"
-                zf.write(path, archive_path)
+                actual_bytes = 0
+                with open_local_media_scoped(path) as source, zf.open(archive_path, "w") as dest:
+                    while True:
+                        chunk = source.read(256 * 1024)
+                        if not chunk:
+                            break
+                        if (actual_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_FILE_BYTES
+                                or resource_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES):
+                            raise HTTPException(status_code=413, detail="工作流导出素材超过大小限制")
+                        dest.write(chunk)
+                        actual_bytes += len(chunk)
+                        resource_bytes += len(chunk)
                 resources.append({
                     "url": url,
                     "archive": archive_path,
                     "name": os.path.basename(path),
-                    "size": os.path.getsize(path),
+                    "size": actual_bytes,
                 })
         workflow = canvas_workflow_payload(nodes_payload, connections_payload, resources)
         zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
+        if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+            raise HTTPException(status_code=413, detail="工作流 ZIP 输出超过大小限制")
     buffer.seek(0)
     return buffer.getvalue(), {"resources": resources, "node_count": len(nodes_payload), "connection_count": len(connections_payload)}
 
@@ -17762,7 +18176,7 @@ async def get_shared_folder_tree(folder_id: str):
     return {"folder": {"id": folder_id, "name": entry.get("name"), "path": abs_path}, "tree": tree}
 
 @app.get("/api/shared-folders/{folder_id}/file")
-async def get_shared_folder_file(folder_id: str, path: str = ""):
+async def get_shared_folder_file(folder_id: str, request: Request, path: str = ""):
     entry = shared_folder_by_id(folder_id)
     if not entry:
         raise HTTPException(status_code=404, detail="共享文件夹不存在")
@@ -17773,7 +18187,10 @@ async def get_shared_folder_file(folder_id: str, path: str = ""):
     ext = os.path.splitext(abs_path)[1].lower()
     if ext not in SHARED_MEDIA_EXTS:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
-    return FileResponse(abs_path, media_type=content_type_for_path(abs_path))
+    return scoped_local_file_response(
+        folder_abs, abs_path, media_type=content_type_for_path(abs_path),
+        request=request,
+    )
 
 @app.post("/api/shared-folders/import")
 async def import_shared_folder_files(payload: SharedFolderImport):

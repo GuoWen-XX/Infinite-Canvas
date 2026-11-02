@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 PR_OPEN / REVIEW_RUNNING / TEST_GATE_BLOCKED（上一实现 HEAD Codex 0 findings；新测试提交待最新 HEAD 复审，缺正确分支全量回归）`。S02 尚未完成完整项目环境与 Chrome/Photoshop/LAN 联调，不得启动 S03。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 IN_PROGRESS / CODE_REVIEW_RECHECK_REQUIRED / TEST_GATE_BLOCKED`。S02 全量回归与 Windows/LAN/Chrome/Photoshop 验证必须在 S08 发布前补齐；S03 新发现的 P1/P2 已提交修复但未获最新 HEAD 复审。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -23,8 +23,8 @@
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
-| S02 | PR_OPEN / BLOCKED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
-| S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
+| S02 | MERGED / DEFERRED VALIDATION | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
+| S03 | IN_PROGRESS | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
@@ -71,14 +71,59 @@
 - [x] 2026-11-02 使用 GitHub 连接器读取 S02 HEAD `e68ca0e`，完成 17 项源码策略不变量检查（`17/17 PASS`：Host/Origin/CORS/WS、Token 后端保密、签名媒体路径、URL 编码、前端本地 Token 清理、macOS loopback、workflow manual-only 等）。**此为静态结构检查，不能替代执行 28 项真实后端测试。**
 - [x] 用户明确授权并亲自启动 [Actions Tests #41439808653](https://github.com/GuoWen-XX/Infinite-Canvas/actions/runs/41439808653)：`success`，`78/78`；但工作流实际检出 `zcode/iteration-01@bb778e26a9b84d63d059c83ff511dbb0dc2e7067`，不是 S02 分支，不可用于 S02 的全量回归证据。未启动第二次 Actions。
 - [x] 2026-11-02 已补充 `tests/test_access_boundary.py` 真实 ASGI 边界回归 4 项：LAN Basic 认证授予 Session 后的 token 保密、跨源 WebSocket 1008 拒绝、无认证 LAN WebSocket 1008 拒绝、合法 Session 允许 LAN WebSocket 连接；新测试代码通过 Python AST 语法检查，但**未能在完整 `main.py` 环境实际执行**。
-- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（28 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 正式合并 main 并补齐交接记录前，不提交 S03 实施代码。
+- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（28 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 已以记录完整残余风险的有限例外合并 main，S03 可实施；正确分支全量/兼容性验证必须在 S08 发布前补齐。
+
+**S02 合并/风险交接（2026-11-02）：** [PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5) 已合并为 `main@ae042d816c7881005a6e180a8e38aeaa8f9f07f5`。合并时 HEAD `43b7f48` Code Review `completed / 0 findings`、6 条历史线程 resolved；S02 的 28 项完整模块回归及 Windows/LAN/Chrome/Photoshop 联调仍未实际执行，属于 **DEFERRED_VALIDATION**，不等于 PASS。风险和 S08 必补项目见 [PR #5 放行决定](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5#issuecomment-6577109854)。原唯一一次 Actions 78 项通过的是错误默认分支，不可记为 S02 成功。为避免未知环境限制无限期阻断早期安全修复，S02 以一次性例外合并；在 S08 发布前必须针对正确版本完成完整测试与设备兼容验证。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
+
+- [x] 2026-11-02 按 PR #6 Codex TOCTOU P2 增补 `storage_guard.py` 句柄级安全层：POSIX `dir_fd/O_NOFOLLOW` 目录链与目标 FD、目录 FD 下删除；Windows 打开句柄后 `GetFinalPathNameByHandleW` 边界校验与句柄删除。已替换存储/共享文件 HTTP、下载、素材及 workflow ZIP、媒体预览/PIL/ffmpeg 等重新打开路径的关键调用，保留单段 HTTP Range；新模块加入更新器白名单和 staged update 校验，见 `S03_TOCTOU_HANDLE_PLAN.md`。
+- [x] 新增纯句柄级 `tests/test_storage_handles.py` 8 项，`tests/test_storage_safety.py` 扩充至 12 项；配合远程安全 8 项、ZIP 5 项，本阶段新增测试**共 33 项**，并非全部通过：本地仅有提取 POSIX 逻辑竞态测试 `7/7 PASS`，完整版 `main.py` 未实际运行，Windows/UNC 亦未联调。
+- [x] 已将 Codex 原 5 条 review threads 中针对 DNS rebinding、根内 symlink alias 删除、ZIP stale-size、重定向 DNS mock 的 4 条标记 resolved；第五条 **P2 文件句柄 TOCTOU** 原审查仍标 unresolved，已经提交安全修复，需最新 HEAD 独立复审确认才可关闭。PR #6 仍为 draft，不能凭未执行测试或旧审查直接合并。
+- [x] 已添加 `HANDOFF_NEXT_SESSION.md`，包含准确仓库状态、未完成项、费用约束、S04–S08 路线图及新会话可直接复制的续接提示词。
+
+
+- [x] PR #6（`fix/S03-storage-ssrf`）已建立为 draft，独立于已合并 S02 的 `main@ae042d8`。S03 审计见 `S03_AUDIT.md`，逐项记录已确认源码调用链。
+- [x] 第一批 SEC-03 改动：真实路径边界校验应用到存储文件读取/删除、旧 URL 解析、本地素材 basename 回退和列表，保留自定义绝对/UNC 存储路径；12 项临时文件回归已编写，**未运行完整项目**。
+- [x] 第一批 SEC-04 改动：公网上游 DNS/IP 入口与每跳手动重定向检查，覆盖 `fetch_remote_media_bytes` 和 `/api/download-output`；8 项 Mock 网络回归已编写；增加了 connect 后、HTTP/TLS 握手前的实际 socket peer IP 公网校验与 `trust_env=False`，本地独立 HTTPServer 实验阻断本地 HTTP 请求，仍须完整项目与独立安全审查。
+- [x] 第一批 SEC-05 改动：画布导出 ZIP 改用 `SpooledTemporaryFile`，250 文件 / 单文件 200 MiB / 累计输入 512 MiB 上限；5 项临时/Mock 回归已编写。新增测试目前合计 33 项，**未在完整 `main.py` 环境执行**。
+- [ ] Codex S03 初审报告 P1 DNS rebinding / P1 symlink alias deletion / P2 TOCTOU / P2 ZIP size growth / P2 redirect test DNS mock。已修复或减缓前述四项，**文件句柄 TOCTOU P2 已提交句柄级修复，等待最新审查确认**，需要最新 HEAD 复审；运行正确分支测试、UNC/外置盘与下载兼容回归后，再考虑 PR #6 merge；不得复用 S02 风险例外去自动放行所有后续阶段。
+
+
+- [x] S02 已合并至 `main@ae042d8`，S03 从此 SHA 建立 `fix/S03-storage-ssrf`，开始只读基线与回归设计。
 
 - [ ] 先补恶意存储 root、符号链接/路径逃逸、SSRF/redirect、超大 ZIP 的失败测试。
 - [ ] 合法自定义目录、UNC/跨盘路径及用户素材保留。
 - [ ] 最小必要修复路径信任根、目标 URL、资源配额、ZIP 文件流。
 - [ ] PR 审查 + 无未解决安全问题后解锁 S04。
+
+**S03 最新复审与修复记录（2026-11-02，PR #6）**：
+
+- [x] Codex 对 `5a49add6976d5518e46988af26d701bd340df6c1` 的评审 `completed / has_any_findings=true / has_unresolved_findings=true`，新增三条阻断项：P1 旧版 updater 不会下载 root `storage_guard.py`；P2 POSIX FIFO 阻塞打开；P2 `If-Range` 未验证而错误返回 206。
+- [x] **已实际提交修复**：`main.py` 在 root helper 缺失时安全回退到 `static.storage_guard`；新增 `static/storage_guard.py` 与 root 文件字节一致，利用 S02 旧更新器一直支持的 `static/*` allowlist 首次升级；新版 staging 校验同时要求 root/static 模块相同。POSIX 最终句柄使用 `O_NONBLOCK | O_NOFOLLOW` 并 `fstat` 拒绝非普通文件。单段 Range 使用已打开 FD 的强 ETag/Last-Modified，`If-Range` 不匹配返回完整 200（日期仅在满足保守强验证条件时允许 206）。
+- [x] 新增回归代码：无写端 FIFO 与文件换 FIFO **2 项**；If-Range 匹配 ETag、过期 ETag、匹配稳定日期、过期日期 **4 项**；旧版更新器 allowlist/字节一致性/仅有 static helper 的隔离启动 **3 项**。S03 新增测试现为 **42 项源码**（storage safety 16、handles 10、remote security 8、ZIP budget 5、legacy updater 3）；这些新增回归**尚未在完整仓库执行，不能写成 PASS**。
+- [ ] 对 **最新修复 HEAD** 重新请求独立 Codex 评审；逐一关闭旧 TOCTOU + 新发现的 3 条线程，前提是确认问题确已修复且无新增阻断项。禁止提前关闭/合并。
+- [ ] 正确 HEAD 上实际运行完整 Python unittest discover、必要 HTTP/Range/ZIP/自动更新和 Windows/UNC/FFmpeg 验证；当前本地执行容器 `git ls-remote` 因 github.com DNS 失败，仍没有可核实全仓 PASS。不得使用原 `zcode/iteration-01` Actions 成功作为证据；**不得自动运行 Actions**。
+- [ ] 审查与必要门禁通过后方可 merge PR #6 → main，记录实际 merge SHA，再新建 `fix/S04-canvas-conflicts` 分支/PR。
+
+**S03 再次安全复审（2026-11-02）**：
+
+- [x] `216cec7f222d580df1d03f08966edaa4f7030b13` 的 Codex 审查 `completed / findings=true / unresolved=true`，三项旧版 updater / FIFO / If-Range 修复未被再次提出，但新增 **P2 Windows root/junction 竞态**（`PRRT_kwDOUaWIpM6yr_6S`）和 **P2 POSIX 搜索权限目录兼容**（`PRRT_kwDOUaWIpM6yr_6f`）。原 TOCTOU P2 和前三项线程尚待最新审查确认，绝不提前按已通过处理。
+- [x] 实施：`storage_guard.py` Windows 开始使用 pre-open 捕获的 `trusted_root`，在 child open 前固定根目录 HANDLE，并检查 Win32 文件/删除句柄相对于可信根而不再次 `realpath(root)`；POSIX 目录链接逐级打开使用平台允许时的 `O_PATH/O_SEARCH` 替代要求读权限的 `O_RDONLY`。同步 `static/storage_guard.py`，避免旧版首次升级回退到有漏洞的副本。
+- [x] 增加 **3 项**句柄测试：根目录换成 symlink 不能读根外文件（POSIX）；0711 搜索权限目录可读取和 unlink（POSIX）；Win32 opened-handle 校验不跟随后来变化的根（Mock 函数级）。S03 目前 **45 项已编写**（storage safety 16，handles 13，remote 8，ZIP 5，legacy updater 3），**并非完整仓库 45/45 通过**，Windows junction/UNC 仍须真实设备验收。
+- [ ] 已发现 `main.py` 自动更新源常量当前指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，与本修复 PR 的目标 `GuoWen-XX/Infinite-Canvas@main` 不同；**S03 兼容修复仅在发布来源实际含 static helper 时生效**。这属于 S08 发布/更新源和分支一致性门禁，不能假定本 PR 合并后旧客户端会收到修复。不要擅自改线上更新源或默认分支。
+- [ ] 最新 HEAD 独立复审、阻断线程核查与正确 SHA 的可靠回归仍是 S03 合并门禁；未经完成不进入 S04。禁止触发 GitHub Actions / 真实用户数据 / 付费模型。
+
+**S03 搜索权限测试复审（2026-11-02）**：
+
+- [x] Codex `cb702594aa7169ab2b619cecadab0700b430d9d0` 复审 `completed / findings=true / unresolved=true`，新增 **P2 测试假阳性**：之前 0711 目录的所有者依然有目录读取权限、root 测试也会绕过 ACL（`PRRT_kwDOUaWIpM6ysRGk`）。现已修改测试：非 root 场景目录使用 `0311` 使所有者拥有写入/搜索但无读取；root 场景仅在 `nobody` 账户存在时，通过子进程放弃 root 权限并将该目录设为 `0733`，保证子进程仅有写入/搜索。测试必须**先确认旧 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开出现 `PermissionError`**，再由同一进程执行安全读取与 dir_fd 删除。子进程只操作 `TemporaryDirectory` 文件。
+- [ ] 此改进已经实际提交，但 **仍未在此容器完整运行且未获最新 HEAD 复审**，不得以撰写测试取代通过证据；S03 新增测试源码仍为 **45 项**。需新 HEAD 独立复审后再逐项处理 7 条未解决审查线程；不自动跑 Actions。
+
+**S03 权限回归测试跨环境兼容修复（2026-11-02）**：
+
+- [x] `5ae5f710b78afc83317333c9884fb5d93fefe835` 最新 Codex 审查 `completed / findings=true / unresolved=true`，新提 P2 `PRRT_kwDOUaWIpM6ysc4e`：root 的私有 `sys.executable` 无法在 `preexec_fn` 降权后执行；P2 `PRRT_kwDOUaWIpM6ysc4n`：私有 `TMPDIR` 祖先不可搜索使 nobody 无法进入测试目录。
+- [x] 同一 PR 已提交针对性修复：先**以当前权限启动**原 Python，传入 `-I` 隔离模块搜索路径，并从专用临时目录导入该提交的 `storage_guard.py` 兼容源码后**才在子进程内 setuid/setgid(nobody)**；整个测试目录创建于所有祖先经过 `other +x` 检查的标准 `/tmp` 下，完全不修改用户 `TMPDIR` 的权限；在同一降权身份先核实旧 `O_RDONLY` 必失败，再测试 `O_PATH/O_SEARCH` 读取和删临时文件，最后恢复目录权限以保证 `TemporaryDirectory` 可清理。non-root 时仍直接验证 0311 目录，无额外降权。
+- [ ] 此次修复需要对 **最终 HEAD** 再次独立审查，九条原有未解决 findings（已提交代码修复或测试修复）不能预先关闭。S03 共 **45 项回归代码**，没有完整项目 PASS；隔离内核权限验证 1 次成功并非仓库回归测试。S02 延期实测必须在 S08 发布前补齐。
 
 ### S04 — 画布保存（R1/R6）
 
