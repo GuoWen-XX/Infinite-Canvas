@@ -196,11 +196,22 @@ sys.exit(3)
         folder.mkdir()
         file = folder / "readable.png"
         file.write_bytes(b"READABLE")
-        folder.chmod(0o711)
+        # 0711 leaves the owner with read permission and gives a false pass.
+        # Owner needs write+search for unlink, but must NOT have read access.
+        if not hasattr(os, "geteuid") or os.geteuid() == 0:
+            self.skipTest("directory permission regression requires a non-root POSIX user")
+        folder.chmod(0o311)
         self.addCleanup(folder.chmod, 0o755)
+        # First prove this fixture catches the old O_RDONLY regression.
+        with self.assertRaises(PermissionError):
+            old_fd = os.open(
+                str(folder), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            )
+            os.close(old_fd)
+        # O_PATH/O_SEARCH must succeed where O_RDONLY failed.
         with storage_guard.open_scoped_file(str(self.root), str(file)) as stream:
             self.assertEqual(stream.read(), b"READABLE")
-        # Verify directory traversal also works for anchored deletion.
+        # The same search-only directory must permit anchored deletion.
         storage_guard.unlink_scoped_file(str(self.root), str(file))
         self.assertFalse(file.exists())
 
