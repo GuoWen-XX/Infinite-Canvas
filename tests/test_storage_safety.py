@@ -98,6 +98,8 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
         self.assertEqual(response.headers.get("content-range"), "bytes 2-5/10")
 
     def test_response_stream_remains_pinned_after_path_swap(self):
+        if os.name == "nt":
+            self.skipTest("Windows share-delete/reparse semantics require a native fixture")
         image = self.root / "fixed.png"
         image.write_bytes(b"SAFE-CONTENT")
         response = main.scoped_local_file_response(
