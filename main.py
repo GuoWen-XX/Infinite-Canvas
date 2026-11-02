@@ -14532,6 +14532,10 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
 async def fetch_upstream_models_from_payload(payload: TestConnectionPayload):
     """按页面当前表单值拉取模型，支持新增平台未保存时直接使用临时 Base URL / Key。"""
     protocol = protocol_from_payload(payload)
+    # These protocols discover local CLI/static models, not remote API models.
+    # No Base URL or saved credential is needed (or should be loaded).
+    if protocol in {"codex", "gemini-cli", "jimeng"}:
+        return await fetch_models_from_upstream("", "", protocol, payload.image_request_mode)
     api_key = api_key_from_payload(payload, protocol)
     return await fetch_models_from_upstream(payload.base_url, api_key, protocol, payload.image_request_mode)
 
