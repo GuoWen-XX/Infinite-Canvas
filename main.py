@@ -17551,25 +17551,41 @@ def build_canvas_workflow_archive(payload: CanvasWorkflowExportRequest) -> Tuple
     buffer = BytesIO()
     resources = []
     used = set()
+    resource_bytes = 0
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         if payload.include_resources:
             for url in canvas_workflow_collect_resource_refs(nodes_payload):
                 if any(item.get("url") == url for item in resources):
                     continue
+                if len(resources) >= CANVAS_ASSET_ZIP_MAX_FILES:
+                    raise HTTPException(status_code=413, detail="工作流导出素材数量超过限制")
                 path = output_file_from_url(url)
                 if not path or not os.path.isfile(path):
                     continue
                 archive_name = canvas_workflow_unique_archive_name(os.path.basename(path), used)
                 archive_path = f"resources/{archive_name}"
-                zf.write(path, archive_path)
+                actual_bytes = 0
+                with open_local_media_scoped(path) as source, zf.open(archive_path, "w") as dest:
+                    while True:
+                        chunk = source.read(256 * 1024)
+                        if not chunk:
+                            break
+                        if (actual_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_FILE_BYTES
+                                or resource_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES):
+                            raise HTTPException(status_code=413, detail="工作流导出素材超过大小限制")
+                        dest.write(chunk)
+                        actual_bytes += len(chunk)
+                        resource_bytes += len(chunk)
                 resources.append({
                     "url": url,
                     "archive": archive_path,
                     "name": os.path.basename(path),
-                    "size": os.path.getsize(path),
+                    "size": actual_bytes,
                 })
         workflow = canvas_workflow_payload(nodes_payload, connections_payload, resources)
         zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
+        if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+            raise HTTPException(status_code=413, detail="工作流 ZIP 输出超过大小限制")
     buffer.seek(0)
     return buffer.getvalue(), {"resources": resources, "node_count": len(nodes_payload), "connection_count": len(connections_payload)}
 
