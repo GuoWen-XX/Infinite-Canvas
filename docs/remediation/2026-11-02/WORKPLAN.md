@@ -119,6 +119,12 @@
 - [x] Codex `cb702594aa7169ab2b619cecadab0700b430d9d0` 复审 `completed / findings=true / unresolved=true`，新增 **P2 测试假阳性**：之前 0711 目录的所有者依然有目录读取权限、root 测试也会绕过 ACL（`PRRT_kwDOUaWIpM6ysRGk`）。现已修改测试：非 root 场景目录使用 `0311` 使所有者拥有写入/搜索但无读取；root 场景仅在 `nobody` 账户存在时，通过子进程放弃 root 权限并将该目录设为 `0733`，保证子进程仅有写入/搜索。测试必须**先确认旧 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开出现 `PermissionError`**，再由同一进程执行安全读取与 dir_fd 删除。子进程只操作 `TemporaryDirectory` 文件。
 - [ ] 此改进已经实际提交，但 **仍未在此容器完整运行且未获最新 HEAD 复审**，不得以撰写测试取代通过证据；S03 新增测试源码仍为 **45 项**。需新 HEAD 独立复审后再逐项处理 7 条未解决审查线程；不自动跑 Actions。
 
+**S03 权限回归测试跨环境兼容修复（2026-11-02）**：
+
+- [x] `5ae5f710b78afc83317333c9884fb5d93fefe835` 最新 Codex 审查 `completed / findings=true / unresolved=true`，新提 P2 `PRRT_kwDOUaWIpM6ysc4e`：root 的私有 `sys.executable` 无法在 `preexec_fn` 降权后执行；P2 `PRRT_kwDOUaWIpM6ysc4n`：私有 `TMPDIR` 祖先不可搜索使 nobody 无法进入测试目录。
+- [x] 同一 PR 已提交针对性修复：先**以当前权限启动**原 Python，传入 `-I` 隔离模块搜索路径，并从专用临时目录导入该提交的 `storage_guard.py` 兼容源码后**才在子进程内 setuid/setgid(nobody)**；整个测试目录创建于所有祖先经过 `other +x` 检查的标准 `/tmp` 下，完全不修改用户 `TMPDIR` 的权限；在同一降权身份先核实旧 `O_RDONLY` 必失败，再测试 `O_PATH/O_SEARCH` 读取和删临时文件，最后恢复目录权限以保证 `TemporaryDirectory` 可清理。non-root 时仍直接验证 0311 目录，无额外降权。
+- [ ] 此次修复需要对 **最终 HEAD** 再次独立审查，九条原有未解决 findings（已提交代码修复或测试修复）不能预先关闭。S03 共 **45 项回归代码**，没有完整项目 PASS；隔离内核权限验证 1 次成功并非仓库回归测试。S02 延期实测必须在 S08 发布前补齐。
+
 ### S04 — 画布保存（R1/R6）
 
 - [ ] 从 PR #2 的 `review_conflict_probe.cjs` 提炼正确行为回归（旧 probe 的“通过”不能复用）。
