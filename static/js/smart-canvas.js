@@ -6058,11 +6058,31 @@ async function loadCanvas(){
         resumeSmartPendingTasks();
         resumeJimengPendingNodes();
         startCanvasMetaPoll();
+        window.CanvasConflictRecovery?.showSaved(canvasId,'smart');
     } catch(e) { toast(tr('smart.toastCanvasFail')); }
+}
+function persistSmartConflictDraft(snapshot=null){
+    if(!canvas) return null;
+    if(!snapshot){
+        canvas.nodes = nodes;
+        canvas.viewport = {...viewport};
+    }
+    const record = {
+        canvas_id:canvasId, base_revision:Number(canvas.revision || 0),
+        saved_at:Date.now(), canvas:snapshot || canvasForStorage()
+    };
+    try { localStorage.setItem('smart_canvas_conflict_draft_' + canvasId, JSON.stringify(record)); }
+    catch(err) { console.error('Smart canvas recovery backup failed; export the draft now',err); }
+    return record;
 }
 function scheduleSave(){
     clearTimeout(saveTimer);
-    if(!smartCanvasConflictPending) saveTimer = setTimeout(saveCanvas, 450);
+    if(smartCanvasConflictPending){
+        const record = persistSmartConflictDraft();
+        if(record) window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+        return;
+    }
+    saveTimer = setTimeout(saveCanvas, 450);
 }
 async function saveCanvas(){
     if(!canvasId || !canvas || smartCanvasConflictPending) return;
@@ -6102,13 +6122,9 @@ async function saveCanvas(){
             // Preserve a recoverable draft until the user explicitly resolves it.
             smartCanvasConflictPending = true;
             clearTimeout(saveTimer);
-            try {
-                localStorage.setItem('smart_canvas_conflict_draft_' + canvasId, JSON.stringify({
-                    canvas_id:canvasId, base_revision:Number(canvas.revision || 0),
-                    saved_at:Date.now(), canvas:storageCanvas
-                }));
-            } catch(e) { console.error('Smart canvas conflict backup failed', e); }
-            toast('画布版本冲突：本地草稿已保留，请重新打开并核对后恢复');
+            const record = persistSmartConflictDraft(storageCanvas);
+            window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+            toast('画布版本冲突：请导出本地草稿或保存为独立副本');
         }
     } catch(e) {} finally {
         canvasSyncInFlight = false;
