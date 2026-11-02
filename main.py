@@ -1618,11 +1618,26 @@ def get_api_provider_exact(provider_id: str):
 def modelscope_provider_config():
     return get_api_provider_exact("modelscope")
 
+def legacy_modelscope_token():
+    """Compatibility read for old global_config.json; never return via HTTP."""
+    if not os.path.isfile(GLOBAL_CONFIG_FILE):
+        return ""
+    try:
+        with open(GLOBAL_CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        if isinstance(config, dict):
+            return strip_auth_scheme(config.get("modelscope_token"), "Bearer")
+    except (OSError, ValueError, TypeError):
+        return ""
+    return ""
+
+
 def modelscope_api_key(explicit_key: str = ""):
     return (
         strip_auth_scheme(explicit_key, "Bearer")
         or strip_auth_scheme(provider_env_key_value("modelscope"), "Bearer")
         or strip_auth_scheme(MODELSCOPE_API_KEY, "Bearer")
+        or legacy_modelscope_token()
     )
 
 def modelscope_api_root(provider=None):
@@ -13837,14 +13852,7 @@ async def get_global_token(request: Request):
     their requests are authorized upstream by this server, not the browser.
     The legacy global_config.json fallback remains server-side only.
     """
-    present = bool(modelscope_api_key())
-    if not present and os.path.exists(GLOBAL_CONFIG_FILE):
-        try:
-            with open(GLOBAL_CONFIG_FILE, "r", encoding="utf-8") as f:
-                present = bool(str((json.load(f) or {}).get("modelscope_token") or "").strip())
-        except Exception:
-            present = False
-    return {"has_token": present, "token": ""}
+    return {"has_token": bool(modelscope_api_key()), "token": ""}
 
 
 # --- 在线生图 (COMFLY) ---
