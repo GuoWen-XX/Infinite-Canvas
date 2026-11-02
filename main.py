@@ -40,6 +40,61 @@ from fastapi.responses import FileResponse, Response, StreamingResponse, JSONRes
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
+class UntrustedProbeTarget(ValueError):
+    """The request tries to reuse a stored key outside its saved destination."""
+
+
+def canonical_api_base(value):
+    """Return a strict (scheme, host, port, path) identity for an API base URL."""
+    value = str(value or "").strip()
+    if not value or any(ord(ch) < 33 or ord(ch) == 127 for ch in value):
+        raise ValueError("Invalid API base URL")
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if (parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment or "?" in value or "#" in value):
+            raise ValueError("Invalid API base URL")
+        port = parsed.port
+        if port is not None and not (1 <= port <= 65535):
+            raise ValueError("Invalid API port")
+        # Python's built-in IDNA codec maps e.g. 'faß' to 'fass',
+        # whereas HTTPX 0.28 sends 'faß' to xn--fa-hia. Reject Unicode
+        # destinations rather than compare an identity that HTTPX disagrees with.
+        if not parsed.hostname.isascii():
+            raise ValueError("Unicode API hostnames require explicit temporary credentials")
+        host = parsed.hostname.lower().rstrip(".")
+        if not host:
+            raise ValueError("Invalid API host")
+        port = port if port is not None else (443 if parsed.scheme.lower() == "https" else 80)
+        return (parsed.scheme.lower(), host, port, parsed.path.rstrip("/") or "/")
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("Invalid API base URL") from exc
+
+
+def resolve_probe_key(explicit_key, requested_base, provider_id, providers, key_reader):
+    """Use a supplied temporary key or a stored key bound to this exact API base.
+
+    key_reader is only called AFTER a saved provider's target has matched.
+    Unknown/disabled providers do not get any saved key.
+    """
+    explicit = str(explicit_key or "").strip()
+    if explicit:
+        return explicit
+    provider_id = str(provider_id or "").strip().lower()
+    if not provider_id:
+        return ""
+    provider = next((p for p in providers if str(p.get("id") or "").strip().lower() == provider_id), None)
+    if not provider or not provider.get("enabled", True):
+        return ""
+    try:
+        if canonical_api_base(requested_base) != canonical_api_base(provider.get("base_url")):
+            raise UntrustedProbeTarget("A temporary API key is required for a different Base URL")
+    except ValueError as exc:
+        raise UntrustedProbeTarget("A temporary API key is required for a different Base URL") from exc
+    return key_reader(provider_id)
+
+
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
     "/api/canvases",
@@ -10718,10 +10773,24 @@ def runninghub_registry_model_from_id(model_id, output_type=""):
     output_type = str(output_type or "").strip().lower() or classify_upstream_model(model_id)
     return {"name_en": model_id, "endpoint": model_id, "output_type": output_type}
 
+def runninghub_official_llm_probe_allowed(provider=None):
+    """Never forward an arbitrary provider's credentials to a fixed LLM host."""
+    base_url = str((provider or {}).get("base_url") or RUNNINGHUB_DEFAULT_BASE_URL)
+    try:
+        scheme, host, port, _ = canonical_api_base(base_url)
+    except ValueError:
+        return False
+    return scheme == "https" and port == 443 and host in {
+        "www.runninghub.ai", "runninghub.ai", "www.runninghub.cn", "runninghub.cn",
+    }
+
+
 async def fetch_runninghub_llm_models(provider=None):
+    if not runninghub_official_llm_probe_allowed(provider):
+        return [], {"source": "", "count": 0, "errors": ["Fixed-host LLM probing skipped for a non-official RunningHub Base URL"]}
     headers = runninghub_api_headers(provider)
     errors = []
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
         for url in RUNNINGHUB_LLM_MODELS_URLS:
             try:
                 resp = await client.get(url, headers=headers)
@@ -10748,7 +10817,7 @@ async def fetch_runninghub_model_registry(provider=None, include_fallback=True, 
     errors = []
     source = ""
     items = []
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
         for source_name, url in urls:
             try:
                 if source_name == "local":
@@ -13654,10 +13723,41 @@ async def api_providers():
 async def save_providers(payload: List[ApiProviderPayload]):
     providers = []
     env_updates = {}
+    # A saved key must never be rebound to a newly supplied Base URL unless
+    # the caller explicitly replaces or clears that credential in this PUT.
+    previous_by_id = {p["id"]: p for p in load_api_providers()}
     # 收集每个 item 的 primary 字段
     raw_primary_flags = [bool(getattr(item, "primary", False)) for item in payload]
     for item in payload:
         provider = normalize_provider(item.dict(exclude={"api_key"}))
+        previous = previous_by_id.get(provider["id"])
+        # A previously removed provider can still have a key in API/.env.
+        # Treat that as an unbound secret, not as permission to reuse it for
+        # any newly created provider with the same (or colliding) ID.
+        destination_changed = previous is None
+        if previous:
+            try:
+                destination_changed = (
+                    canonical_api_base(previous.get("base_url"))
+                    != canonical_api_base(provider.get("base_url"))
+                )
+            except ValueError:
+                # Invalid or Unicode base URLs are never safe identities for
+                # silently reusing a key, even when both strings match.
+                destination_changed = True
+        if destination_changed:
+            saved_key = provider_env_key_value(provider["id"])
+            if saved_key and not (item.api_key or "").strip() and not item.clear_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"修改或新建 {provider['id']} 请求地址前，必须重新填写或清除已保存的 API Key",
+                )
+            if (provider["id"] == "runninghub" and runninghub_wallet_key_value()
+                    and not (item.wallet_api_key or "").strip() and not item.clear_wallet_key):
+                raise HTTPException(
+                    status_code=400,
+                    detail="修改或新建 RunningHub 请求地址前，必须重新填写或清除已保存的钱包 Key",
+                )
         if provider["id"] == "runninghub":
             provider = preserve_runninghub_hidden_overrides(provider)
             prune_runninghub_workflow_store_for_provider(provider)
@@ -13783,22 +13883,43 @@ def protocol_from_payload(payload):
     return protocol if protocol in SUPPORTED_PROVIDER_PROTOCOLS else "openai"
 
 def api_key_from_payload(payload, protocol: str = ""):
+    """Never use a locally saved key for an untrusted, caller-supplied Base URL.
+
+    An explicitly supplied temporary key remains available for unsaved providers.
+    A stored key is bound to the saved provider's exact URL and can never be
+    borrowed merely by setting provider_id or protocol in this request.
+    """
     explicit = str(getattr(payload, "api_key", "") or "").strip()
-    provider_id = str(getattr(payload, "provider_id", "") or "").strip().lower()
-    protocol = str(protocol or protocol_from_payload(payload) or "").strip().lower()
     if explicit:
         return explicit
-    if provider_id:
-        if provider_id == "runninghub":
-            value = os.getenv(runninghub_wallet_key_env(), "")
-            if value:
-                return value
-        value = provider_env_key_value(provider_id)
-        if value:
-            return value
-    if protocol == "volcengine":
-        return volcengine_provider_api_key("")
-    return ""
+    provider_id = str(getattr(payload, "provider_id", "") or "").strip().lower()
+    protocol = str(protocol or protocol_from_payload(payload) or "").strip().lower()
+    requested_base = str(getattr(payload, "base_url", "") or "").strip().rstrip("/")
+    if protocol == "runninghub" and not requested_base:
+        requested_base = RUNNINGHUB_DEFAULT_BASE_URL
+    # RunningHub registry discovery may also call llm.runninghub.ai, which
+    # differs from the caller's Base URL. Never attach another provider's
+    # stored key to those secondary probes, even when the primary URL matches.
+    if protocol == "runninghub" and provider_id != "runninghub":
+        raise HTTPException(
+            status_code=400,
+            detail="RunningHub 模型探测只能使用 RunningHub 平台凭据；请切换平台后重试。",
+        )
+
+    def read_bound_key(pid):
+        if pid == "runninghub":
+            return runninghub_wallet_key_value() or provider_env_key_value(pid)
+        return provider_env_key_value(pid)
+
+    try:
+        return resolve_probe_key(
+            "", requested_base, provider_id, load_api_providers(), read_bound_key
+        )
+    except UntrustedProbeTarget:
+        raise HTTPException(
+            status_code=400,
+            detail="请求地址与已保存平台不一致。请为临时地址填写临时 API Key，或先保存平台的新地址。",
+        ) from None
 
 def upstream_models_url(base_url: str, protocol: str):
     if protocol == "gemini":
@@ -14024,7 +14145,11 @@ async def test_provider_connection(payload: TestConnectionPayload):
             "raw": status.get("raw"),
         }
     if protocol == "runninghub":
-        provider = {"id": "runninghub", "name": "RunningHub", "base_url": (payload.base_url or RUNNINGHUB_DEFAULT_BASE_URL).strip().rstrip("/"), "protocol": "runninghub", "api_key": api_key_from_payload(payload, protocol)}
+        base_url = (payload.base_url or RUNNINGHUB_DEFAULT_BASE_URL).strip().rstrip("/")
+        api_key = api_key_from_payload(payload, protocol)
+        if not api_key:
+            raise HTTPException(status_code=400, detail="请先填写或保存 API Key")
+        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url, "protocol": "runninghub", "api_key": api_key, "wallet_api_key": api_key}
         payload_models = await runninghub_models_payload(provider)
         return {
             "ok": True,
@@ -14291,14 +14416,18 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
             "all": [*JIMENG_DEFAULT_IMAGE_MODELS, *JIMENG_DEFAULT_VIDEO_MODELS],
         }
     if protocol == "runninghub":
-        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url or RUNNINGHUB_DEFAULT_BASE_URL, "protocol": "runninghub", "api_key": api_key}
+        if not str(api_key or "").strip():
+            raise HTTPException(status_code=400, detail="请先填写或保存 API Key")
+        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url or RUNNINGHUB_DEFAULT_BASE_URL, "protocol": "runninghub", "api_key": api_key, "wallet_api_key": api_key}
         return await runninghub_models_payload(provider)
     base_url = (base_url or "").strip().rstrip("/")
     if not base_url:
         raise HTTPException(status_code=400, detail="请先填写请求地址")
     if not re.match(r"^https?://", base_url):
         raise HTTPException(status_code=400, detail="请求地址必须以 http:// 或 https:// 开头")
-    api_key = volcengine_provider_api_key(api_key) if protocol == "volcengine" else (api_key or "").strip()
+    # The HTTP entry point must supply a temporary key or a validated bound key.
+    # Never load the global Ark key here: this function also accepts caller URLs.
+    api_key = (api_key or "").strip()
     if not api_key:
         key_name = "方舟 API Key" if protocol == "volcengine" else "API Key"
         raise HTTPException(status_code=400, detail=f"请先填写或保存 {key_name}")
@@ -14403,6 +14532,10 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
 async def fetch_upstream_models_from_payload(payload: TestConnectionPayload):
     """按页面当前表单值拉取模型，支持新增平台未保存时直接使用临时 Base URL / Key。"""
     protocol = protocol_from_payload(payload)
+    # These protocols discover local CLI/static models, not remote API models.
+    # No Base URL or saved credential is needed (or should be loaded).
+    if protocol in {"codex", "gemini-cli", "jimeng"}:
+        return await fetch_models_from_upstream("", "", protocol, payload.image_request_mode)
     api_key = api_key_from_payload(payload, protocol)
     return await fetch_models_from_upstream(payload.base_url, api_key, protocol, payload.image_request_mode)
 
@@ -14414,11 +14547,13 @@ async def fetch_upstream_models(provider_id: str):
         return await fetch_models_from_upstream("", "", "codex", provider.get("image_request_mode") or "openai")
     if is_gemini_cli_provider(provider):
         return await fetch_models_from_upstream("", "", "gemini-cli", provider.get("image_request_mode") or "openai")
-    api_key = os.getenv(runninghub_wallet_key_env(), "") if provider["id"] == "runninghub" else ""
+    # RunningHub's model registry requires its wallet credential, not the free key.
+    # Pass the selected stored key explicitly; never allow a second fallback
+    # inside the HTTP helper that could attach a different saved credential.
+    api_key = runninghub_wallet_key_value() if provider["id"] == "runninghub" else provider_env_key_value(provider["id"])
     if not api_key:
-        api_key = provider_env_key_value(provider["id"])
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 API Key")
+        label = "账户余额 API Key" if provider["id"] == "runninghub" else "API Key"
+        raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 {label}")
     return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai")
 
 async def build_online_image_result(payload: OnlineImageRequest):

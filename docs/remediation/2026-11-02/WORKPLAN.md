@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 计划评审中`；**未获远端评审通过，不启动 S01 或后续阶段**。  
+> 当前状态：`S00 已完成，S01 PR #4 等待远端评审`；**S01 审查通过并合并 main 前，不启动 S02**。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -21,8 +21,8 @@
 
 | 阶段 | 状态 | 目标 | 主文件 | 交付与验收 |
 | --- | --- | --- | --- | --- |
-| S00 | IN_REVIEW | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
-| S01 | BLOCKED_BY_S00 | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
+| S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
+| S01 | PR_OPEN | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
 | S02 | NOT_STARTED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
@@ -41,17 +41,19 @@
 - [x] 确认 `main` 与 `zcode/iteration-01` 最终文件差异原先只有 `run.bat`，但提交历史有分叉。
 - [x] 引用 PR #2 七项缺陷，区分已隔离复现与独立静态风险。
 - [x] 制定分阶段技术方案、验收方法、回滚与 gate。
-- [ ] 创建并审查计划 PR。
-- [ ] 计划 PR 合入 `main` 并确认远端独立审查与本地可核查验证满足 gate；不为此自动触发 Actions。
+- [x] 创建并审查计划 PR #3（Codex Code Review completed / no findings；Review threads 0；维护者明确要求按计划继续）。
+- [x] 计划 PR #3 已合入 `main@8193b49d56cfbb0570972720c3c0c4232808d0fd`；Actions 已切换手动触发，未额外运行。
 
 ### S01 — API 凭据出站限制（SEC-01）
 
-- [ ] 查全所有使用 `api_key_from_payload` 的路由、运行协议、跳转/二次 probe。
-- [ ] 先添加“恶意自选 URL + 已存 Key”回归，确保改动前失败且不会真的联网。
-- [ ] 对已保存 Key 使用 provider 已保存绑定 URL；临时 URL 必须搭配请求中的临时 Key；日志脱敏。
-- [ ] 覆盖 OpenAI-compatible / Gemini / Volcengine / RunningHub / Async 模式。
-- [ ] 提交实施 PR，填写风险、兼容性说明与验证证据。
+- [x] 已检查 `/api/providers/test-connection`、`/api/providers/probe-async`、`/api/providers/fetch-models`、GET 已存 provider 路由，以及 RunningHub 钱包 Key fallback 和 Volcengine 隐式 fallback。
+- [x] 已增加虚构 Key/离线独立策略测试及 Mock 路由测试；修复前的缺陷由源码调用链确认，未在真实机器上发出恶意请求。
+- [x] 使用严格 URL 基址校验并保证 mismatched URL 时尚未读取保存 Key；RunningHub 只使用已经解析/验证的本次 Key；不额外记录完整凭据。
+- [x] 所有共用 `TestConnectionPayload` 的模型列表/探测入口已接入统一密钥绑定；为 Ark 无 ID 借用与 RunningHub 钱包 fallback 增加专门回归。
+- [x] 已提交实施 PR #4（`fix/S01-provider-key-binding` → `main`），列明凭据出站风险、变更、离线测试、运行限制与回滚。
 - [ ] 远端审查通过，合入后才能解锁 S02。
+
+**验证现状（S01，PR #4）：** 在隔离 Python 环境运行与最新内联规则等价的纯函数测试：**10/10 PASS**（新增 IDNA 差异回归）；已为三项 Codex P1 审查反馈补充 Mock 路由和配置覆盖测试，**完整项目环境中的路由测试与全量测试尚未运行**。2026-11-02 Codex 对较早提交 `4fb8d82` 提出三项 P1：非 RunningHub 凭据经固定域名二次请求外送、内置 IDNA 与 HTTPX 不一致、新增根模块无法被旧更新器下载；上述问题均已在本 PR 新提交中修正，已逐条回复原审查意见。**Codex 对 `b0b382f` 的最新复审新增一项 P2**：本地 `codex`、`gemini-cli`、`jimeng` 的 POST 模型发现被空 Base URL 的保存 Key 校验误拒；已在 S01 同一 PR 中增加 CLI 直通分支和无网络/无 Key 的 Mock 回归，**等待修复后最新 HEAD 再审**。独立路由测试与全量测试仍未实际运行，PR 不得合并。**GitHub Actions 运行次数：0**，不得因缺少 CI 成功标记而绕过独立审查或误报完整回归通过。
 
 ### S02 — 身份和 Token（SEC-02）
 
