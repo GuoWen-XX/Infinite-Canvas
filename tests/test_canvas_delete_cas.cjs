@@ -75,3 +75,46 @@ test('missing revision cannot invoke destructive endpoint',async()=>{
     assert.equal(a.calls.some(c=>c.url),false);
     assert.equal(b.calls.some(c=>c.url),false);
 });
+
+const classicPurge=extract(classic,'async function purgeCanvas(id, event){','window.createCanvas =');
+const boardPurge=extract(board,'async function purgeCanvas(id){','/* ===== Event bindings ===== */');
+function purgeFixture(kind,status=200){
+    const calls=[],updates=[];
+    const ctx={
+        deletedCanvases:[{id:'canvas-one',revision:9}],pendingPurgeCanvasId:'canvas-one',
+        setStatus:s=>updates.push(s), tr:s=>s, L:a=>a,
+        fetch:async(url,opts)=>{calls.push({url,opts});return {ok:status===200,status};},
+        loadTrashList:async()=>calls.push({refresh:true}),
+        loadTrash:async()=>calls.push({refresh:true}),
+        renderCanvasList(){},renderTrash(){},
+        trashBadge:{textContent:'',classList:{toggle(){}}},
+        console:{error(){}}
+    };
+    const fn=new Function('ctx','with(ctx){'+(kind==='classic'?classicPurge:boardPurge)+' return purgeCanvas;}')(ctx);
+    return {ctx,calls,updates,fn};
+}
+test('permanent purge from both UIs includes current trash revision',async()=>{
+    for(const kind of ['classic','board']){
+        const x=purgeFixture(kind);
+        await x.fn('canvas-one',null);
+        assert.equal(x.calls[0].url,'/api/canvases/canvas-one/purge?base_revision=9');
+        assert.equal(x.calls[0].opts.method,'DELETE');
+    }
+});
+test('stale purge 409 never removes local trash record',async()=>{
+    for(const kind of ['classic','board']){
+        const x=purgeFixture(kind,409);
+        await x.fn('canvas-one',null);
+        assert.equal(x.ctx.deletedCanvases.length,1);
+        assert.equal(x.calls.filter(c=>c.refresh).length,1);
+    }
+});
+test('missing purge revision never sends irreversible delete',async()=>{
+    for(const kind of ['classic','board']){
+        const x=purgeFixture(kind);
+        delete x.ctx.deletedCanvases[0].revision;
+        await x.fn('canvas-one',null);
+        assert.equal(x.calls.some(c=>c.url),false);
+        assert.equal(x.calls.some(c=>c.refresh).length,1);
+    }
+});
