@@ -7589,17 +7589,29 @@ def storage_kind_dir(kind):
         return os.path.abspath(LOCAL_UPLOAD_DIR)
     raise HTTPException(status_code=404, detail="未知存储目录")
 
+def storage_contained_realpath(root, candidate):
+    """Resolve symlinks before checking membership in the operator-chosen root.
+
+    Custom absolute/UNC/mounted roots are allowed. Only a requested file
+    *outside* the selected root is denied. Return the resolved file path to
+    avoid passing a traversable symlink back to FileResponse/ZIP callers.
+    """
+    resolved_root = os.path.realpath(root)
+    resolved = os.path.realpath(candidate)
+    try:
+        return resolved if os.path.commonpath([resolved_root, resolved]) == resolved_root else None
+    except ValueError:  # different Windows drives, malformed paths
+        return None
+
+
 def storage_file_path(kind, rel):
     root = storage_kind_dir(kind)
     rel_path = str(rel or "").replace("\\", "/").lstrip("/")
     rel_path = os.path.normpath(rel_path).replace("\\", "/")
     if not rel_path or rel_path == "." or rel_path == ".." or rel_path.startswith("../") or os.path.isabs(rel_path):
         raise HTTPException(status_code=400, detail="非法文件路径")
-    path = os.path.abspath(os.path.join(root, rel_path))
-    try:
-        if os.path.commonpath([root, path]) != root:
-            raise HTTPException(status_code=400, detail="非法文件路径")
-    except ValueError:
+    path = storage_contained_realpath(root, os.path.join(root, rel_path))
+    if path is None:
         raise HTTPException(status_code=400, detail="非法文件路径")
     return path if os.path.exists(path) else None
 
@@ -7625,9 +7637,8 @@ def output_file_from_url(url):
         return None
     roots = [ASSETS_DIR] if clean.startswith("/assets/") else [OUTPUT_OUTPUT_DIR, OUTPUT_DIR]
     for root in roots:
-        path = os.path.abspath(os.path.join(root, rel))
-        output_root = os.path.abspath(root)
-        if os.path.commonpath([output_root, path]) == output_root and os.path.exists(path):
+        path = storage_contained_realpath(root, os.path.join(root, rel))
+        if path and os.path.isfile(path):
             return path
     return None
 
@@ -7641,6 +7652,9 @@ def image_has_alpha(img: Image.Image) -> bool:
 STORAGE_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}
 
 def storage_file_item(kind, root, path):
+    # Do not leak filenames/sizes from files reached via an outbound symlink.
+    if storage_contained_realpath(root, path) is None:
+        return None
     rel = os.path.relpath(path, root).replace("\\", "/")
     try:
         stat = os.stat(path)
@@ -7870,9 +7884,8 @@ def local_media_file_by_basename(name: str):
         os.path.join(ASSETS_DIR, "library"),
     ]
     for root in roots:
-        path = os.path.abspath(os.path.join(root, safe))
-        root_abs = os.path.abspath(root)
-        if os.path.commonpath([root_abs, path]) == root_abs and os.path.isfile(path):
+        path = storage_contained_realpath(root, os.path.join(root, safe))
+        if path and os.path.isfile(path):
             return path
     return None
 
