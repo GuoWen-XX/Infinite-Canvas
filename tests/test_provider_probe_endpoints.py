@@ -81,6 +81,11 @@ class ProviderProbeEndpointSecurityTests(unittest.TestCase):
             self.assertEqual(provider["api_key"], "test-temporary-key")
             self.assertEqual(provider["wallet_api_key"], "test-temporary-key")
 
+    def test_saved_runninghub_model_list_uses_saved_wallet_key(self):
+        with patch.object(main, "fetch_models_from_upstream", new=AsyncMock(return_value={"total": 0})) as fetch:
+            asyncio.run(main.fetch_upstream_models("runninghub"))
+            self.assertEqual(fetch.await_args.args[1], "test-saved-wallet")
+
     def test_runninghub_fetch_models_uses_temporary_key_as_wallet(self):
         result = {"total": 0, "image_models": [], "chat_models": [], "video_models": [], "all": []}
         with patch.object(main, "runninghub_models_payload", new=AsyncMock(return_value=result)) as fetch:
