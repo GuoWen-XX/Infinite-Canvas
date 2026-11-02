@@ -1502,6 +1502,7 @@ async function saveCanvas(){
         return;
     }
     sanitizeConnections();
+    const saveTargetId = canvas.id;
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
@@ -1520,8 +1521,11 @@ async function saveCanvas(){
                 base_revision:Number(canvas.revision || 0)
             })
         });
+        // A navigation may change the active canvas while this PUT is in flight.
+        if(!canvas || canvas.id !== saveTargetId) return;
         if(res.status === 409){
             const data = await res.json().catch(() => ({}));
+            if(!canvas || canvas.id !== saveTargetId) return;
             const remote = data.detail?.canvas || data.canvas;
             if(localCanvasDirty || saveCanvasAgain){
                 // A 409 means our base is stale: never advance the base token and
@@ -1541,8 +1545,20 @@ async function saveCanvas(){
         }
         if(!res.ok) throw new Error('save failed');
         const data = await res.json().catch(() => ({}));
+        if(!canvas || canvas.id !== saveTargetId) return;
         const localViewport = {...viewport};
-        if(data.canvas) canvas = {...canvas, ...data.canvas, viewport:localViewport};
+        if(data.canvas){
+            if(saveCanvasAgain){
+                // The response reflects the *previous* request. Keep edits made
+                // while that request was in flight, and only advance its CAS token.
+                canvas = {...canvas,
+                    revision: data.canvas.revision ?? canvas.revision,
+                    updated_at: data.canvas.updated_at ?? canvas.updated_at,
+                    viewport: localViewport};
+            } else {
+                canvas = {...canvas, ...data.canvas, viewport:localViewport};
+            }
+        }
         viewport = localViewport;
         canvas.updated_at = Number(canvas.updated_at || Date.now());
         lastCanvasUpdatedAt = canvas.updated_at;
@@ -2307,7 +2323,21 @@ function handleCanvasUpdatedMessage(data){
 }
 async function returnToCanvasManager(){
     clearTimeout(saveTimer);
-    if(canvas && localCanvasDirty) await saveCanvas();
+    if(canvas && localCanvasDirty){
+        // A save already in flight cannot be awaited by calling saveCanvas()
+        // again. Leaving now would discard edits made after its snapshot.
+        if(savingCanvasNow){
+            setStatus('Save in progress — finish saving before leaving canvas');
+            return;
+        }
+        await saveCanvas();
+        if(canvas && (localCanvasDirty || canvasConflictPending)){
+            const record = captureCanvasConflictDraft();
+            window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+            setStatus('Unsaved changes preserved — resolve them before leaving');
+            return;
+        }
+    }
     stopCanvasRemotePolling();
     canvas = null;
     nodes = [];
