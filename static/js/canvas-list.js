@@ -888,8 +888,18 @@ async function persistMeta(id, patch){
 async function deleteCanvas(id){
     const c = canvases.find(x => x.id === id);
     if(!c) return;
+    if(c.revision == null){
+        setStatus(L('版本未知，请刷新后删除','Revision missing; refresh before deleting'));
+        await loadAll();
+        return;
+    }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}?base_revision=${encodeURIComponent(c.revision)}`, { method: 'DELETE' });
+        if(res.status === 409){
+            setStatus(L('画布已在其他页面修改，已取消删除','Canvas changed elsewhere; deletion cancelled'));
+            await loadAll();
+            return;
+        }
         if(!res.ok) throw new Error('delete failed');
         canvases = canvases.filter(x => x.id !== id);
         renderBoard();
