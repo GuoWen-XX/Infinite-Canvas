@@ -52,10 +52,15 @@ class RemoteMediaSecurityTests(unittest.TestCase):
 
     def test_redirect_to_private_target_rejected_before_second_fetch(self):
         redirect = fake_response(status=302, location="http://127.0.0.1/admin")
-        with patch("main.socket.getaddrinfo", return_value=PUBLIC_DNS), \
+        def resolve(host, port, **_kwargs):
+            return PRIVATE_DNS if host == "127.0.0.1" else PUBLIC_DNS
+
+        with patch("main.socket.getaddrinfo", side_effect=resolve), \
              patch("main.requests.Session.get", return_value=redirect) as request:
-            with self.assertRaises(HTTPException):
+            with self.assertRaises(HTTPException) as caught:
                 main.fetch_remote_media_bytes("https://cdn.example/a.png")
+            self.assertEqual(caught.exception.status_code, 400)
+            self.assertIn("非公网", str(caught.exception.detail))
             self.assertEqual(request.call_count, 1)
             redirect.close.assert_called()
 
