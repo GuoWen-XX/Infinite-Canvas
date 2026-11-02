@@ -3,6 +3,13 @@
 > 记录日期：2026-11-02。**这是执行快照，不是“所有测试通过”的报告。**
 > 新会话必须首先读取 GitHub 最新状态；本文中提交 SHA 可能过时。
 
+## 最新复审增量：搜索权限回归测试修复（2026-11-02）
+
+- PR #6 在 HEAD `cb702594aa7169ab2b619cecadab0700b430d9d0` 的 Codex Review **completed / findings=true**；新增 P2 thread `PRRT_kwDOUaWIpM6ysRGk`：原 `0711` 测试给文件所有者保留目录读取权限，无法捕获旧 `O_RDONLY` 回归。此前 6 条待复核的旧线程仍 open；**不得合并/启动 S04**。
+- 已在同一 S03 PR 的 `tests/test_storage_handles.py` 把测试目录权限改为 `0311`（所有者仅写+搜索，无读取），非 root 执行前先断言旧 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 返回 PermissionError，然后验证 `O_PATH/O_SEARCH` 安全读取及 `dir_fd` unlink；root 环境明确 skip 权限断言，不再产生假阳性。
+- **独立真实 POSIX 权限 fixture**：当前容器以 uid 1000 执行同等操作，确认旧 O_RDONLY 失败、O_PATH read + dir_fd unlink 成功；这不是 GitHub 分支完整 `tests/test_storage_handles.py` 的实际运行，也不是 Windows/UNC 或主程序全量 PASS。root uid 0 的同等 fixture 不具备验证意义（确实误通过），已排除。
+- 后续必须核查最新 HEAD 独立复审、7 条尚未关闭线程及 S03 45 项实际全仓测试；旧 updater 实际发布源仍指向另一仓库分支，S08 发布前必须解决。GitHub Actions 0 次新增、无真实 Key/数据/计费模型。
+
 ## 最新执行增量（2026-11-02；覆盖下方旧版 HEAD 快照）
 
 - S03 PR #6 `5a49add` 的 Codex Code Review 已完成，**发现 3 条新增 blocking threads**：旧版本 updater 首次升级丢失 root `storage_guard.py`（P1，`PRRT_kwDOUaWIpM6yrs0v`）；POSIX FIFO 阻塞 `os.open`（P2，`PRRT_kwDOUaWIpM6yrs00`）；If-Range 未校验导致旧/新文件错误续传（P2，`PRRT_kwDOUaWIpM6yrs04`）。旧 TOCTOU P2 `PRRT_kwDOUaWIpM6yq3uo` 仍 open，其他初轮 4 条仍 resolved。**共 4 条须在后续独立复审核对后解决。**
