@@ -217,6 +217,9 @@ sys.exit(3)
             sandbox.chmod(0o755)
             root = sandbox / "allowed"
             root.mkdir(mode=0o755)
+            # mkdir mode is filtered by umask (e.g. 077 -> 0700).
+            # Ensure the unprivileged child can search this isolated root.
+            root.chmod(0o755)
             folder = root / "search_only"
             folder.mkdir()
             target = folder / "readable.png"
