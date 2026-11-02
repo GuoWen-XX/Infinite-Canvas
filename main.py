@@ -39,7 +39,61 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-from provider_probe_security import canonical_api_base, resolve_probe_key, UntrustedProbeTarget
+
+class UntrustedProbeTarget(ValueError):
+    """The request tries to reuse a stored key outside its saved destination."""
+
+
+def canonical_api_base(value):
+    """Return a strict (scheme, host, port, path) identity for an API base URL."""
+    value = str(value or "").strip()
+    if not value or any(ord(ch) < 33 or ord(ch) == 127 for ch in value):
+        raise ValueError("Invalid API base URL")
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if (parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment or "?" in value or "#" in value):
+            raise ValueError("Invalid API base URL")
+        port = parsed.port
+        if port is not None and not (1 <= port <= 65535):
+            raise ValueError("Invalid API port")
+        # Python's built-in IDNA codec maps e.g. 'faß' to 'fass',
+        # whereas HTTPX 0.28 sends 'faß' to xn--fa-hia. Reject Unicode
+        # destinations rather than compare an identity that HTTPX disagrees with.
+        if not parsed.hostname.isascii():
+            raise ValueError("Unicode API hostnames require explicit temporary credentials")
+        host = parsed.hostname.lower().rstrip(".")
+        if not host:
+            raise ValueError("Invalid API host")
+        port = port if port is not None else (443 if parsed.scheme.lower() == "https" else 80)
+        return (parsed.scheme.lower(), host, port, parsed.path.rstrip("/") or "/")
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("Invalid API base URL") from exc
+
+
+def resolve_probe_key(explicit_key, requested_base, provider_id, providers, key_reader):
+    """Use a supplied temporary key or a stored key bound to this exact API base.
+
+    key_reader is only called AFTER a saved provider's target has matched.
+    Unknown/disabled providers do not get any saved key.
+    """
+    explicit = str(explicit_key or "").strip()
+    if explicit:
+        return explicit
+    provider_id = str(provider_id or "").strip().lower()
+    if not provider_id:
+        return ""
+    provider = next((p for p in providers if str(p.get("id") or "").strip().lower() == provider_id), None)
+    if not provider or not provider.get("enabled", True):
+        return ""
+    try:
+        if canonical_api_base(requested_base) != canonical_api_base(provider.get("base_url")):
+            raise UntrustedProbeTarget("A temporary API key is required for a different Base URL")
+    except ValueError as exc:
+        raise UntrustedProbeTarget("A temporary API key is required for a different Base URL") from exc
+    return key_reader(provider_id)
+
 
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
@@ -10719,7 +10773,21 @@ def runninghub_registry_model_from_id(model_id, output_type=""):
     output_type = str(output_type or "").strip().lower() or classify_upstream_model(model_id)
     return {"name_en": model_id, "endpoint": model_id, "output_type": output_type}
 
+def runninghub_official_llm_probe_allowed(provider=None):
+    """Never forward an arbitrary provider's credentials to a fixed LLM host."""
+    base_url = str((provider or {}).get("base_url") or RUNNINGHUB_DEFAULT_BASE_URL)
+    try:
+        scheme, host, port, _ = canonical_api_base(base_url)
+    except ValueError:
+        return False
+    return scheme == "https" and port == 443 and host in {
+        "www.runninghub.ai", "runninghub.ai", "www.runninghub.cn", "runninghub.cn",
+    }
+
+
 async def fetch_runninghub_llm_models(provider=None):
+    if not runninghub_official_llm_probe_allowed(provider):
+        return [], {"source": "", "count": 0, "errors": ["Fixed-host LLM probing skipped for a non-official RunningHub Base URL"]}
     headers = runninghub_api_headers(provider)
     errors = []
     async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
@@ -13674,7 +13742,9 @@ async def save_providers(payload: List[ApiProviderPayload]):
                     != canonical_api_base(provider.get("base_url"))
                 )
             except ValueError:
-                destination_changed = previous.get("base_url") != provider.get("base_url")
+                # Invalid or Unicode base URLs are never safe identities for
+                # silently reusing a key, even when both strings match.
+                destination_changed = True
         if destination_changed:
             saved_key = provider_env_key_value(provider["id"])
             if saved_key and not (item.api_key or "").strip() and not item.clear_key:
@@ -13827,6 +13897,14 @@ def api_key_from_payload(payload, protocol: str = ""):
     requested_base = str(getattr(payload, "base_url", "") or "").strip().rstrip("/")
     if protocol == "runninghub" and not requested_base:
         requested_base = RUNNINGHUB_DEFAULT_BASE_URL
+    # RunningHub registry discovery may also call llm.runninghub.ai, which
+    # differs from the caller's Base URL. Never attach another provider's
+    # stored key to those secondary probes, even when the primary URL matches.
+    if protocol == "runninghub" and provider_id != "runninghub":
+        raise HTTPException(
+            status_code=400,
+            detail="RunningHub 模型探测只能使用 RunningHub 平台凭据；请切换平台后重试。",
+        )
 
     def read_bound_key(pid):
         if pid == "runninghub":
