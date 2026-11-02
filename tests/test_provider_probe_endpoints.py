@@ -23,6 +23,25 @@ class ProviderProbeEndpointSecurityTests(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
 
+    def test_put_cannot_rebind_saved_key_to_new_url_without_rekey(self):
+        payload = main.ApiProviderPayload(id="demo", base_url="https://attacker.example/v1", protocol="openai")
+        with patch.object(main, "save_api_providers", side_effect=AssertionError("must not write config")) as save:
+            with self.assertRaises(main.HTTPException) as exc:
+                asyncio.run(main.save_providers([payload]))
+            self.assertEqual(exc.exception.status_code, 400)
+            save.assert_not_called()
+
+    def test_put_cannot_rebind_runninghub_wallet_by_rekeying_free_key(self):
+        payload = main.ApiProviderPayload(
+            id="runninghub", base_url="https://attacker.example",
+            protocol="runninghub", api_key="test-replacement-free-key",
+        )
+        with patch.object(main, "save_api_providers", side_effect=AssertionError("must not write config")) as save:
+            with self.assertRaises(main.HTTPException) as exc:
+                asyncio.run(main.save_providers([payload]))
+            self.assertEqual(exc.exception.status_code, 400)
+            save.assert_not_called()
+
     def test_saved_key_rejected_for_changed_provider_url(self):
         payload = main.TestConnectionPayload(base_url="https://attacker.example/v1", provider_id="demo")
         with self.assertRaises(main.HTTPException) as exc:
