@@ -187,6 +187,9 @@ async function loadAll(){
         projects = (pData.projects || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
         if(!projects.length) projects = [{ id: 'default', name: L('默认项目','Default'), order: 0, canvas_count: 0 }];
         canvases = cData.canvases || [];
+        for(const record of canvases){
+            if(window.CanvasConflictRecovery?.showSavedMetadata(record.id)) break;
+        }
         // pick first project (prefer default / order 0)
         if(!projects.find(p => p.id === currentProjectId)){
             const def = projects.find(p => p.id === 'default') || projects.slice().sort((a, b) => (a.order || 0) - (b.order || 0))[0];
@@ -868,6 +871,7 @@ async function persistMeta(id, patch){
                 if(idx >= 0 && data.canvas) canvases[idx] = {...canvases[idx], ...data.canvas};
                 renderBoard();
             }
+            window.CanvasConflictRecovery?.showMetadata({id,patch});
             setStatus(L('修改冲突：已保留本地修改，请重新确认','Conflict: local change saved for recovery'));
             return;
         }
