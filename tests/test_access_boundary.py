@@ -162,6 +162,28 @@ class AccessBoundaryTests(unittest.TestCase):
             self.assertEqual(main.public_media_url_suffix("/output/image.png"), "")
             self.assertFalse(main.canvas_signed_public_media_valid("/output/image.png", "9999999999", "0"*64))
 
+    def test_signed_media_middleware_uses_actual_asgi_path_for_hash_and_question(self):
+        # Starlette Request.url.path reconstructs a URL from scope['path'];
+        # urlsplit then truncates literal '#'/'?' in decoded filenames.
+        # StaticFiles serves scope['path'], so signatures must bind to it.
+        secret = "test-only-s02-media-signing-key-" + "a"*32
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), \\
+             patch("main.time.time", return_value=10_000_000), \\
+             patch.object(main, "canvas_trusted_host", return_value=True), \\
+             patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
+            signed_plain = main.public_media_url_suffix("/assets/a.png")
+            with TestClient(main.app) as client:
+                for encoded in ("/assets/a.png%23private.png", "/assets/a.png%3Fprivate.png"):
+                    # Reusing a.png's valid signature for a different actual
+                    # StaticFiles path must fail at the HTTP boundary.
+                    denied = client.get(encoded + signed_plain)
+                    self.assertEqual(denied.status_code, 401, (encoded, denied.text[:200]))
+                    own = main.public_media_url_suffix(encoded)
+                    allowed = client.get(encoded + own)
+                    # The test-only file does not exist, so reaching StaticFiles
+                    # produces 404 instead of the authentication middleware's 401.
+                    self.assertEqual(allowed.status_code, 404, (encoded, allowed.text[:200]))
+
     def test_signed_media_does_not_bypass_other_http_routes(self):
         secret = "test-only-s02-media-signing-key-" + "a"*32
         with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), patch("main.time.time", return_value=10_000_000):
