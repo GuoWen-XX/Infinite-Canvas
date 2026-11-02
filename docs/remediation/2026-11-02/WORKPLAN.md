@@ -132,6 +132,8 @@
 
 ### S04 — 画布保存（R1/R6）
 
+**S04 新增 Smart Canvas 远端修订竞态闭环（2026-11-02）：** 在旧 `applyMergedServerCanvas` 真实源码的隔离 V8 复现：远端删除节点后，本地并集合并仍保留已删除节点，且只更新 `updated_at` 未更新 `revision`。已在 PR #7 同阶段修复：显式追踪 dirty 状态；远端新 revision 与未保存/在途/排队/运行中本地工作冲突时保留草稿并要求人工恢复；无本地改动时精确采用远端节点集和 revision，过期 GET/touch-only 不误合并。新增 `tests/test_smart_canvas_remote_merge.cjs` 6 项，增强已有 Smart Canvas save fixture；从 GitHub 准确提交的源码和 6 份 CJS 测试中进行 V8+Node built-in shim 隔离执行 **41/41 PASS**、4 份 JS 语法解析 **4/4 PASS**。**非原生 Node/浏览器/完整 Python PASS**；S04 审查和测试门禁继续 BLOCKED，PR #7 不合并、S05 不启动；Actions NOT_RUN。
+
 - [x] S03 已合并后从 `main@081edae` 建立 `fix/S04-canvas-conflicts` 与 Draft PR #7；不触及 S05。
 - [x] 首批前端修复阻止普通画布 409 盲目重试，使用本地恢复草稿，避免 WebSocket/轮询直接覆盖未保存编辑。
 - [x] 新增 `tests/test_canvas_revision.py` 期望行为回归（包括元数据改名后旧编辑器拒绝覆盖、两个编辑器同 revision 仅一方可提交、touch 不引发内容假冲突、legacy timestamp 兼容）。**已编写，未在完整 main.py 环境执行。**
