@@ -18642,10 +18642,14 @@ async def restore_canvas(canvas_id: str):
     return {"canvas": canvas}
 
 @app.delete("/api/canvases/{canvas_id}/purge")
-async def purge_canvas(canvas_id: str):
-    path = canvas_path(canvas_id)
-    if os.path.exists(path):
-        os.remove(path)
+async def purge_canvas(canvas_id: str, base_revision: Optional[int] = None):
+    """Irreversible purge requires a current trash entry, checked under lock."""
+    with canvas_transaction_lock(canvas_id):
+        canvas = load_canvas_any(canvas_id)
+        check_canvas_base_revision(canvas, base_revision)
+        if not canvas.get("deleted_at"):
+            raise HTTPException(status_code=409, detail="画布未处于回收站，拒绝彻底删除")
+        os.remove(canvas_path(canvas_id))
     return {"ok": True}
 
 # --- GPT 对话 ---
