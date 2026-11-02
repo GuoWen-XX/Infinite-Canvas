@@ -115,6 +115,6 @@ test('missing purge revision never sends irreversible delete',async()=>{
         delete x.ctx.deletedCanvases[0].revision;
         await x.fn('canvas-one',null);
         assert.equal(x.calls.some(c=>c.url),false);
-        assert.equal(x.calls.some(c=>c.refresh).length,1);
+        assert.equal(x.calls.filter(c=>c.refresh).length,1);
     }
 });
