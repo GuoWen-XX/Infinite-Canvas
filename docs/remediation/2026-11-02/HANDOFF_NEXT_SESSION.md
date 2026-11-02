@@ -3,6 +3,14 @@
 > 记录日期：2026-11-02。**这是执行快照，不是“所有测试通过”的报告。**
 > 新会话必须首先读取 GitHub 最新状态；本文中提交 SHA 可能过时。
 
+## 最新执行增量（2026-11-02；覆盖下方旧版 HEAD 快照）
+
+- S03 PR #6 `5a49add` 的 Codex Code Review 已完成，**发现 3 条新增 blocking threads**：旧版本 updater 首次升级丢失 root `storage_guard.py`（P1，`PRRT_kwDOUaWIpM6yrs0v`）；POSIX FIFO 阻塞 `os.open`（P2，`PRRT_kwDOUaWIpM6yrs00`）；If-Range 未校验导致旧/新文件错误续传（P2，`PRRT_kwDOUaWIpM6yrs04`）。旧 TOCTOU P2 `PRRT_kwDOUaWIpM6yq3uo` 仍 open，其他初轮 4 条仍 resolved。**共 4 条须在后续独立复审核对后解决。**
+- 已在 **同一 S03 分支/PR** 提交实质修复：保留原 root `storage_guard.py`，新增字节一致的 `static/storage_guard.py` 及 `main.py` 缺 root helper 时的安全导入回退（S02 老 updater 仍会下载 `static/*`）；新版 staging 校验 root/static 同步。POSIX 最终文件打开加 `O_NONBLOCK` + `fstat` 文件类型拒绝；HTTP Range 为已打开句柄生成 ETag/Last-Modified 并检查 `If-Range`，不符时完整 200。
+- 回归测试已**编写合计 42 项**：`tests/test_storage_safety.py` 16、`tests/test_storage_handles.py` 10、`tests/test_remote_media_security.py` 8、`tests/test_canvas_zip_budget.py` 5、`tests/test_s03_legacy_updater.py` 3；本轮新增 9 项覆盖 FIFO（2）、If-Range（4）、旧 updater（3）。**尚未在完整仓库运行**；此前独立提取 7/7 仅适用于旧修复方案的 POSIX 子集，不代表新 42 项通过。
+- 必须重新取得 PR #6 **本轮最终提交 HEAD** 的复审结论，若 Code Review 还有 P1/P2 就继续同 PR 修复、补回归、复审；在无 unresolved blocking、可信正确 HEAD 验证和风险门禁前 **不得合并或启动 S04**。本次仅使用 GitHub 连接器提交代码/文档，没有重新运行 Actions、没有真实 Key、用户画布或付费模型调用。
+- 本地 `git ls-remote` 仍报告 `Could not resolve host: github.com`。无需强求 Actions，优先寻求不收费的正确 HEAD 执行环境；不能虚构完整 unittest 或 Windows/UNC 实测。S02 延期验收仍须在 S08 发布门补齐。
+
 ## 一、仓库、分支、已完成阶段
 
 - 仓库：[GuoWen-XX/Infinite-Canvas](https://github.com/GuoWen-XX/Infinite-Canvas)。
