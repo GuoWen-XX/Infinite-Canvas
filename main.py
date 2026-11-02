@@ -9403,7 +9403,7 @@ def canvas_media_path_identity(path: str) -> str:
     raw = urllib.parse.unquote(raw)
     if (not raw.startswith(("/output/", "/assets/"))
             or any(part in {"", ".", ".."} for part in raw.split("/")[1:])
-            or "\\\\" in raw or "\\x00" in raw):
+            or chr(92) in raw or chr(0) in raw):
         return ""
     return raw
 
