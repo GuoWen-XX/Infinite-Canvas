@@ -3420,7 +3420,6 @@ class CanvasMetaUpdate(BaseModel):
     board_x: Optional[float] = None
     board_y: Optional[float] = None
     base_revision: Optional[int] = None
-    base_updated_at: Optional[int] = None
 
 class ProjectCreateRequest(BaseModel):
     name: str = "新项目"
@@ -17407,7 +17406,9 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     def checked_apply(canvas):
         # Metadata changes are content changes too. Never permit a missing
         # version token to bypass the canvas CAS boundary.
-        check_canvas_base_revision(canvas, payload.base_revision, payload.base_updated_at)
+        # Metadata edits may deliberately leave updated_at unchanged. For
+        # this endpoint only a revision can reliably detect stale editors.
+        check_canvas_base_revision(canvas, payload.base_revision)
         apply(canvas)
     canvas = mutate_canvas(canvas_id, checked_apply, bump_updated_at=bump_time)
     return {"canvas": canvas_record(canvas)}
