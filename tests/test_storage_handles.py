@@ -166,6 +166,31 @@ sys.exit(3)
         )
         self.assertEqual(run.returncode, 0, run.stderr)
 
+    def test_posix_search_only_directory_remains_accessible(self):
+        if os.name == "nt":
+            self.skipTest("POSIX search-only directory")
+        if not (getattr(os, "O_PATH", None) is not None
+                or getattr(os, "O_SEARCH", None) is not None):
+            self.skipTest("platform does not support search-only directory FD")
+        folder = self.root / "search_only"
+        folder.mkdir()
+        file = folder / "readable.png"
+        file.write_bytes(b"READABLE")
+        folder.chmod(0o711)
+        self.addCleanup(folder.chmod, 0o755)
+        with storage_guard.open_scoped_file(str(self.root), str(file)) as stream:
+            self.assertEqual(stream.read(), b"READABLE")
+        # Verify directory traversal also works for anchored deletion.
+        storage_guard.unlink_scoped_file(str(self.root), str(file))
+        self.assertFalse(file.exists())
+
+    def test_windows_handle_compare_does_not_reresolve_mutable_root(self):
+        trusted = r"C:\\media\\allowed"
+        outside = r"C:\\external\\secret.png"
+        with patch.object(storage_guard, "_windows_handle_path", return_value=outside), \
+             patch.object(storage_guard.os.path, "realpath", return_value=r"C:\\external"):
+            self.assertFalse(storage_guard._windows_handle_inside(trusted, 1234))
+
     def test_windows_extended_unc_path_normalizes(self):
         self.assertEqual(
             storage_guard._normalize_windows_path("\\\\?\\UNC\\server\\share\\dir\\file.png"),
