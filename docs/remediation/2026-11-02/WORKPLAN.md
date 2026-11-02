@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 IN_PROGRESS（仅完成初步只读调用链审计）`。S02 未完成失败回归、实现与完整验证；未创建 S02 PR，不得启动 S03。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 IN_PROGRESS（安全边界代码与回归测试已提交分支）`。S02 尚未完成完整运行环境验证与独立 Code Review，不得启动 S03。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -59,10 +59,10 @@
 
 - [x] 在独立 `fix/S02-lan-auth-token` 分支建立只读基线审计 `S02_AUDIT.md`，确认 CORS wildcard、Token 明文接口、WebSocket 无鉴权，以及 zimage/angle 与后端现有 ModelScope 代理调用链。**这是静态证据，不是运行时测试或修复。**
 
-- [ ] 画出 HTTP、WebSocket、zimage/angle、Chrome、PS 的调用关系。
-- [ ] 安全变更前建立 LAN 与插件联调样例。
-- [ ] 引入访问认证与 Origin/CSRF 策略；同源 Token 返回或后端代理方案须经实际功能验证。
-- [ ] 加入未授权读 Token、更新/删除、跨源和授权功能测试。
+- [x] 已追踪 HTTP、WebSocket、zimage/angle、Chrome/PS 源码路径；具体调用关系和迁移限制记录于 `S02_AUDIT.md` 与 `S02_LAN_ACCESS.md`。
+- [ ] 按 `S02_LAN_ACCESS.md` 在独立 Windows/Chrome/Photoshop 与 LAN 环境执行真实联调；当前不能以文档代替验证。
+- [x] 已新增默认 localhost 绑定、LAN 显式密码认证、Host/Origin/CORS/WS 检查，以及 `has_token` + 原后端 ModelScope 代理。**真实设备兼容性及全量回归尚未验证。**
+- [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**仅编写，尚未在完整仓库执行。**
 - [ ] 提交 PR、审查、合并后解锁 S03。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
