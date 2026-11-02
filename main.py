@@ -240,7 +240,18 @@ def canvas_access_result(client_host, host_header, headers, cookies, scheme="htt
         return 403, "Host not allowed", False
     if not canvas_origin_valid(headers, host_header, scheme):
         return 403, "Origin not allowed", False
-    if canvas_is_loopback(client_host) or (client_host == "testclient" and host_header.startswith("testserver")):
+    # Reverse proxies commonly connect from 127.0.0.1 even when the real
+    # browser is on a different machine. A loopback *TCP peer* alone is NOT
+    # sufficient for bypassing LAN authentication: the Host must also be a
+    # loopback name/address, or TestClient's synthetic host/client pair.
+    try:
+        requested_host = urllib.parse.urlsplit("http://" + host_header).hostname or ""
+    except ValueError:
+        requested_host = ""
+    local_origin = requested_host.lower().rstrip(".") in {"localhost", "127.0.0.1", "::1"}
+    if (canvas_is_loopback(client_host) and local_origin) or (
+        client_host == "testclient" and requested_host == "testserver"
+    ):
         return 0, "", False
     if not CANVAS_LAN_ENABLED:
         return 403, "Remote access disabled; enable INFINITE_CANVAS_LAN explicitly", False
