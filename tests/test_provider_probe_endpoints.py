@@ -31,6 +31,17 @@ class ProviderProbeEndpointSecurityTests(unittest.TestCase):
             self.assertEqual(exc.exception.status_code, 400)
             save.assert_not_called()
 
+    def test_removed_provider_id_cannot_reuse_orphaned_key(self):
+        payload = main.ApiProviderPayload(id="demo", base_url="https://attacker.example/v1", protocol="openai")
+        # The provider was removed from the JSON config, but API/.env still
+        # contains API_PROVIDER_DEMO_KEY. Re-adding it must require a new key.
+        with patch.object(main, "load_api_providers", return_value=[]):
+            with patch.object(main, "save_api_providers", side_effect=AssertionError("must not write config")) as save:
+                with self.assertRaises(main.HTTPException) as exc:
+                    asyncio.run(main.save_providers([payload]))
+                self.assertEqual(exc.exception.status_code, 400)
+                save.assert_not_called()
+
     def test_put_cannot_rebind_runninghub_wallet_by_rekeying_free_key(self):
         payload = main.ApiProviderPayload(
             id="runninghub", base_url="https://attacker.example",
