@@ -175,3 +175,12 @@ S00–S02 已合并；S02 以明确延期完整测试/Windows/LAN/Chrome/Photosh
 - **Exact-code limited verification**: on code commit `203705615a86574eed6cb3e714171a9fea572a6c`, fetched 4 application JS files and 7 CJS test suites directly from GitHub; isolated V8 with Node built-in shims **43/43 PASS**, 4/4 syntax parses PASS. **Not** native `node --test`, two-tab browser, full Python `main.py`, Windows, or complete integration PASS. The next documentation-only commits do not change tested application code.
 - **Review**: PR #7 has 0 formal reviews and 0 inline threads at last read; Codex bot requires repository environment configuration. Do not self-approve or merge without an independent review / explicit maintainer decision and sufficient real test evidence.
 - **Outstanding**: correct-ref Python 18 cases and full unittest discover, native Node CJS suites, real browser two-tab + Smart Canvas workflows, S02 28 tests/LAN/Chrome/Photoshop/ModelScope, S03 45 tests/Windows UNC/FFmpeg/Range/legacy updater before S08 release. No GitHub Actions, paid AI, user files, or real credentials were used. S05 remains locked.
+
+
+## S04 最新增量交接 — classic save 网络失败/离开页面保护（2026-11-02）
+
+- 当前阶段 **S04 Draft PR #7**，目标 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，每轮重新读取实时 HEAD。S03 PR #6 已合并；本文件前文旧 S03 草稿状态是历史记录，不能用于当前 gate。
+- 从精确旧代码 HEAD `89af5ac4` 的 `static/js/canvas.js` 复现两条 R1 丢草稿路径：保存请求尚未完成时返回管理页直接导航；网络异常时 `saveCanvas` 不做本地草稿持久化。两项旧行为隔离 V8 测试 FAIL。
+- 同一 PR 提交修复 `206388b5aaaa8ac622869983629a85502d7e0d3f`，新增回归 `tests/test_canvas_navigation_failure.cjs` 于 `a792a08484b129333125fab95d7fbe9f8cc07d65`。后端业务未改。最新编辑器在保存中/脏数据/冲突状态返回时展示草稿恢复并阻止丢数据；beforeunload 保存并请求确认；传输异常保留草稿并进入人工恢复门，不盲目 CAS 重试。
+- 从准确 `a792a08` 读取实际 JS/CJS，独立 V8 4/4 行为检查 PASS，2/2 文件语法检查 PASS。**不等于原生 `node --test`、完整 Python 主程序集成、真实浏览器/Windows 测试**。正确 HEAD 需运行新增 CJS 和既有 8 份 CJS 回归，并执行 `tests/test_canvas_revision.py`（已编写 21 项）及全量测试。
+- 远端独立审查尚缺 Codex repository environment，PR #7 继续 REVIEW_BLOCKED / TEST_GATE_BLOCKED；不能合并，S05 仍锁定。GitHub Actions `workflow_dispatch` only，未触发；不使用真实 Key、用户画布或付费 AI。
