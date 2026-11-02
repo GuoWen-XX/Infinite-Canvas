@@ -96,7 +96,7 @@ function smartSandbox(status){
     const seen=[];
     const ctx={
         canvasId:'smart-canvas-one',canvas:{id:'smart-canvas-one',title:'Smart',revision:3,updated_at:100},
-        smartCanvasConflictPending:false,canvasSyncInFlight:false,saveTimer:null,
+        smartCanvasConflictPending:false,smartCanvasLocalDirty:false,canvasSyncInFlight:false,saveTimer:null,
         savePromptDraftForCurrent(){},nodes:[],viewport:{x:0,y:0,scale:1},
         settingsForStorage:s=>s||{},canvasDefaultSmartSettings:{},initialSmartSettings:{},
         canvasForStorage(){return {title:'Smart',icon:'sparkles',nodes:[],connections:[],viewport:ctx.viewport,logs:[],settings:{},updated_at:100};},
@@ -132,7 +132,7 @@ test('smart saves serialize pending edits and use the newly acknowledged revisio
     const requests=[],pending=[],timers=[];
     const ctx={
         canvasId:'smart',canvas:{id:'smart',revision:5,updated_at:100,title:'Title'},
-        smartCanvasConflictPending:false,canvasSyncInFlight:false,saveTimer:null,
+        smartCanvasConflictPending:false,smartCanvasLocalDirty:false,canvasSyncInFlight:false,saveTimer:null,
         savePromptDraftForCurrent(){},nodes:[],viewport:{x:0,y:0,scale:1},
         settingsForStorage:x=>x||{},canvasDefaultSmartSettings:{},initialSmartSettings:{},
         canvasForStorage(){return {title:ctx.canvas.title,icon:'sparkles',updated_at:ctx.canvas.updated_at,settings:{},nodes:[],viewport:{}};},
