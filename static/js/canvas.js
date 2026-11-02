@@ -1503,9 +1503,25 @@ async function saveCanvas(){
             const data = await res.json().catch(() => ({}));
             const remote = data.detail?.canvas || data.canvas;
             if(localCanvasDirty || saveCanvasAgain){
-                lastCanvasUpdatedAt = Number(data.detail?.updated_at || data.updated_at || remote?.updated_at || lastCanvasUpdatedAt || 0);
-                saveCanvasAgain = true;
-                setStatus('Saving...');
+                // A 409 means our base is stale: never advance the base token and
+                // blindly retry, which would overwrite another editor's changes.
+                // Keep an independent recovery copy until conflict UI is resolved.
+                try {
+                    localStorage.setItem('canvas_conflict_draft_' + canvas.id, JSON.stringify({
+                        canvas_id: canvas.id,
+                        base_updated_at: Number(lastCanvasUpdatedAt || 0),
+                        saved_at: Date.now(),
+                        title: canvas.title,
+                        icon: canvas.icon,
+                        nodes: serializableCanvasNodes(),
+                        connections, viewport, logs: canvas.logs || []
+                    }));
+                } catch (backupError) {
+                    console.error('Unable to preserve conflicting canvas draft', backupError);
+                }
+                localCanvasDirty = true;
+                saveCanvasAgain = false;
+                setStatus('Save conflict — local edits preserved; reload or resolve before saving');
                 return;
             }
             if(remote) applyRemoteCanvasData(remote);
@@ -2201,7 +2217,8 @@ async function refreshMissingCanvasAssets(){
     }
 }
 async function syncRemoteCanvasNow(){
-    if(!canvas) return;
+    // Do not replace unsaved edits with a remote canvas snapshot.
+    if(!canvas || localCanvasDirty || savingCanvasNow) return;
     try {
         const res = await fetch(`/api/canvases/${canvas.id}`);
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
@@ -2249,9 +2266,13 @@ function handleCanvasUpdatedMessage(data){
     if(data.canvas_id !== canvas.id) return;
     const remoteUpdatedAt = Number(data.updated_at || 0);
     if(remoteUpdatedAt && remoteUpdatedAt <= Number(lastCanvasUpdatedAt || 0)) return;
+    // An incoming WebSocket event must never discard an unsaved local draft.
+    if(localCanvasDirty || savingCanvasNow){
+        setStatus('Remote changes detected — local edits preserved');
+        return;
+    }
     clearTimeout(saveTimer);
     saveTimer = null;
-    localCanvasDirty = false;
     clearTimeout(remoteSyncTimer);
     remoteSyncTimer = setTimeout(syncRemoteCanvasNow, savingCanvasNow ? 700 : 120);
     setStatus('Syncing...');
