@@ -7917,9 +7917,13 @@ async def media_preview(url: str, w: int = 512):
     webp_path, png_path = media_preview_cache_paths(path, width)
 
     if os.path.exists(webp_path):
-        return FileResponse(webp_path, media_type="image/webp")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, webp_path, media_type="image/webp"
+        )
     if os.path.exists(png_path):
-        return FileResponse(png_path, media_type="image/png")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, png_path, media_type="image/png"
+        )
 
     def _build_preview():
         # 同步 PIL 处理 + 落盘，放到线程里执行，避免阻塞事件循环（几十张首次生成会卡死整个 loop → 缩略图全空白）
@@ -7927,10 +7931,11 @@ async def media_preview(url: str, w: int = 512):
         if is_video_preview_file(path):
             img = generate_video_preview_image(path, width)
         else:
-            with Image.open(path) as source:
-                img = ImageOps.exif_transpose(source)
-                img.thumbnail((width, width), Image.LANCZOS)
-                img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
+            with open_local_media_scoped(path) as verified_source:
+                with Image.open(verified_source) as source:
+                    img = ImageOps.exif_transpose(source)
+                    img.thumbnail((width, width), Image.LANCZOS)
+                    img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
         try:
             img.save(webp_path, format="WEBP", quality=80, method=1)   # method=1 生成更快（缩略图不追求极致压缩）
             return webp_path, "image/webp"
@@ -7940,7 +7945,9 @@ async def media_preview(url: str, w: int = 512):
 
     try:
         out_path, media_type = await asyncio.to_thread(_build_preview)
-        return FileResponse(out_path, media_type=media_type)
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, out_path, media_type=media_type
+        )
     except Exception as exc:
         raise HTTPException(status_code=415, detail=f"无法生成预览图：{exc}") from exc
 
@@ -7956,27 +7963,32 @@ async def image_jpeg(url: str, w: int = 0):
     key = hashlib.sha1(f"{os.path.abspath(path)}|{stat.st_mtime_ns}|{stat.st_size}|{width}|jpg".encode("utf-8", "ignore")).hexdigest()
     cache_path = os.path.join(MEDIA_PREVIEW_DIR, f"{key}.jpg")
     if os.path.exists(cache_path):
-        return FileResponse(cache_path, media_type="image/jpeg")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, cache_path, media_type="image/jpeg"
+        )
 
     def _build():
         os.makedirs(MEDIA_PREVIEW_DIR, exist_ok=True)
-        with Image.open(path) as src:
-            img = ImageOps.exif_transpose(src)
-            if width:
-                img.thumbnail((width, width), Image.LANCZOS)
-            if img.mode in ("RGBA", "LA", "P"):
-                bg = Image.new("RGB", img.size, (255, 255, 255))
-                rgba = img.convert("RGBA")
-                bg.paste(rgba, mask=rgba.split()[-1])
-                img = bg
-            else:
-                img = img.convert("RGB")
-            img.save(cache_path, format="JPEG", quality=86)
+        with open_local_media_scoped(path) as verified_source:
+            with Image.open(verified_source) as src:
+                img = ImageOps.exif_transpose(src)
+                if width:
+                    img.thumbnail((width, width), Image.LANCZOS)
+                if img.mode in ("RGBA", "LA", "P"):
+                    bg = Image.new("RGB", img.size, (255, 255, 255))
+                    rgba = img.convert("RGBA")
+                    bg.paste(rgba, mask=rgba.split()[-1])
+                    img = bg
+                else:
+                    img = img.convert("RGB")
+                img.save(cache_path, format="JPEG", quality=86)
         return cache_path
 
     try:
         out_path = await asyncio.to_thread(_build)
-        return FileResponse(out_path, media_type="image/jpeg")
+        return scoped_local_file_response(
+            MEDIA_PREVIEW_DIR, out_path, media_type="image/jpeg"
+        )
     except Exception as exc:
         raise HTTPException(status_code=415, detail=f"无法转换图片：{exc}") from exc
 
@@ -18084,7 +18096,7 @@ async def get_shared_folder_tree(folder_id: str):
     return {"folder": {"id": folder_id, "name": entry.get("name"), "path": abs_path}, "tree": tree}
 
 @app.get("/api/shared-folders/{folder_id}/file")
-async def get_shared_folder_file(folder_id: str, path: str = ""):
+async def get_shared_folder_file(folder_id: str, request: Request, path: str = ""):
     entry = shared_folder_by_id(folder_id)
     if not entry:
         raise HTTPException(status_code=404, detail="共享文件夹不存在")
@@ -18095,7 +18107,10 @@ async def get_shared_folder_file(folder_id: str, path: str = ""):
     ext = os.path.splitext(abs_path)[1].lower()
     if ext not in SHARED_MEDIA_EXTS:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
-    return FileResponse(abs_path, media_type=content_type_for_path(abs_path))
+    return scoped_local_file_response(
+        folder_abs, abs_path, media_type=content_type_for_path(abs_path),
+        request=request,
+    )
 
 @app.post("/api/shared-folders/import")
 async def import_shared_folder_files(payload: SharedFolderImport):
