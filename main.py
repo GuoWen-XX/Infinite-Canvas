@@ -262,6 +262,17 @@ def canvas_access_result(client_host, host_header, headers, cookies, scheme="htt
 async def canvas_http_access_boundary(request: Request, call_next):
     client_host = request.client.host if request.client else ""
     host = request.headers.get("host") or ""
+    # Permit only signed, expiring reads of individual media files by cloud
+    # services; this is not a bearer password for other studio endpoints.
+    if (request.method in {"GET", "HEAD"}
+            and request.url.path.startswith(("/assets/", "/output/"))
+            and canvas_trusted_host(host, client_host)
+            and canvas_signed_public_media_valid(
+                request.url.path,
+                request.query_params.get("ic_exp", ""),
+                request.query_params.get("ic_sig", ""),
+            )):
+        return await call_next(request)
     # CORS preflights carry no credentials; CORS itself enforces the explicit
     # trusted-origin allowlist, while actual requests still require auth.
     if request.method == "OPTIONS" and request.headers.get("access-control-request-method"):
@@ -9386,9 +9397,45 @@ def public_base_url() -> str:
         return value
     return ""
 
-def public_media_url_suffix() -> str:
-    token = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
-    return f"?token={urllib.parse.quote(token)}" if token else ""
+def canvas_media_path_identity(path: str) -> str:
+    """Canonical single-file URL path for a short-lived cloud download grant."""
+    raw = str(path or "").split("?", 1)[0].split("#", 1)[0]
+    raw = urllib.parse.unquote(raw)
+    if (not raw.startswith(("/output/", "/assets/"))
+            or any(part in {"", ".", ".."} for part in raw.split("/")[1:])
+            or "\\\\" in raw or "\\x00" in raw):
+        return ""
+    return raw
+
+
+def canvas_signed_public_media_valid(path, expiry, signature, now=None):
+    """Authorize only one media path, for up to 30 minutes; not other APIs."""
+    secret = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
+    media_path = canvas_media_path_identity(path)
+    if not media_path or len(secret) < 24:
+        return False
+    expiry = str(expiry or "")
+    signature = str(signature or "")
+    if not expiry.isascii() or not expiry.isdigit() or len(expiry) > 15 or len(signature) != 64:
+        return False
+    timestamp = int(time.time() if now is None else now)
+    deadline = int(expiry)
+    if deadline < timestamp or deadline > timestamp + 30 * 60:
+        return False
+    message = (media_path + "\n" + expiry).encode("utf-8")
+    wanted = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, wanted)
+
+
+def public_media_url_suffix(path: str) -> str:
+    """Create a path-bound expiring URL signature; never leak PUBLIC_MEDIA_TOKEN."""
+    secret = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
+    media_path = canvas_media_path_identity(path)
+    if len(secret) < 24 or not media_path:
+        return ""
+    expiry = str(int(time.time()) + 30 * 60)
+    signature = hmac.new(secret.encode("utf-8"), (media_path + "\n" + expiry).encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"?ic_exp={expiry}&ic_sig={signature}"
 
 def local_asset_public_url(value: str) -> str:
     text = str(value or "").strip()
@@ -9399,7 +9446,12 @@ def local_asset_public_url(value: str) -> str:
     base = public_base_url()
     if not base:
         return ""
-    return f"{base}{urllib.parse.quote(text, safe='/:?&=%#.-_~')}{public_media_url_suffix()}"
+    # The secret is an HMAC key; it is never placed in the URL itself.
+    suffix = public_media_url_suffix(text)
+    if not suffix:
+        return ""
+    media_path = canvas_media_path_identity(text)
+    return f"{base}{urllib.parse.quote(media_path, safe='/%._-~')}{suffix}"
 
 async def openai_video_proxy_public_reference_url(ref) -> str:
     """异步生图（openai-video-proxy）的参考图公网化。
