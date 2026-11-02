@@ -4,10 +4,12 @@
 
 ## 1. 双层审查原则
 
-- **代码质量门**：单元/集成测试覆盖本阶段触发条件、错误路径和跨平台兼容性；CI 成功。
+- **代码质量门**：单元/集成测试覆盖本阶段触发条件、错误路径和跨平台兼容性；保留实际本地/隔离测试命令与输出。GitHub Actions 非默认必选项。
 - **远端人工/独立审查门**：PR 存在明确已提交的有效 Review 结论，或维护者在 PR 中写下审查通过决定；逐一处理所有 blocking / unresolved comment。只有 GitHub Actions 绿灯或 Codex bot 发出的 `running` 状态评论不算通过。
 - 执行者不能把自己编写的测试、自己创建的 PR、自报结果当成独立审查通过的证明。
-- **不得自动 merge** 实施阶段 PR，除非有可核实的审查结论、绿灯 CI 和本阶段验收记录。修复过程不在生产机器/真实用户数据上执行破坏性探针。
+- **不得自动 merge** 实施阶段 PR，除非有可核实的审查通过结论、足够的本地/隔离测试证据和本阶段验收记录；如经用户明确授权并实际手动运行 Actions，则该运行须通过。修复过程不在生产机器/真实用户数据上执行破坏性探针。
+
+**费用控制硬规则**：禁止 push / pull_request 自动触发 GitHub Actions；每阶段默认不运行 Actions。只有技术上必须使用 GitHub-hosted 环境验证、且用户针对本次运行明确授权时，才使用手动 `workflow_dispatch`。不得通过频繁小提交触发 CI，不得自动 re-run。
 
 ## 2. 每阶段处理流程
 
@@ -28,7 +30,7 @@
 - [ ] 不触碰真实配置、密钥、用户画布或付费生图额度
 - [ ] API Key 不进入异常、日志、测试输出或 PR 描述
 - [ ] 跨平台 Windows/macOS/Linux 影响已说明，相关启动路径有验证
-- [ ] GitHub Actions SUCCESS（附 URL 与对应 commit SHA）
+- [ ] **GitHub Actions 默认 NOT_RUN**；如确实必要，先取得用户明确许可，手动运行且附 URL、对应 commit SHA 和结果。不得因为没有 Actions 绿灯而默认阻塞通过本地验证的阶段。
 - [ ] 已解决所有阻断 Review comments；明确评审结论（附 URL）
 - [ ] PR 已合并至 main，记录最终合并 SHA
 - [ ] 用户可按文档回滚本阶段；没有隐式数据格式破坏
@@ -47,11 +49,11 @@
 | 看到的状态 | 是否准许下一阶段 | 处理方式 |
 | --- | --- | --- |
 | `open`、无 Review | 否 | 请求独立审查 |
-| GitHub Actions `success`，Codex Review Summary `running` | 否 | 等待实际 Review 结论 |
+| 仅本地/隔离测试通过，Codex Review Summary `running` | 否 | 等待实际 Review 结论 |
 | Reviewer `CHANGES_REQUESTED` | 否 | 同阶段修复再提交 |
-| Review `APPROVED`，CI 未通过 | 否 | 修 CI/回归 |
-| 审查批准 + CI success，但 PR 仍未合并 | 否 | 合并并核实 main |
-| 审查批准 + CI success + PR merged + 交接记录 | 是 | 进入下一阶段 |
+| Review `APPROVED`，本地/隔离测试失败 | 否 | 修复回归；如获许可手动运行过 CI 且失败，也需解决 |
+| 审查批准 + 本地/隔离测试通过，但 PR 未合并 | 否 | 合并并核实 main |
+| 审查批准 + 本地/隔离测试通过 + PR merged + 交接记录 | 是 | 进入下一阶段 |
 
 ## 6. 分支与 PR 命名
 
