@@ -1748,6 +1748,22 @@ function setCanvasSortMode(mode){
     refreshGateViewControls();
 }
 async function patchCanvasMeta(id, patch){
+    function preserveFailedPatch(){
+        const key = 'canvas_meta_conflict_' + id;
+        let previous = {};
+        try {
+            const stored = JSON.parse(localStorage.getItem(key) || 'null');
+            if(stored?.patch && typeof stored.patch === 'object' && !Array.isArray(stored.patch)) previous = stored.patch;
+        } catch(_) {}
+        const merged = {...previous, ...patch};
+        let persisted = false;
+        try {
+            localStorage.setItem(key, JSON.stringify({patch:merged, saved_at:Date.now()}));
+            persisted = true;
+        } catch(err) { console.error('Unable to persist metadata recovery draft', err); }
+        window.CanvasConflictRecovery?.showMetadata({id, patch:merged, ...(!persisted ? {persistenceError:true} : {})});
+        return persisted;
+    }
     const item = canvases.find(c => c.id === id);
     if(item) Object.assign(item, patch);
     if(canvas?.id === id) Object.assign(canvas, patch);
@@ -1775,8 +1791,7 @@ async function patchCanvasMeta(id, patch){
     } catch(e){
         // Network/5xx failures are just as recoverable as a 409: keep the
         // optimistic title/icon/metadata patch available after a reload.
-        try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
-        window.CanvasConflictRecovery?.showMetadata({id,patch});
+        preserveFailedPatch();
         setStatus(tr('canvas.metaSaveFailed') || '保存失败');
         console.error(e);
         await loadCanvasList(false);
