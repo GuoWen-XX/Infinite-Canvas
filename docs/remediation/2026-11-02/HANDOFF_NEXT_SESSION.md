@@ -11,6 +11,14 @@
 - 必须重新取得 PR #6 **本轮最终提交 HEAD** 的复审结论，若 Code Review 还有 P1/P2 就继续同 PR 修复、补回归、复审；在无 unresolved blocking、可信正确 HEAD 验证和风险门禁前 **不得合并或启动 S04**。本次仅使用 GitHub 连接器提交代码/文档，没有重新运行 Actions、没有真实 Key、用户画布或付费模型调用。
 - 本地 `git ls-remote` 仍报告 `Could not resolve host: github.com`。无需强求 Actions，优先寻求不收费的正确 HEAD 执行环境；不能虚构完整 unittest 或 Windows/UNC 实测。S02 延期验收仍须在 S08 发布门补齐。
 
+## 最新复审增量：Windows 根身份 + POSIX 搜索权限（2026-11-02）
+
+- `216cec7` 的 Codex 复审 **completed / findings=true / unresolved=true**；新增两项 P2：Windows 校验后重新 `realpath(root)` 会接受 root/junction 重绑（`PRRT_kwDOUaWIpM6yr_6S`）；POSIX 使用 `O_RDONLY` 打开可搜索但不可列目录的祖先（如 0711）会破坏合法访问（`PRRT_kwDOUaWIpM6yr_6f`）。
+- 已在同一 S03 PR #6 进一步修改：Windows 提前固定 `trusted_root`，pin 可信根 HANDLE 与文件/删除 HANDLE，不重新解析授权根；POSIX 使用 `O_PATH` / `O_SEARCH` 逐级访问可搜索目录（平台支持时），仍禁止跟随符号链接。根目录 `storage_guard.py` 与 `static/storage_guard.py` 已同步更新，防止旧版本首次升级回退到不安全代码。
+- 增加 POSIX 根目录换链、0711 目录搜索/删除与 Windows 固定根比较 Mock 3 项测试；本阶段新增 **45 项源码已编写，未完整执行**（storage safety 16、handles 13、remote 8、ZIP 5、legacy updater 3）。未执行 Windows 真实 junction/UNC，未经审查不得视作已过门禁。
+- 安全发布的重要限制：现有 `main.py` 的自动更新源硬编码为 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，而本次 PR 合并目标为 `GuoWen-XX/Infinite-Canvas@main`，因此只有修复代码实际被发布到客户端使用的源时旧 updater 才能收到 `static/storage_guard.py`。这是 S08 更新渠道验收的明确阻断事项，不能将“兼容策略已写”称为“老客户端已经能自动升级”，也不要擅自改线上发布源。
+- 下一步：对最终 HEAD 请求独立 Codex Review；核对旧 TOCTOU、首轮三条新发现、Windows/权限两条新发现及全部线程状态，有新问题必须继续同 PR 修复。完整项目、Windows/UNC、Chrome/Photoshop/LAN 等仍缺证据，S02 的延期联调必须在 S08 发布前补齐。禁止 GitHub Actions、真实用户画布、真实 Key、付费模型。
+
 ## 一、仓库、分支、已完成阶段
 
 - 仓库：[GuoWen-XX/Infinite-Canvas](https://github.com/GuoWen-XX/Infinite-Canvas)。
