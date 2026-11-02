@@ -65,7 +65,7 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
 
     def test_local_basename_fallback_does_not_resolve_external_symlink(self):
         self._symlink(self.root / "leak.png", self.secret)
-        with patch.object(main, "OUTPUT_INPUT_DIR", str(self.root)), \\
+        with patch.object(main, "OUTPUT_INPUT_DIR", str(self.root)), \
              patch.object(main, "ASSETS_DIR", str(self.root)):
             self.assertIsNone(main.local_media_file_by_basename("leak.png"))
 
