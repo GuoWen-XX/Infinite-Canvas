@@ -51,9 +51,15 @@ class CanvasRevisionTests(unittest.TestCase):
         self.assertEqual(stored["title"], "remote rename")
         self.assertEqual(stored["nodes"], [])
 
-    def test_missing_revision_rejected_instead_of_overwriting(self):
+    def test_legacy_timestamp_fallback_rejects_stale_save(self):
+        main.mutate_canvas(self.canvas["id"], lambda c: c.update({"title": "newer"}))
         with self.assertRaises(HTTPException) as ctx:
             self._save(base_revision=None)
+        self.assertEqual(ctx.exception.status_code, 409)
+
+    def test_missing_both_version_tokens_rejected(self):
+        with self.assertRaises(HTTPException) as ctx:
+            self._save(base_revision=None, base_updated_at=0)
         self.assertEqual(ctx.exception.status_code, 409)
 
     def test_two_editors_same_revision_only_first_can_commit(self):
