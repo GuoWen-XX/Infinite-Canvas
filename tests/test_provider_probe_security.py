@@ -1,6 +1,6 @@
 """Offline tests: no user config, internet, API credentials or AI quota."""
 import unittest
-from provider_probe_security import canonical_api_base, resolve_probe_key, UntrustedProbeTarget
+from main import canonical_api_base, resolve_probe_key, UntrustedProbeTarget
 
 
 class ProviderProbeKeySecurityTests(unittest.TestCase):
@@ -44,6 +44,22 @@ class ProviderProbeKeySecurityTests(unittest.TestCase):
         self.assertEqual(self.key("https://api.example.com/v1"), "")
         self.assertEqual(self.calls, [])
 
+    def test_unicode_idna_alias_cannot_reuse_ascii_saved_key(self):
+        self.providers[0]["base_url"] = "https://fass.example/v1"
+        for url in ["https://faß.example/v1", "https://fass.example/v1"]:
+            with self.subTest(url=url):
+                if "faß" in url:
+                    with self.assertRaises(UntrustedProbeTarget):
+                        self.key(url)
+                else:
+                    self.assertEqual(self.key(url), "test-only-stored-key")
+
+    def test_punycode_ascii_is_not_equal_to_unicode_alias(self):
+        self.providers[0]["base_url"] = "https://xn--fa-hia.example/v1"
+        with self.assertRaises(UntrustedProbeTarget):
+            self.key("https://faß.example/v1")
+        self.assertEqual(self.key("https://xn--fa-hia.example/v1"), "test-only-stored-key")
+
     def test_reject_credentials_queries_and_fragments(self):
         for url in ["https://user:pass@api.example.com/v1", "https://api.example.com/v1?q=1", "https://api.example.com/v1#frag", "https://api.example.com:0/v1", "https://api.example.com/v1\\nmalicious".replace("\\n", "\n")]:
             with self.subTest(url=url), self.assertRaises(UntrustedProbeTarget):
@@ -51,7 +67,7 @@ class ProviderProbeKeySecurityTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_normalizer_blocks_invalid_base(self):
-        for url in ["", "file:///etc/passwd", "https://host/?x=1", "https://host#frag", "https://user@host", "https://host:65536", "https://host:0", "https://host/a b"]:
+        for url in ["", "file:///etc/passwd", "https://host/?x=1", "https://host#frag", "https://user@host", "https://host:65536", "https://host:0", "https://host/a b", "https://faß.example/v1"]:
             with self.subTest(url=url), self.assertRaises(ValueError):
                 canonical_api_base(url)
 
