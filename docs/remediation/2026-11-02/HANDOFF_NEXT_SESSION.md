@@ -1,5 +1,12 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## S04 最新增量：远端 Smart Canvas 合并安全（2026-11-02；优先于下方历史记录）
+
+- 在 PR #7 的实际 `static/js/smart-canvas.js` 中复现旧行为：本地 revision 4 含节点、远端 revision 5 已删除该节点时，`applyMergedServerCanvas` 仍以并集把被删除节点留在本地，并只更新 `updated_at` 而不更新 `revision`。提取真实函数的隔离 V8 复现确认了这两项结果；后续保存必遇 stale CAS 409，界面误显示被删除内容。
+- 在同一 PR 实施最小修复：显式跟踪 Smart Canvas 本地未保存状态；远端新 revision 到达时，若有未保存编辑、在途/排队 PUT 或运行中的生成任务，先保存本地恢复草稿并进入人工冲突门；本地干净时精确采用远端节点集合（包含删除），同时推进 revision、时间和设置；过期 GET 及 touch-only 时间戳不触发合并。
+- 新增 `tests/test_smart_canvas_remote_merge.cjs` **6 项**，并增强既有保存串行化/竞态 fixture 对 dirty 状态的断言。以 GitHub 实际已提交代码和 6 个 CJS 测试文件在受控 V8 + Node 内置模块 shim 中执行 **41/41 PASS**，4 个 JS 模块语法解析 **4/4 PASS**；这仍**不是**原生 `node --test`、真实浏览器双标签或完整 Python 主程序验收。
+- PR #7 仍为 Draft，尚无独立 Review（Codex 环境待配置）；完整 Python `tests/test_canvas_revision.py` 18 项、原生 Node、浏览器及跨平台验证仍未运行。S02/S03 的延期测试继续属于 S08 发布门禁。不得合并 S04、启动 S05、运行 GitHub Actions 或接触真实用户数据/密钥/付费模型。
+
 ## 2026-11-03 S04 最新执行记录（本节优先于下方旧快照）
 
 - S04 [PR #7](https://github.com/GuoWen-XX/Infinite-Canvas/pull/7)，工作分支 `fix/S04-canvas-conflicts`。S03 已合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，S04 尚未合并。
