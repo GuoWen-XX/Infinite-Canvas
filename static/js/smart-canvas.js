@@ -6117,14 +6117,16 @@ async function saveCanvas(){
             const data = await res.json();
             if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
             if(data.canvas?.revision != null) canvas.revision = Number(data.canvas.revision);
-        } else if(res.status === 409) {
+        } else if(res.status === 409 || res.status === 404 || res.status === 410) {
             // Never advance the base and retry an unverified same-ID merge.
             // Preserve a recoverable draft until the user explicitly resolves it.
             smartCanvasConflictPending = true;
             clearTimeout(saveTimer);
             const record = persistSmartConflictDraft(storageCanvas);
             window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
-            toast('画布版本冲突：请导出本地草稿或保存为独立副本');
+            toast(res.status === 409
+                ? '画布版本冲突：请导出本地草稿或保存为独立副本'
+                : '服务器中的画布已被删除：本地编辑已保留，可保存为独立副本');
         }
     } catch(e) {} finally {
         canvasSyncInFlight = false;
