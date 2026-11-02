@@ -2094,12 +2094,22 @@ async function setCanvasTitle(id, title){
         currentCanvasTitle.textContent = canvas.title || title;
     }
 }
+function preserveDraftBeforeCanvasSwitch(){
+    if(!canvas || !(localCanvasDirty || savingCanvasNow || saveCanvasAgain || canvasConflictPending)) return false;
+    const record = captureCanvasConflictDraft();
+    window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+    setStatus('Unsaved canvas edits preserved — resolve or save before switching');
+    return true;
+}
 async function openCanvas(id){
+    if(preserveDraftBeforeCanvasSwitch()) return;
     setStatus('Opening...');
     try {
         const res = await fetch(`/api/canvases/${id}`);
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
         const data = await res.json();
+        // Local edits may arrive while the GET is waiting on the network.
+        if(preserveDraftBeforeCanvasSwitch()) return;
         resetCascadeRuntimeState();
         canvas = data.canvas;
         rememberCanvasListProject(canvas.project || 'default');
