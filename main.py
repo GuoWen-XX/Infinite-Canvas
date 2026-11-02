@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import ipaddress
+import socket
 import hmac
 import datetime
 import urllib.request
@@ -7894,14 +7895,80 @@ def filename_from_media_url(url: str, fallback: str = "download.bin") -> str:
     name = os.path.basename(urllib.parse.unquote(path))
     return sanitize_export_filename(name or fallback, fallback)
 
+def validate_remote_media_target(value: str) -> str:
+    """Fail closed on private, loopback, metadata and ambiguous remote targets.
+
+    Keep user-defined remote media hosts working when DNS returns exclusively
+    globally routed IP addresses. Any invalid DNS record denies the entire host.
+    """
+    text = str(value or "").strip()
+    if not text or any(ord(ch) < 33 or ord(ch) == 127 for ch in text):
+        raise HTTPException(status_code=400, detail="远程媒体地址无效")
+    try:
+        parsed = urllib.parse.urlsplit(text)
+        if (parsed.scheme.lower() not in {"https", "http"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            raise ValueError("Invalid remote URL")
+        host = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+        # Refuse protocol-ambiguous host forms and internal DNS suffixes.
+        if not host.isascii() or host.endswith(".") or host.lower() in {"localhost", "localhost.localdomain"}:
+            raise ValueError("Untrusted remote host")
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        if not addresses:
+            raise ValueError("No DNS records")
+        for record in addresses:
+            ip = ipaddress.ip_address(record[4][0].split("%", 1)[0])
+            if not ip.is_global:
+                raise ValueError("Private/reserved media target")
+    except (ValueError, UnicodeError, OSError, IndexError, OverflowError) as exc:
+        raise HTTPException(status_code=400, detail="远程媒体地址指向非公网目标或格式无效") from exc
+    return text
+
+
+def open_safe_remote_media_stream(url: str, *, timeout=30.0, headers=None):
+    """Manually validate each redirect; requests must not auto-follow SSRF hops.
+
+    DNS rebinding at the transport layer still requires an egress firewall or
+    pinned-IP transport for hostile domains; do not treat DNS preflight alone
+    as a complete network security boundary.
+    """
+    target = str(url or "").strip()
+    visited = set()
+    for _ in range(5):
+        validate_remote_media_target(target)
+        if target in visited:
+            raise HTTPException(status_code=400, detail="远程媒体地址存在重定向循环")
+        visited.add(target)
+        response = requests.get(
+            target, stream=True, timeout=timeout,
+            headers=headers or {"User-Agent": "ComfyUI-API-Modelscope/1.0"},
+            allow_redirects=False,
+        )
+        if response.status_code in {301, 302, 303, 307, 308}:
+            location = response.headers.get("location")
+            response.close()
+            if not location:
+                raise HTTPException(status_code=502, detail="远程媒体重定向缺少 Location")
+            target = urllib.parse.urljoin(target, location)
+            continue
+        try:
+            response.raise_for_status()
+        except Exception:
+            response.close()
+            raise
+        return response
+    raise HTTPException(status_code=400, detail="远程媒体重定向次数超限")
+
+
 def fetch_remote_media_bytes(url: str, timeout: float = 30.0, max_bytes: int = 200 * 1024 * 1024):
     text = rewrite_runninghub_file_url(str(url or "").strip())
-    parsed = urllib.parse.urlparse(text)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return None
-    with requests.get(text, stream=True, timeout=timeout, headers={"User-Agent": "ComfyUI-API-Modelscope/1.0"}) as response:
-        response.raise_for_status()
+    with open_safe_remote_media_stream(text, timeout=timeout) as response:
         content_type = response.headers.get("content-type") or "application/octet-stream"
+        declared = str(response.headers.get("content-length") or "")
+        if declared.isascii() and declared.isdigit() and int(declared) > max_bytes:
+            raise HTTPException(status_code=413, detail="文件太大，无法下载")
         chunks = []
         total = 0
         for chunk in response.iter_content(chunk_size=1024 * 256):
@@ -12473,19 +12540,14 @@ def download_output(request: Request, url: str, name: str = "", inline: bool = F
         filename = sanitize_export_filename(os.path.basename(name) if name else os.path.basename(path), os.path.basename(path))
         return FileResponse(path, media_type=content_type_for_path(path), filename=None if inline else filename)
     # 远程文件：流式代理，绝不把整段视频/大文件读进内存（否则多个视频同时代理会撑爆内存、拖垮单进程服务）。
-    parsed = urllib.parse.urlparse(str(url or "").strip())
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(status_code=400, detail="无效的下载地址")
     try:
         upstream_headers = {"User-Agent": "ComfyUI-API-Modelscope/1.0"}
         range_header = request.headers.get("range")
         if range_header:
             upstream_headers["Range"] = range_header
-        upstream = requests.get(
-            url, stream=True, timeout=(10, 60),
-            headers=upstream_headers,
+        upstream = open_safe_remote_media_stream(
+            url, timeout=(10, 60), headers=upstream_headers,
         )
-        upstream.raise_for_status()
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"远程文件下载失败：{exc}")
     content_type = upstream.headers.get("content-type") or "application/octet-stream"
