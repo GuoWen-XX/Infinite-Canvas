@@ -235,3 +235,13 @@ Final merge SHA:
 - **同 PR 最小修复**：`smart-canvas.js` 现在串行化 PUT，合并保存期间的新编辑，并在服务器确认最新 revision 后按新版本重新保存；409/404/410 备份当前最新节点与设置而非旧请求快照；切换画布后的迟到响应不能修改新画布；暂时网络失败保留本地恢复草稿。新增 `tests/test_smart_canvas_save_serialization.cjs` 5 项。
 - **实际有限验证**：在准确代码 HEAD `5c98abbc9ca24b8057003b62ed5c7c74589b1233` 通过 GitHub 连接器读取四份 JS 模块及五份 CJS 测试原文，在隔离 V8 中用 Node 内置模块等价 shim 执行全部 **32/32 PASS**（8 recovery + 9 delete CAS + 3 metadata + 7 save races + 5 smart serialization）。这不是 Node CLI `node --test`，不是完整浏览器双标签测试，也不是 Python `main.py` 集成回归。
 - **门禁不变**：S04 PR #7 仍为 Draft；独立 Codex Review 因仓库 environment 未配置而阻断，正确 HEAD 的 Python unittest、真实 Node/浏览器及跨平台测试尚未通过。S05 不得启动；Actions 未触发、未使用真实用户数据/密钥或付费模型。
+
+
+## S04 当前最新进度补记（2026-11-03）
+
+- [x] S04 Draft PR #7 的普通画布与智能画布并发保护、revision CAS、标题/图标元数据 CAS、冲突草稿恢复 UI 已在分支实现。额外修复无版本删除、过期删除、回收站永久删除的不可逆竞态：服务端在锁内校验 revision 和回收站状态；两个 UI 删除入口携带所见 revision；过期 409 仅刷新列表不执行删除。
+- [x] 保留 classic 客户端未发送的 `settings`，仅在明确传字段时更新；远端已删除时（404/410）classic/smart 保存当前本地编辑至可恢复草稿。
+- [x] `tests/test_canvas_revision.py` **18 项已编写但未在完整 main.py 执行**；包括过期软删除、永久 purge 并发恢复、缺版本拒绝、设置保留。不得计为 Python 测试 PASS。
+- [x] 最新代码快照 `6bdbfa13abde05f38f2a449e4ca797b332f690e6`：通过 GitHub 连接器读取 **4 个真实 JS 模块与 5 个 CJS 测试文件**，在隔离 V8 中以 Node built-ins 等价 shim 实际执行 **33/33 用例通过**（save races 8、metadata 3、conflict recovery 8、delete CAS 9、smart serialization 5），另做 4/4 文件 V8 语法解析；共 37/37 项有限检查。**非真实 `node --test`、非浏览器双标签、非主程序 Python unittest、非全仓测试。**
+- [ ] **S04 合并仍阻断**：正确 HEAD 的 Python 后端 18 项及全量 unittest、原生 Node、真实浏览器两标签并发与 Windows/兼容性没有实际运行。PR #7 尚无独立审查通过；仓库自动 review 评论要求先创建 Codex environment，本会话不手动请求 Review。Actions 默认 0 次，不使用真实画布、密钥或付费模型。
+- [ ] S02 延期 28 项与 LAN/Chrome/Photoshop/ModelScope、S03 45 项与 Windows/UNC/Range/旧 updater 发布源测试必须在 S08 发布前补齐；S05 不得提前启动。
