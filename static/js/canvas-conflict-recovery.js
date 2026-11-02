@@ -123,7 +123,10 @@ function showSaved(id,kind){
     let record;
     try { record = JSON.parse(global.localStorage.getItem(PREFIX + id) || 'null'); }
     catch(_) { return false; }
-    return record ? show({id,kind,record}) : false;
+    if(record) return show({id,kind,record});
+    const previous = document.getElementById('canvas-conflict-recovery');
+    if(previous) previous.remove();
+    return false;
 }
 function showMetadata({id,patch}){
     if(!id || !patch || !global.document) return false;
