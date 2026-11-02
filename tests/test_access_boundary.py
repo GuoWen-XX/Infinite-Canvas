@@ -122,6 +122,41 @@ class AccessBoundaryTests(unittest.TestCase):
             self.assertFalse(main.canvas_signed_public_media_valid("/assets/%252e%252e/global_config.json", exp, sig, now=10_000_003))
             self.assertFalse(main.canvas_signed_public_media_valid("/assets/foo\\\\secret.png", exp, sig, now=10_000_003))
 
+    def test_signed_path_distinguishes_literal_hash_and_question_mark(self):
+        key = "test-path-signing-key-" + "z"*40
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": key}), patch("main.time.time", return_value=10_000_000):
+            q = urllib.parse.parse_qs(main.public_media_url_suffix("/assets/a.png").lstrip("?"))
+            exp, sig = q["ic_exp"][0], q["ic_sig"][0]
+            # ASGI has decoded '%23' and '%3F' once. Neither is a URL
+            # delimiter at this stage; the signature must not truncate them.
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/a.png#private.png", exp, sig, now=10_000_010))
+            self.assertFalse(main.canvas_signed_public_media_valid("/assets/a.png?private.png", exp, sig, now=10_000_010))
+            for url_path, asgi_path in [
+                ("/assets/a%23private.png", "/assets/a#private.png"),
+                ("/assets/a%3Fprivate.png", "/assets/a?private.png"),
+            ]:
+                signed = urllib.parse.parse_qs(main.public_media_url_suffix(url_path).lstrip("?"))
+                self.assertTrue(main.canvas_signed_public_media_valid(
+                    asgi_path, signed["ic_exp"][0], signed["ic_sig"][0], now=10_000_010
+                ))
+
+    def test_public_media_url_encodes_literal_percent_filename(self):
+        key = "test-percent-signing-key-" + "z"*40
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": key}), patch("main.time.time", return_value=10_000_000), \
+             patch.object(main, "output_file_from_url", return_value="/test-only/mock-file.png"), \
+             patch.object(main, "public_base_url", return_value="https://media.example"):
+            url = main.local_asset_public_url("/assets/ref%2520final.mp4")
+            parsed = urllib.parse.urlsplit(url)
+            self.assertEqual(parsed.path, "/assets/ref%2520final.mp4")
+            query = urllib.parse.parse_qs(parsed.query)
+            # Actual ASGI path is decoded only once, to a literal '%20'.
+            self.assertTrue(main.canvas_signed_public_media_valid(
+                urllib.parse.unquote(parsed.path), query["ic_exp"][0], query["ic_sig"][0], now=10_000_010
+            ))
+            self.assertFalse(main.canvas_signed_public_media_valid(
+                "/assets/ref final.mp4", query["ic_exp"][0], query["ic_sig"][0], now=10_000_010
+            ))
+
     def test_without_public_media_secret_cannot_generate_signed_url(self):
         with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": ""}):
             self.assertEqual(main.public_media_url_suffix("/output/image.png"), "")
