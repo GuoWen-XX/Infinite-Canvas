@@ -101,6 +101,7 @@ let portDragState = null;
 let connectionEraseState = null;
 let saveTimer = null;
 let smartCanvasConflictPending = false;
+let smartCanvasLocalDirty = false;
 let apiProviders = [];
 let comfyWorkflows = [];
 let comfyInstanceCount = 1;
@@ -5422,23 +5423,45 @@ function mergeSmartConnections(localConns, remoteConns, nodeIds){
     return out;
 }
 function applyMergedServerCanvas(serverCanvas){
-    if(!serverCanvas || !canvas) return false;
-    const remoteNodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
-    const mergedNodes = mergeSmartNodeLists(nodes, remoteNodes);
-    const nodeIds = new Set(mergedNodes.map(n => n.id));
-    nodes = mergedNodes;
-    canvas.connections = mergeSmartConnections(canvas.connections, serverCanvas.connections, nodeIds);
-    const cleanedState = clearCompletedNodeBusyStates();
-    const recoveredLoopOutputs = recoverStuckLoopOutputsFromLogs();
-    canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
-    if(canvas.title !== serverCanvas.title && serverCanvas.title){
-        canvas.title = serverCanvas.title;
-        const titleEl = document.getElementById('smartTitle');
-        if(titleEl) titleEl.textContent = canvas.title;
+    if(!serverCanvas || !canvas || serverCanvas.id !== canvasId || canvas.id !== canvasId) return false;
+    const remoteRevision = Number(serverCanvas.revision || 0);
+    const localRevision = Number(canvas.revision || 0);
+    // Ignore a late GET from an older revision. Touch can advance updated_at
+    // without advancing content revision, so it is not a merge signal.
+    if(remoteRevision < localRevision) return false;
+    if(remoteRevision === localRevision){
+        canvas.updated_at = Math.max(Number(canvas.updated_at || 0), Number(serverCanvas.updated_at || 0));
+        return false;
     }
+    if(smartCanvasLocalDirty || canvasSyncInFlight || saveCanvas.queued || smartCanvasAnyRunning()){
+        // A remote revision must never be silently merged into unsaved local
+        // nodes (or used as a new CAS base). Preserve the complete local draft
+        // and require explicit recovery before any further same-ID PUT.
+        smartCanvasConflictPending = true;
+        clearTimeout(saveTimer);
+        const record = persistSmartConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+        toast('检测到其他页面的画布修改：本地草稿已保留，请先处理冲突');
+        return false;
+    }
+    // No pending local edits: adopt the exact remote node set, including
+    // deletions. The previous union merge resurrected deleted remote nodes.
+    nodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
+    canvas.nodes = nodes;
+    canvas.connections = Array.isArray(serverCanvas.connections) ? serverCanvas.connections : [];
+    canvas.revision = remoteRevision;
+    canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
+    canvas.title = serverCanvas.title || canvas.title;
+    canvas.icon = serverCanvas.icon || canvas.icon;
+    if(serverCanvas.settings && typeof serverCanvas.settings === 'object'){
+        canvas.settings = serverCanvas.settings;
+        settings = {...settings, ...serverCanvas.settings};
+        canvasDefaultSmartSettings = cloneSmartSettings(settings);
+    }
+    const titleEl = document.getElementById('smartTitle');
+    if(titleEl) titleEl.textContent = canvas.title;
     render();
     if(typeof scheduleConnectionLayerRefresh === 'function') scheduleConnectionLayerRefresh();
-    if(cleanedState || recoveredLoopOutputs) scheduleSave();
     resumeSmartPendingTasks();
     resumeJimengPendingNodes();
     return true;
@@ -6017,6 +6040,7 @@ async function loadCanvas(){
         const data = await res.json();
         canvas = data.canvas;
         smartCanvasConflictPending = false;
+        smartCanvasLocalDirty = false;
         rememberCanvasListProject(canvas.project || 'default');
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
@@ -6076,6 +6100,7 @@ function persistSmartConflictDraft(snapshot=null){
     return record;
 }
 function scheduleSave(){
+    smartCanvasLocalDirty = true;
     clearTimeout(saveTimer);
     if(smartCanvasConflictPending){
         const record = persistSmartConflictDraft();
@@ -6097,6 +6122,7 @@ async function saveCanvas(){
     }
     const saveTargetId = canvasId;
     saveCanvas.queued = false;
+    smartCanvasLocalDirty = true;
     savePromptDraftForCurrent();
     nodes.forEach(node => {
         node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -6131,6 +6157,7 @@ async function saveCanvas(){
             if(!canvas || canvasId !== saveTargetId || canvas.id !== saveTargetId) return;
             if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
             if(data.canvas?.revision != null) canvas.revision = Number(data.canvas.revision);
+            smartCanvasLocalDirty = Boolean(saveCanvas.queued);
         } else if(res.status === 409 || res.status === 404 || res.status === 410) {
             // Never advance the base and retry an unverified same-ID merge.
             // Preserve a recoverable draft until the user explicitly resolves it.
