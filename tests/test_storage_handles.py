@@ -5,6 +5,8 @@ or paid network access. Exercise actual file descriptors, not lexical paths.
 """
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -113,6 +115,56 @@ class StorageGuardHandleTests(unittest.TestCase):
             storage_guard.unlink_scoped_file(str(self.root), str(original))
         self.assertFalse((self.root / "moved" / "image.png").exists())
         self.assertEqual(external.read_bytes(), b"OUTSIDE")
+
+    def test_fifo_without_writer_rejected_without_blocking(self):
+        if os.name == "nt" or not hasattr(os, "mkfifo"):
+            self.skipTest("POSIX FIFO test")
+        pipe = self.root / "unexpected.png"
+        os.mkfifo(pipe)
+        # A regression must fail with a timeout rather than hang the suite.
+        script = (
+            "import storage_guard, sys\\n"
+            "try:\\n"
+            "    storage_guard.open_scoped_file(sys.argv[1], sys.argv[2])\\n"
+            "except storage_guard.UnsafeStoragePath:\\n"
+            "    sys.exit(0)\\n"
+            "sys.exit(3)\\n"
+        ).replace("\\\\n", "\\n")
+        run = subprocess.run(
+            [sys.executable, "-c", script, str(self.root), str(pipe)],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(run.returncode, 0, run.stderr)
+
+    def test_regular_file_swapped_to_fifo_before_open_is_rejected(self):
+        if os.name == "nt" or not hasattr(os, "mkfifo"):
+            self.skipTest("POSIX FIFO race test")
+        file = self.root / "image.png"
+        file.write_bytes(b"ORIGINAL")
+        script = """
+import os
+import sys
+from unittest.mock import patch
+import storage_guard
+root, filename = sys.argv[1:3]
+original = storage_guard._parts_beneath
+def swap(root_arg, path, **kwargs):
+    result = original(root_arg, path, **kwargs)
+    os.unlink(filename)
+    os.mkfifo(filename)
+    return result
+with patch.object(storage_guard, "_parts_beneath", side_effect=swap):
+    try:
+        storage_guard.open_scoped_file(root, filename)
+    except storage_guard.UnsafeStoragePath:
+        sys.exit(0)
+sys.exit(3)
+"""
+        run = subprocess.run(
+            [sys.executable, "-c", script, str(self.root), str(file)],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(run.returncode, 0, run.stderr)
 
     def test_windows_extended_unc_path_normalizes(self):
         self.assertEqual(
