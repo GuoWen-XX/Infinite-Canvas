@@ -39,6 +39,15 @@ class CanvasRevisionTests(unittest.TestCase):
         self.assertEqual(second["updated_at"], first["updated_at"])
         self.assertEqual(second["revision"], first["revision"] + 1)
 
+    def test_touch_updates_activity_without_invalidating_content_revision(self):
+        before = main.load_canvas(self.canvas["id"])
+        touched = asyncio.run(main.touch_canvas(self.canvas["id"]))
+        self.assertGreater(touched["updated_at"], before["updated_at"])
+        self.assertEqual(touched["canvas"]["revision"], before["revision"])
+        # A fresh editor using the content revision may still save.
+        saved = self._save()
+        self.assertEqual(saved["canvas"]["nodes"], [{"id": "new"}])
+
     def test_metadata_change_invalidates_stale_full_canvas_save(self):
         before = main.load_canvas(self.canvas["id"])
         asyncio.run(main.update_canvas_meta(
