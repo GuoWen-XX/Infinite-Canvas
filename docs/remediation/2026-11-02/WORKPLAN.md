@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 已完成，S01 PR #4 等待远端评审`；**S01 审查通过并合并 main 前，不启动 S02**。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 IN_PROGRESS（仅完成初步只读调用链审计）`。S02 未完成失败回归、实现与完整验证；未创建 S02 PR，不得启动 S03。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -22,8 +22,8 @@
 | 阶段 | 状态 | 目标 | 主文件 | 交付与验收 |
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
-| S01 | PR_OPEN | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
-| S02 | NOT_STARTED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
+| S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
+| S02 | IN_PROGRESS | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
@@ -51,11 +51,13 @@
 - [x] 使用严格 URL 基址校验并保证 mismatched URL 时尚未读取保存 Key；RunningHub 只使用已经解析/验证的本次 Key；不额外记录完整凭据。
 - [x] 所有共用 `TestConnectionPayload` 的模型列表/探测入口已接入统一密钥绑定；为 Ark 无 ID 借用与 RunningHub 钱包 fallback 增加专门回归。
 - [x] 已提交实施 PR #4（`fix/S01-provider-key-binding` → `main`），列明凭据出站风险、变更、离线测试、运行限制与回滚。
-- [ ] 远端审查通过，合入后才能解锁 S02。
+- [x] PR #4 最新 HEAD `856ef2de1cd3089df1d0cdae2bc237ccae145e74` 的 Codex Review completed / 0 findings，原 4 条线程已全部 resolved；2026-11-02T08:22:26Z 合并 `main@0f661b20a0996f311cf187d93c6db2b3f939fd97`。
 
-**验证现状（S01，PR #4）：** 在隔离 Python 环境运行与最新内联规则等价的纯函数测试：**10/10 PASS**（新增 IDNA 差异回归）；已为三项 Codex P1 审查反馈补充 Mock 路由和配置覆盖测试，**完整项目环境中的路由测试与全量测试尚未运行**。2026-11-02 Codex 对较早提交 `4fb8d82` 提出三项 P1：非 RunningHub 凭据经固定域名二次请求外送、内置 IDNA 与 HTTPX 不一致、新增根模块无法被旧更新器下载；上述问题均已在本 PR 新提交中修正，已逐条回复原审查意见。**Codex 对 `b0b382f` 的最新复审新增一项 P2**：本地 `codex`、`gemini-cli`、`jimeng` 的 POST 模型发现被空 Base URL 的保存 Key 校验误拒；已在 S01 同一 PR 中增加 CLI 直通分支和无网络/无 Key 的 Mock 回归，**等待修复后最新 HEAD 再审**。独立路由测试与全量测试仍未实际运行，PR 不得合并。**GitHub Actions 运行次数：0**，不得因缺少 CI 成功标记而绕过独立审查或误报完整回归通过。
+**S01 验证与残余限制（PR #4）：** 修复三项 P1 与一项 P2 后，最新 HEAD 的 Codex Review completed / 0 findings / 0 unresolved，四条 review threads 均 resolved。隔离纯函数回归 **10/10 PASS**、CLI 分派隔离回归 **2/2 PASS**；合并前另记录了隔离 `python -m unittest discover -s tests -p 'test_provider_probe_security.py' -v` 及提取模块 `py_compile` 通过。**完整仓库 `main.py` 端点集成与全量测试尚未运行**，不应把隔离验证误称为全面通过；该限制在 S08 跨模块验收中保留。GitHub Actions：**0 次主动运行**，不得自动触发。合并证据：PR #4、merge SHA `0f661b20a0996f311cf187d93c6db2b3f939fd97`。
 
 ### S02 — 身份和 Token（SEC-02）
+
+- [x] 在独立 `fix/S02-lan-auth-token` 分支建立只读基线审计 `S02_AUDIT.md`，确认 CORS wildcard、Token 明文接口、WebSocket 无鉴权，以及 zimage/angle 与后端现有 ModelScope 代理调用链。**这是静态证据，不是运行时测试或修复。**
 
 - [ ] 画出 HTTP、WebSocket、zimage/angle、Chrome、PS 的调用关系。
 - [ ] 安全变更前建立 LAN 与插件联调样例。
