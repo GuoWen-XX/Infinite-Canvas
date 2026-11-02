@@ -77,6 +77,13 @@
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
 
+- [x] PR #6（`fix/S03-storage-ssrf`）已建立为 draft，独立于已合并 S02 的 `main@ae042d8`。S03 审计见 `S03_AUDIT.md`，逐项记录已确认源码调用链。
+- [x] 第一批 SEC-03 改动：真实路径边界校验应用到存储文件读取/删除、旧 URL 解析、本地素材 basename 回退和列表，保留自定义绝对/UNC 存储路径；8 项临时文件回归已编写，**未运行完整项目**。
+- [x] 第一批 SEC-04 改动：公网上游 DNS/IP 入口与每跳手动重定向检查，覆盖 `fetch_remote_media_bytes` 和 `/api/download-output`；5 项 Mock 网络回归已编写。仍存在 DNS 验证与真实连接之间的重绑定竞争窗口，必须在完成阶段前审查解决或明确严格出站限制。
+- [x] 第一批 SEC-05 改动：画布导出 ZIP 改用 `SpooledTemporaryFile`，250 文件 / 单文件 200 MiB / 累计输入 512 MiB 上限；5 项临时/Mock 回归已编写。新增测试目前合计 18 项，**未在完整 `main.py` 环境执行**。
+- [ ] 独立审查、处理新 P1/P2、运行正确分支测试、UNC/外置盘与下载兼容回归后，再考虑 PR #6 merge；不得复用 S02 风险例外去自动放行所有后续阶段。
+
+
 - [x] S02 已合并至 `main@ae042d8`，S03 从此 SHA 建立 `fix/S03-storage-ssrf`，开始只读基线与回归设计。
 
 - [ ] 先补恶意存储 root、符号链接/路径逃逸、SSRF/redirect、超大 ZIP 的失败测试。
