@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 PR_OPEN（PR #5 等待远端 Code Review）`。S02 尚未完成完整项目环境与 Chrome/Photoshop/LAN 联调，不得启动 S03。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 REVIEWED / TEST_GATE_BLOCKED（PR #5 最新 HEAD Codex 0 findings；缺正确分支全量回归与设备兼容验收）`。S02 尚未完成完整项目环境与 Chrome/Photoshop/LAN 联调，不得启动 S03。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -23,7 +23,7 @@
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
-| S02 | PR_OPEN | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
+| S02 | REVIEWED / BLOCKED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
@@ -63,11 +63,14 @@
 - [ ] 按 `S02_LAN_ACCESS.md` 在独立 Windows/Chrome/Photoshop 与 LAN 环境执行真实联调；当前不能以文档代替验证。
 - [x] 已新增默认 localhost 绑定、LAN 显式密码认证、Host/Origin/CORS/WS 检查，以及 `has_token` + 原后端 ModelScope 代理。**真实设备兼容性及全量回归尚未验证。**
 - [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**仅编写，尚未在完整仓库执行。**
-- [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。正在等待最新 HEAD 独立 Code Review；未运行 GitHub Actions。
+- [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的 Codex 独立 Code Review 已完成、0 findings，全部 6 条 inline review threads 已 resolved。GitHub Actions 曾由用户授权手动运行 1 次，但实际选中默认分支 `zcode/iteration-01`，不是 S02，不能用于本阶段验收。
 - [x] 对初轮 Review 的三个 P2 已提交修复：API/.env 加载后初始化 LAN/CORS；Basic 非 ASCII 密码改成 UTF-8 字节恒定时间比较；公网媒体变为绑定 `/assets/` / `/output/` 单文件、30 分钟的 HMAC 签名 GET/HEAD。补充安全回归与迁移说明。
 - [x] 第二轮 Review 对签名 URL 的二次解码及字面 `%` 文件名提出 2 个 P2。已修复为“生成端 URL 解码一次 / 验证端使用已解码 ASGI 路径原样签名”，并修正 URL 序列化对字面 `%` 的重新编码；新增 `%23` / `%3F` / `%2520` 回归；提取安全函数隔离测试 **9/9 PASS**。完整后端与实际 LAN/插件联调**尚未运行**。
 - [x] 2026-11-02 新增真实 ASGI 路径边界修复：Starlette `Request.url.path` 在已解码的文件名含 `#` / `?` 时会截断，导致普通文件的有效签名可授权读取另一文件；签名校验现使用与 StaticFiles 一致的 `request.scope["path"]`。新增 `TestClient` 回归。**隔离 FastAPI/Starlette ASGI 实测：旧实现可错误读取文件，新实现拒绝跨文件复用且允许正确签名，3/3 PASS**（`/mnt/data/ic_review/s02_asgi_path_regression.py`；该脚本是独立提取验证，不是完整仓库测试）。
-- [ ] 等待**最新 HEAD** 的独立 Review 复核上述修复；在完整运行环境验证 LAN/插件/本地云生图，审查通过且合并 main 后解锁 S03。
+- [x] 2026-11-02 最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的独立 Codex Review `completed / has_any_findings=false / has_unresolved_findings=false`，6/6 旧线程已 resolved；补充 macOS 启动脚本与 `tests/test_mac_launcher.py`，隔离 Mock `2/2 PASS` 和 `bash -n` PASS。
+- [x] 2026-11-02 使用 GitHub 连接器读取准确 S02 HEAD，完成 17 项源码策略不变量检查（`17/17 PASS`：Host/Origin/CORS/WS、Token 后端保密、签名媒体路径、URL 编码、前端本地 Token 清理、macOS loopback、workflow manual-only 等）。**此为静态结构检查，不能替代执行 24 项真实后端测试。**
+- [x] 用户明确授权并亲自启动 [Actions Tests #41439808653](https://github.com/GuoWen-XX/Infinite-Canvas/actions/runs/41439808653)：`success`，`78/78`；但工作流实际检出 `zcode/iteration-01@bb778e26a9b84d63d059c83ff511dbb0dc2e7067`，不是 S02 分支，不可用于 S02 的全量回归证据。未启动第二次 Actions。
+- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（24 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 正式合并 main 并补齐交接记录前，不提交 S03 实施代码。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
 
