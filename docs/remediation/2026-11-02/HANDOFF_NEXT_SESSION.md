@@ -32,6 +32,12 @@
 - 已在 `tests/test_storage_handles.py` 将该 fixture 修订为可复现测试：非 root 时 chmod 0311（拥有者只有 write/search）；root 时在仅含临时 fixture 的子进程 `setgroups([]); setgid(nobody); setuid(nobody)` 并使目标目录权限 0733（other write/search，无 read）。子进程先断言**旧 `os.O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开必然 PermissionError**，随后使用源码相同的 `storage_guard.open_scoped_file` 安全读取，并使用 `unlink_scoped_file` 删除临时测试文件。不能把这项源码更新冒充执行 PASS。
 - 本阶段回归代码总数仍为 **45**，完整项目、Windows/UNC/LAN/插件/FFmpeg 未完成。所有 7 条未解决审查线程需最新 HEAD 核验后才能逐条标记解决。S03 PR #6 仍为 draft，未合并；切勿提前开始 S04，不要运行 Actions 或真实/计费链路。
 
+## 最新权限测试兼容复审与修复（2026-11-02）
+
+- Codex 对 `5ae5f710b78afc83317333c9884fb5d93fefe835` 的复审 `completed / findings=true / unresolved=true`：新增 2 条 P2，`PRRT_kwDOUaWIpM6ysc4e`（先降权导致私有 Python 解释器无法启动）、`PRRT_kwDOUaWIpM6ysc4n`（私有 TMPDIR 祖先不能被 nobody 搜索）。这两条指向**测试环境 fixture**，不是在 S03 生产代码中发现新的安全缺陷。
+- 已在同一 PR 修复：不使用 `preexec_fn`，先以当前身份启动 Python `-I`、明确导入位于专用测试目录的安全模块，再在子进程脚本中降权；为完整测试 fixture 选用 /tmp 且检查其真实祖先允许搜索，不 chmod 用户配置 TMPDIR，使用 TemporaryDirectory 自动清理并恢复目标目录权限。非 root 测试继续使用 0311，root 测试使用 0733 + 降权 nobody；同一受限进程先断言旧 O_RDONLY 失败，再调用真实 secure handle 读取/删除临时文件。
+- 下一步必须先取最新提交 HEAD 并 @codex review；若通过审查才逐项处理 9 条 review 线程，且正确 HEAD 全量验证 / Windows / UNC 仍缺时不得误报 S03 通过。S03 回归 45 项仍为**编写数量**，并非全部执行。先前独立 Linux euid1000 权限系统调用验证不代表全仓 PASS。PR #6 仍 draft、未合并，S04 不得提前开始。
+
 ## 一、仓库、分支、已完成阶段
 
 - 仓库：[GuoWen-XX/Infinite-Canvas](https://github.com/GuoWen-XX/Infinite-Canvas)。
