@@ -128,7 +128,7 @@ function showSaved(id,kind){
     if(previous) previous.remove();
     return false;
 }
-function showMetadata({id,patch}){
+function showMetadata({id,patch,persistenceError=false}){
     if(!id || !patch || !global.document) return false;
     const previous = document.getElementById('canvas-meta-recovery');
     if(previous) previous.remove();
@@ -138,7 +138,7 @@ function showMetadata({id,patch}){
     const title = document.createElement('strong');
     title.textContent = '画布属性修改冲突';
     const info = document.createElement('p');
-    info.textContent = '本地修改：' + JSON.stringify(patch) + '。可明确选择在最新版本上重试；其他字段不会修改。';
+    info.textContent = '本地修改：' + JSON.stringify(patch) + '。可明确选择在最新版本上重试；其他字段不会修改。' + (persistenceError ? ' 浏览器本地存储失败：关闭页面前请复制或导出此草稿。' : '');
     const status = document.createElement('p');
     status.setAttribute('aria-live','polite');
     const actions = document.createElement('div');
@@ -152,7 +152,17 @@ function showMetadata({id,patch}){
         } catch(err) { status.textContent = err.message; }
         finally { retry.disabled = false; }
     });
-    actions.append(retry,button('稍后处理',()=>panel.remove()));
+    actions.append(retry,button('导出属性草稿 JSON',()=>{
+        try {
+            const blob = new Blob([JSON.stringify({canvas_id:id,patch},null,2)],{type:'application/json'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'canvas-meta-conflict-' + String(id).replace(/[^a-zA-Z0-9_-]/g,'_') + '.json';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),30000);
+            status.textContent = '属性草稿已导出。';
+        } catch(err) { status.textContent = '导出失败：' + err.message; }
+    }),button('稍后处理',()=>panel.remove()));
     panel.append(title,info,actions,status);
     document.body.append(panel);
     return true;
