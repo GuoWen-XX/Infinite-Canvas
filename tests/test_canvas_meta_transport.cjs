@@ -17,12 +17,18 @@ const listSource = extract('static/js/canvas-list.js',
 const classicSource = extract('static/js/canvas.js',
     'async function patchCanvasMeta(', 'function togglePinCanvas(');
 
-function fixture(kind, response) {
-    const saved = [], shown = [], statuses = [];
+function fixture(kind, response, storageBlocked=false) {
+    const saved = [], shown = [], statuses = [], store = {};
     const record = {id:'canvas-one', revision:3, title:'Original'};
     const scope = {
         canvases:[{...record}], canvas:{...record},
-        localStorage:{setItem(key, raw){saved.push({key, value:JSON.parse(raw)});}},
+        localStorage:{
+            getItem(key){return store[key] ?? null;},
+            setItem(key, raw){
+                if(storageBlocked) throw new Error('storage unavailable');
+                store[key] = raw; saved.push({key, value:JSON.parse(raw)});
+            }
+        },
         window:{CanvasConflictRecovery:{showMetadata(details){shown.push(details);}}},
         fetch:response,
         renderBoard(){}, renderCanvasList(){}, sortCanvasListByUpdated(){},
@@ -35,7 +41,7 @@ function fixture(kind, response) {
     const source = isClassic ? classicSource : listSource;
     const handler = isClassic ? 'patchCanvasMeta' : 'persistMeta';
     const apply = new Function('scope', 'with(scope){' + source + 'return ' + handler + ';}')(scope);
-    return {apply:()=>apply('canvas-one', {title:'Offline rename'}), saved, shown, statuses};
+    return {apply:(patch={title:'Offline rename'})=>apply('canvas-one',patch), saved, shown, statuses, store};
 }
 for (const kind of ['classic','list']) {
     test(kind + ' preserves failed network metadata patch', async()=>{
@@ -60,5 +66,28 @@ for (const kind of ['classic','list']) {
         await x.apply();
         assert.equal(x.saved.length,0);
         assert.equal(x.shown.length,0);
+    });
+}
+
+for(const kind of ['classic','list']){
+    test(kind + ' retains two separate failed metadata fields', async()=>{
+        const x = fixture(kind, ()=>Promise.reject(new Error('offline')));
+        await x.apply({title:'Unsent title'});
+        await x.apply({icon:'unsent-icon'});
+        const expected = {title:'Unsent title',icon:'unsent-icon'};
+        assert.deepEqual(JSON.parse(x.store.canvas_meta_conflict_canvas-one).patch,expected);
+        assert.deepEqual(x.shown.at(-1).patch,expected);
+    });
+    test(kind + ' latest failed value wins for the same field', async()=>{
+        const x = fixture(kind, ()=>Promise.reject(new Error('offline')));
+        await x.apply({title:'First'});
+        await x.apply({title:'Second'});
+        assert.deepEqual(JSON.parse(x.store.canvas_meta_conflict_canvas-one).patch,{title:'Second'});
+    });
+    test(kind + ' warns when browser storage cannot persist recovery', async()=>{
+        const x = fixture(kind, ()=>Promise.reject(new Error('offline')),true);
+        await x.apply({title:'Unstored'});
+        assert.equal(x.shown.at(-1).persistenceError,true);
+        assert.deepEqual(x.shown.at(-1).patch,{title:'Unstored'});
     });
 }
