@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import ipaddress
 import socket
+import urllib3
 import hmac
 import datetime
 import urllib.request
@@ -7927,39 +7928,122 @@ def validate_remote_media_target(value: str) -> str:
     return text
 
 
-def open_safe_remote_media_stream(url: str, *, timeout=30.0, headers=None):
-    """Manually validate each redirect; requests must not auto-follow SSRF hops.
+class _RemoteMediaPublicSocketGuard:
+    """Verify the *connected peer* before TLS/HTTP sends any URL or headers.
 
-    DNS rebinding at the transport layer still requires an egress firewall or
-    pinned-IP transport for hostile domains; do not treat DNS preflight alone
-    as a complete network security boundary.
+    A DNS check before connect alone is vulnerable to DNS rebinding. This guard
+    runs inside urllib3's socket creation, after connect but before the HTTP
+    request or HTTPS handshake, and rejects non-public peers.
+    """
+    def _new_conn(self):
+        sock = super()._new_conn()
+        try:
+            peer_ip = ipaddress.ip_address(str(sock.getpeername()[0]).split("%", 1)[0])
+            if not peer_ip.is_global:
+                raise OSError("remote media socket is not publicly routed")
+            return sock
+        except Exception:
+            sock.close()
+            raise
+
+
+class _RemoteMediaHTTPConnection(_RemoteMediaPublicSocketGuard, urllib3.connection.HTTPConnection):
+    pass
+
+
+class _RemoteMediaHTTPSConnection(_RemoteMediaPublicSocketGuard, urllib3.connection.HTTPSConnection):
+    pass
+
+
+class _RemoteMediaHTTPPool(urllib3.connectionpool.HTTPConnectionPool):
+    ConnectionCls = _RemoteMediaHTTPConnection
+
+
+class _RemoteMediaHTTPSPool(urllib3.connectionpool.HTTPSConnectionPool):
+    ConnectionCls = _RemoteMediaHTTPSConnection
+
+
+class _RemoteMediaPoolManager(urllib3.PoolManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pool_classes_by_scheme = {
+            "http": _RemoteMediaHTTPPool,
+            "https": _RemoteMediaHTTPSPool,
+        }
+
+
+class _RemoteMediaHTTPAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        self._pool_connections = connections
+        self._pool_maxsize = maxsize
+        self._pool_block = block
+        self.poolmanager = _RemoteMediaPoolManager(
+            num_pools=connections, maxsize=maxsize, block=block, **pool_kwargs
+        )
+
+
+class _RemoteMediaOwnedResponse:
+    """Keep a guarded session alive until the streaming caller closes it."""
+    def __init__(self, session, response):
+        self._session = session
+        self._response = response
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
+    def close(self):
+        try:
+            self._response.close()
+        finally:
+            self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
+
+
+def open_safe_remote_media_stream(url: str, *, timeout=30.0, headers=None):
+    """Allow only public media, validate every redirect and actual socket peer.
+
+    Requests runs with trust_env=False (no untrusted HTTP_PROXY, HTTPS_PROXY or
+    NO_PROXY routing); original host is preserved for HTTPS SNI/cert checks.
     """
     target = str(url or "").strip()
     visited = set()
-    for _ in range(5):
-        validate_remote_media_target(target)
-        if target in visited:
-            raise HTTPException(status_code=400, detail="远程媒体地址存在重定向循环")
-        visited.add(target)
-        response = requests.get(
-            target, stream=True, timeout=timeout,
-            headers=headers or {"User-Agent": "ComfyUI-API-Modelscope/1.0"},
-            allow_redirects=False,
-        )
-        if response.status_code in {301, 302, 303, 307, 308}:
-            location = response.headers.get("location")
-            response.close()
-            if not location:
-                raise HTTPException(status_code=502, detail="远程媒体重定向缺少 Location")
-            target = urllib.parse.urljoin(target, location)
-            continue
-        try:
-            response.raise_for_status()
-        except Exception:
-            response.close()
-            raise
-        return response
-    raise HTTPException(status_code=400, detail="远程媒体重定向次数超限")
+    session = requests.Session()
+    session.trust_env = False
+    session.mount("http://", _RemoteMediaHTTPAdapter())
+    session.mount("https://", _RemoteMediaHTTPAdapter())
+    try:
+        for _ in range(5):
+            validate_remote_media_target(target)
+            if target in visited:
+                raise HTTPException(status_code=400, detail="远程媒体地址存在重定向循环")
+            visited.add(target)
+            response = session.get(
+                target, stream=True, timeout=timeout,
+                headers=headers or {"User-Agent": "ComfyUI-API-Modelscope/1.0"},
+                allow_redirects=False,
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("location")
+                response.close()
+                if not location:
+                    raise HTTPException(status_code=502, detail="远程媒体重定向缺少 Location")
+                target = urllib.parse.urljoin(target, location)
+                continue
+            try:
+                response.raise_for_status()
+            except Exception:
+                response.close()
+                raise
+            return _RemoteMediaOwnedResponse(session, response)
+        raise HTTPException(status_code=400, detail="远程媒体重定向次数超限")
+    except Exception:
+        session.close()
+        raise
 
 
 def fetch_remote_media_bytes(url: str, timeout: float = 30.0, max_bytes: int = 200 * 1024 * 1024):
