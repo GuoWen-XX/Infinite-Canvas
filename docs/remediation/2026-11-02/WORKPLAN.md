@@ -7,14 +7,15 @@
 ## 一、工作规则（强制）
 
 1. **单阶段、单实施分支、单 PR**。以已批准的上一个 `main` HEAD 为基础；不在未审查分支上继续叠加下一阶段代码。
-2. 每阶段顺序：`建立分支 → 先写失败回归测试/复现 → 小范围修改 → 本地验证 → 推送 PR → CI → 远端 Code Review → 修复所有阻断项 → 合并 → 记录交接 → 下一阶段`。
-3. 下一阶段的解锁条件：本阶段 PR **已 merge 到 main**，GitHub Actions 必须 success，明确的 Review 结论通过且没有 unresolved blocking comments。**PR 创建、CI success、Codex Review Summary 显示 running 均不等于审查通过**。
+2. 每阶段顺序：`建立分支 → 先写失败回归测试/复现 → 小范围修改 → 本地/隔离验证 → 推送 PR → 远端 Code Review → 修复所有阻断项 → 合并 → 记录交接 → 下一阶段`。
+3. 下一阶段的解锁条件：本阶段 PR **已 merge 到 main**，具备可核查的本地/隔离测试记录、明确的独立 Review 通过结论且没有 unresolved blocking comments。**不以 GitHub Actions success 为普遍前提；PR 创建、Actions 绿灯、Codex Review Summary 显示 running 都不等于审查通过**。
 4. 若没有提交的 Review approval，可由项目维护者作出明确的人工审查决定，并把结论、证据、理由和仍存风险写入 PR；不能由执行者自己宣称“远端审查通过”。
 5. 每次提交前 `git diff` 审查、最小改动、安全敏感字符串检查；修复失败优先在同一 PR 处理。严禁强推 `main`；严禁修改真实用户 API Key、用户画布或使用真实付费额度做自动测试。
 6. 新发现的严重安全缺陷可标记 `BLOCKED/SECURITY`，修改计划后按新顺序执行；不得悄悄扩大当前阶段范围。
 7. 任何阶段若变更超出当前计划，先更新方案/验收条款并在 PR 上明确说明，再编写代码。
-8. 阶段 PR 均以 `main` 为 base。`zcode/iteration-01` 是当前仓库默认分支，直到单独审议默认分支调整前不修改；必须在 PR 说明里标明这一点。
-9. **持续推进的含义是按审查关卡逐段推进，不是跳过等待；未得到新审查结果时应停在 gate 并报告状态。** 不在未获批准时自动合并或展开下一阶段。
+8. **GitHub Actions 用量红线**：每阶段默认 0 次 Actions 运行；只使用本地/隔离测试、静态检查与独立审查。确实必须使用 Actions 时，先说明原因并取得用户明确同意，然后只手动触发必要的单次运行；不得恢复 push / pull_request 自动触发。
+9. 阶段 PR 均以 `main` 为 base。`zcode/iteration-01` 是当前仓库默认分支，直到单独审议默认分支调整前不修改；必须在 PR 说明里标明这一点。
+10. **持续推进的含义是按审查关卡逐段推进，不是跳过等待；未得到新审查结果时应停在 gate 并报告状态。** 不在未获批准时自动合并或展开下一阶段。
 
 ## 二、阶段路线图
 
@@ -28,7 +29,7 @@
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
-| S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | CI、测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
+| S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
 
 优先级解释：安全 P0 首先修；画布数据丢失 R1 在 S04 专项完整解决；每阶段风险以隔离环境复现结果重新评定，不能仅靠既往静态结论。
 
@@ -41,7 +42,7 @@
 - [x] 引用 PR #2 七项缺陷，区分已隔离复现与独立静态风险。
 - [x] 制定分阶段技术方案、验收方法、回滚与 gate。
 - [ ] 创建并审查计划 PR。
-- [ ] 计划 PR 合入 `main` 并确认 CI 成功与 review gate 满足。
+- [ ] 计划 PR 合入 `main` 并确认远端独立审查与本地可核查验证满足 gate；不为此自动触发 Actions。
 
 ### S01 — API 凭据出站限制（SEC-01）
 
@@ -115,7 +116,7 @@ Tests passed after fix (exact commands and results):
 Manual smoke tests:
 Security/privacy impact:
 Compatibility risks and rollback:
-GitHub Actions URL and status:
+GitHub Actions: NOT_RUN（默认）/ 如经用户明确许可手动触发，记录必要性与运行 URL、状态:
 Code review URL, reviewer and result:
 Open/blocking comments:
 Final merge SHA:
