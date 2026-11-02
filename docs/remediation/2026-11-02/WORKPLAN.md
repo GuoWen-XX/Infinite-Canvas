@@ -78,10 +78,10 @@
 ### S03 — 本地文件及远程下载（SEC-03–05）
 
 - [x] PR #6（`fix/S03-storage-ssrf`）已建立为 draft，独立于已合并 S02 的 `main@ae042d8`。S03 审计见 `S03_AUDIT.md`，逐项记录已确认源码调用链。
-- [x] 第一批 SEC-03 改动：真实路径边界校验应用到存储文件读取/删除、旧 URL 解析、本地素材 basename 回退和列表，保留自定义绝对/UNC 存储路径；8 项临时文件回归已编写，**未运行完整项目**。
+- [x] 第一批 SEC-03 改动：真实路径边界校验应用到存储文件读取/删除、旧 URL 解析、本地素材 basename 回退和列表，保留自定义绝对/UNC 存储路径；9 项临时文件回归已编写，**未运行完整项目**。
 - [x] 第一批 SEC-04 改动：公网上游 DNS/IP 入口与每跳手动重定向检查，覆盖 `fetch_remote_media_bytes` 和 `/api/download-output`；8 项 Mock 网络回归已编写；增加了 connect 后、HTTP/TLS 握手前的实际 socket peer IP 公网校验与 `trust_env=False`，本地独立 HTTPServer 实验阻断本地 HTTP 请求，仍须完整项目与独立安全审查。
-- [x] 第一批 SEC-05 改动：画布导出 ZIP 改用 `SpooledTemporaryFile`，250 文件 / 单文件 200 MiB / 累计输入 512 MiB 上限；5 项临时/Mock 回归已编写。新增测试目前合计 21 项，**未在完整 `main.py` 环境执行**。
-- [ ] 独立审查、处理新 P1/P2、运行正确分支测试、UNC/外置盘与下载兼容回归后，再考虑 PR #6 merge；不得复用 S02 风险例外去自动放行所有后续阶段。
+- [x] 第一批 SEC-05 改动：画布导出 ZIP 改用 `SpooledTemporaryFile`，250 文件 / 单文件 200 MiB / 累计输入 512 MiB 上限；5 项临时/Mock 回归已编写。新增测试目前合计 22 项，**未在完整 `main.py` 环境执行**。
+- [ ] Codex S03 初审报告 P1 DNS rebinding / P1 symlink alias deletion / P2 TOCTOU / P2 ZIP size growth / P2 redirect test DNS mock。已修复或减缓前述四项，**文件句柄 TOCTOU P2 尚未解决**，需要最新 HEAD 复审；运行正确分支测试、UNC/外置盘与下载兼容回归后，再考虑 PR #6 merge；不得复用 S02 风险例外去自动放行所有后续阶段。
 
 
 - [x] S02 已合并至 `main@ae042d8`，S03 从此 SHA 建立 `fix/S03-storage-ssrf`，开始只读基线与回归设计。
