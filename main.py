@@ -17297,7 +17297,8 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
                 size = os.path.getsize(path) if path and os.path.isfile(path) else len(content or b"")
                 if size > CANVAS_ASSET_ZIP_MAX_FILE_BYTES or total_input + size > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES:
                     raise HTTPException(status_code=413, detail="导出素材单文件或总量超过上限")
-                total_input += size
+                if not path:
+                    total_input += size
                 name, ext = os.path.splitext(base)
                 archive_name = base
                 suffix = 2
@@ -17306,7 +17307,17 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
                     suffix += 1
                 used_names.add(archive_name)
                 if path and os.path.isfile(path):
-                    zf.write(path, archive_name)
+                    read_bytes = 0
+                    with open(path, "rb") as source, zf.open(archive_name, "w") as dest:
+                        while True:
+                            chunk = source.read(256 * 1024)
+                            if not chunk:
+                                break
+                            if read_bytes + len(chunk) > CANVAS_ASSET_ZIP_MAX_FILE_BYTES or total_input + len(chunk) > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES:
+                                raise HTTPException(status_code=413, detail="导出素材实际大小超过限制")
+                            dest.write(chunk)
+                            read_bytes += len(chunk)
+                            total_input += len(chunk)
                 else:
                     zf.writestr(archive_name, content)
                 count += 1
