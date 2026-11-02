@@ -1,5 +1,13 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## 2026-11-03 S04 最新执行记录（本节优先于下方旧快照）
+
+- S04 [PR #7](https://github.com/GuoWen-XX/Infinite-Canvas/pull/7)，工作分支 `fix/S04-canvas-conflicts`。S03 已合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，S04 尚未合并。
+- S04 新增锁内版本化软删除与永久 purge、恢复冲突 409、无版本拒绝、classic 未传 `settings` 时保留原设置、classic/smart 远端删除（404/410）保存本地草稿、smart 保存串行化及新编辑排队。用户画布、真实密钥与付费模型未接触。
+- 准确代码 HEAD `6bdbfa13abde05f38f2a449e4ca797b332f690e6`：从 GitHub 读取实际 JS 与测试原文，隔离 V8 mock 中 **33/33 用例通过**、4/4 模块语法解析通过（共 37/37 有限检查）。不是原生 Node、浏览器或完整 Python PASS。新 `tests/test_canvas_revision.py` 共 **18 项已编写，未实际运行**，同样不得称通过。
+- **S04 REVIEW_GATE_BLOCKED / TEST_GATE_BLOCKED**：PR #7 Draft，无正式独立 Review；自动审查机器人提示需要为仓库创建 Codex environment。正确 HEAD 完整 Python `main.py`、Node CLI、双标签浏览器和平台联调缺运行证据；当前本地环境 `github.com` DNS 不通，不能把源码静态读取替代执行。不要手动发 `@codex review`，不运行 GitHub Actions。需有可信验证与审查后方可合并并启动 S05。
+- S02 28 项及 LAN/Chrome/Photoshop/ModelScope、S03 45 项与 Windows/UNC/FFmpeg/Range/发布更新源等延期验收仍为 **S08 发布门禁**。禁止把 S03 风险例外重复称为通过。
+
 ## S04 最新增量：Smart Canvas 并发保存（2026-11-02）
 
 - 以实时 GitHub PR #7 HEAD 为准；本次代码修复提交 `5c98abbc9ca24b8057003b62ed5c7c74589b1233`，之后另有台账提交。
