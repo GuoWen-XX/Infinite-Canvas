@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 IN_PROGRESS / CODE_REVIEW_RECHECK_REQUIRED / TEST_GATE_BLOCKED`。S02 全量回归与 Windows/LAN/Chrome/Photoshop 验证必须在 S08 发布前补齐；S03 新发现的 P1/P2 已提交修复但未获最新 HEAD 复审。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 PR_OPEN / REVIEW_BLOCKED / TEST_GATE_BLOCKED`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 仍未达到审查/测试门禁。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -128,7 +128,17 @@
 
 **2026-11-02 S03 合并、S04 启动记录：** PR #6 最新代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的独立 review 0 findings、14/14 历史线程 resolved。已以明确记录的有限风险例外合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`；风险公告见 PR #6 issue comment `657?`（以 PR 最新 Discussion 为准）。**S03 45 项新增回归并未在完整仓库实际通过，Windows HANDLE/junction/UNC、FFmpeg/Range/Streaming、旧版发布源升级均为 S08 发布阻断验证，绝不可写成 PASS。** 旧更新源不指向本仓库 main，不能据合并称已发布。S02 延期的 28 项与 LAN/Chrome/Photoshop/ModelScope 联调同样是 S08 必补。已从上述 merge SHA 创建 `fix/S04-canvas-conflicts`，开始 R1/R6；GitHub Actions 未触发，不手动请求 Codex Review。
 
+**S03 合并/延期验证记录（2026-11-02）：** PR #6 已于 15:00:18 UTC 合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的 Codex 复审无新发现，14/14 review threads resolved。维护者在 PR 中公开有限风险例外；**45 项新增 S03 测试仍仅已编写，正确 HEAD 全量 unittest、Windows/UNC/junction、FFmpeg/Range/Streaming 与实际更新渠道均未完成验证**。本次合并不是 TEST_GATE_PASS，也不是发布许可；以上全部列为 S08 发布前阻断验收。GitHub Actions 本阶段 0 次主动运行。
+
 ### S04 — 画布保存（R1/R6）
+
+- [x] S03 已合并后从 `main@081edae` 建立 `fix/S04-canvas-conflicts` 与 Draft PR #7；不触及 S05。
+- [x] 首批前端修复阻止普通画布 409 盲目重试，使用本地恢复草稿，避免 WebSocket/轮询直接覆盖未保存编辑。
+- [x] 新增 `tests/test_canvas_revision.py` 期望行为回归（包括元数据改名后旧编辑器拒绝覆盖、两个编辑器同 revision 仅一方可提交、touch 不引发内容假冲突、legacy timestamp 兼容）。**已编写，未在完整 main.py 环境执行。**
+- [x] 后端 `write_canvas` 独立 `revision`、锁内 CAS；meta-only 更新仍递增 revision，标题/图标同时递增 `updated_at` 保护旧客户端；touch 只变活动时间；画布 GET/meta/list/touch 返回 revision。
+- [x] 普通画布、列表页和智能画布传递 revision；智能画布 409 不再盲目合并重试，而保存本地冲突草稿。三份 JS 通过 V8 纯语法解析（不等于浏览器集成测试）。
+- [ ] **当前阻断：** 仍缺真正可操作的草稿恢复/人工合并 UI、双标签端到端验证、正确 HEAD Python unittest 和浏览器联调；PR #7 自动 Codex 审查因未配置 Codex environment 无法开始，须配置独立审查环境或取得可核查维护者审查结论。未达到门禁，不合并、不启动 S05。
+
 
 - [ ] 从 PR #2 的 `review_conflict_probe.cjs` 提炼正确行为回归（旧 probe 的“通过”不能复用）。
 - [ ] 先验证本地旧版本、远端新增、远端删除、多端编辑以及改名冲突的失败。
