@@ -100,6 +100,7 @@ let didPan = false;
 let portDragState = null;
 let connectionEraseState = null;
 let saveTimer = null;
+let smartCanvasConflictPending = false;
 let apiProviders = [];
 let comfyWorkflows = [];
 let comfyInstanceCount = 1;
@@ -5443,7 +5444,7 @@ function applyMergedServerCanvas(serverCanvas){
     return true;
 }
 async function mergeReloadCanvasNow(){
-    if(!canvasId) return;
+    if(!canvasId || smartCanvasConflictPending) return;
     if(dragState || selectionState){
         // 用户正在拖拽/框选，稍后再合并，别打断操作
         scheduleCanvasMergeReload(600);
@@ -6015,6 +6016,7 @@ async function loadCanvas(){
         if(!res.ok) return;
         const data = await res.json();
         canvas = data.canvas;
+        smartCanvasConflictPending = false;
         rememberCanvasListProject(canvas.project || 'default');
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
@@ -6060,10 +6062,10 @@ async function loadCanvas(){
 }
 function scheduleSave(){
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveCanvas, 450);
+    if(!smartCanvasConflictPending) saveTimer = setTimeout(saveCanvas, 450);
 }
 async function saveCanvas(){
-    if(!canvasId || !canvas) return;
+    if(!canvasId || !canvas || smartCanvasConflictPending) return;
     savePromptDraftForCurrent();
     nodes.forEach(node => {
         node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -6087,29 +6089,26 @@ async function saveCanvas(){
                 logs:storageCanvas.logs || [],
                 settings:storageCanvas.settings,
                 base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
+                base_revision:Number(canvas.revision || 0),
                 client_id:smartClientId
             })
         });
         if(res.ok){
             const data = await res.json();
             if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
+            if(data.canvas?.revision != null) canvas.revision = Number(data.canvas.revision);
         } else if(res.status === 409) {
-            // 冲突：别人先保存了。合并对方的状态（节点 id 合并、图片取并集，谁都不丢），
-            // 然后用对方最新的 updated_at 作为基底重存，把合并结果落盘——而不是直接覆盖对方。
-            const data = await res.json().catch(() => ({}));
-            const serverCanvas = data.detail?.canvas;
-            if(serverCanvas){
-                applyMergedServerCanvas(serverCanvas);
-                nodes.forEach(node => {
-                    node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
-                    if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
-                });
-                canvas.nodes = nodes;
-            } else if(data.detail?.updated_at) {
-                canvas.updated_at = data.detail.updated_at;
-            }
+            // Never advance the base and retry an unverified same-ID merge.
+            // Preserve a recoverable draft until the user explicitly resolves it.
+            smartCanvasConflictPending = true;
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveCanvas, 300);
+            try {
+                localStorage.setItem('smart_canvas_conflict_draft_' + canvasId, JSON.stringify({
+                    canvas_id:canvasId, base_revision:Number(canvas.revision || 0),
+                    saved_at:Date.now(), canvas:storageCanvas
+                }));
+            } catch(e) { console.error('Smart canvas conflict backup failed', e); }
+            toast('画布版本冲突：本地草稿已保留，请重新打开并核对后恢复');
         }
     } catch(e) {} finally {
         canvasSyncInFlight = false;
