@@ -852,12 +852,25 @@ async function moveCanvasToProject(id, projectId){
 
 /* ===== Card meta persist (POST /meta) ===== */
 async function persistMeta(id, patch){
+    const record = canvases.find(x => x.id === id);
     try {
         const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patch)
+            body: JSON.stringify({...patch, base_revision: record?.revision ?? null})
         });
+        if(res.status === 409){
+            try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+            const latest = await fetch(`/api/canvases/${encodeURIComponent(id)}`);
+            if(latest.ok){
+                const data = await latest.json();
+                const idx = canvases.findIndex(x => x.id === id);
+                if(idx >= 0 && data.canvas) canvases[idx] = {...canvases[idx], ...data.canvas};
+                renderBoard();
+            }
+            setStatus(L('修改冲突：已保留本地修改，请重新确认','Conflict: local change saved for recovery'));
+            return;
+        }
         if(!res.ok) throw new Error('meta save failed');
         const data = await res.json();
         if(data.canvas){
