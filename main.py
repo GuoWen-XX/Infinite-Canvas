@@ -17146,62 +17146,100 @@ async def check_canvas_assets(payload: CanvasAssetCheckRequest):
             result[text] = True
     return {"exists": result}
 
+# SEC-05: no unbounded in-memory ZIPs or 1000 x 200MiB remote downloads.
+CANVAS_ASSET_ZIP_MAX_FILES = 250
+CANVAS_ASSET_ZIP_MAX_FILE_BYTES = 200 * 1024 * 1024
+CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES = 512 * 1024 * 1024
+
+
 @app.post("/api/canvas-assets/download")
 async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
-    buffer = BytesIO()
+    raw_items = payload.items or [{"url": url} for url in payload.urls]
+    if len(raw_items) > CANVAS_ASSET_ZIP_MAX_FILES:
+        raise HTTPException(status_code=413, detail="导出素材数量超过上限")
+    # SpooledTemporaryFile moves large output to disk instead of retaining
+    # the full ZIP in the worker's memory.
+    buffer = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
     used_names = set()
     count = 0
-    raw_items = payload.items or [{"url": url} for url in payload.urls]
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for raw in raw_items[:1000]:
-            if isinstance(raw, dict):
-                text = str(raw.get("url") or "").strip()
-                requested_name = str(raw.get("name") or "").strip()
-            else:
-                text = str(raw or "").strip()
-                requested_name = ""
-            if not text:
-                continue
-            path = output_file_from_url(text)
-            content = None
-            content_type = ""
-            if path and os.path.isfile(path):
-                base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
-            else:
-                local_by_name = local_media_file_by_basename(filename_from_media_url(text, ""))
-                if local_by_name and os.path.isfile(local_by_name):
-                    path = local_by_name
+    total_input = 0
+    try:
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for raw in raw_items:
+                if isinstance(raw, dict):
+                    text = str(raw.get("url") or "").strip()
+                    requested_name = str(raw.get("name") or "").strip()
+                else:
+                    text = str(raw or "").strip()
+                    requested_name = ""
+                if not text:
+                    continue
+                path = output_file_from_url(text)
+                content = None
+                if path and os.path.isfile(path):
                     base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
                 else:
-                    try:
-                        remote = fetch_remote_media_bytes(text)
-                    except Exception:
-                        remote = None
-                    if not remote:
-                        continue
-                    content, content_type = remote
-                    base = sanitize_export_filename(requested_name or filename_from_media_url(text, f"image-{count + 1}.bin"), f"image-{count + 1}.bin")
-            name, ext = os.path.splitext(base)
-            archive_name = base
-            suffix = 2
-            while archive_name in used_names:
-                archive_name = f"{name}-{suffix}{ext}"
-                suffix += 1
-            used_names.add(archive_name)
-            if path and os.path.isfile(path):
-                zf.write(path, archive_name)
-            else:
-                zf.writestr(archive_name, content)
-            count += 1
-    if count <= 0:
-        raise HTTPException(status_code=404, detail="没有可下载的本地图片")
-    buffer.seek(0)
+                    local_by_name = local_media_file_by_basename(filename_from_media_url(text, ""))
+                    if local_by_name and os.path.isfile(local_by_name):
+                        path = local_by_name
+                        base = sanitize_export_filename(requested_name or os.path.basename(path), os.path.basename(path) or f"image-{count + 1}.png")
+                    else:
+                        remaining = CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES - total_input
+                        if remaining <= 0:
+                            raise HTTPException(status_code=413, detail="导出素材总量超过上限")
+                        try:
+                            remote = fetch_remote_media_bytes(
+                                text, max_bytes=min(CANVAS_ASSET_ZIP_MAX_FILE_BYTES, remaining)
+                            )
+                        except HTTPException as exc:
+                            if exc.status_code == 413:
+                                raise
+                            remote = None
+                        except Exception:
+                            remote = None
+                        if not remote:
+                            continue
+                        content, _content_type = remote
+                        base = sanitize_export_filename(requested_name or filename_from_media_url(text, f"image-{count + 1}.bin"), f"image-{count + 1}.bin")
+                size = os.path.getsize(path) if path and os.path.isfile(path) else len(content or b"")
+                if size > CANVAS_ASSET_ZIP_MAX_FILE_BYTES or total_input + size > CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES:
+                    raise HTTPException(status_code=413, detail="导出素材单文件或总量超过上限")
+                total_input += size
+                name, ext = os.path.splitext(base)
+                archive_name = base
+                suffix = 2
+                while archive_name in used_names:
+                    archive_name = f"{name}-{suffix}{ext}"
+                    suffix += 1
+                used_names.add(archive_name)
+                if path and os.path.isfile(path):
+                    zf.write(path, archive_name)
+                else:
+                    zf.writestr(archive_name, content)
+                count += 1
+        if count <= 0:
+            raise HTTPException(status_code=404, detail="没有可下载的本地图片")
+        buffer.seek(0)
+    except Exception:
+        buffer.close()
+        raise
     filename = re.sub(r'[\\/:*?"<>|]+', "_", payload.filename or "canvas-output-images.zip")
     if not filename.lower().endswith(".zip"):
         filename += ".zip"
     encoded = urllib.parse.quote(filename)
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"}
-    return Response(buffer.getvalue(), media_type="application/zip", headers=headers)
+
+    def stream_zip():
+        try:
+            while True:
+                chunk = buffer.read(256 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            buffer.close()
+
+    return StreamingResponse(stream_zip(), media_type="application/zip", headers=headers)
 
 def sanitize_export_filename(name: str, fallback: str) -> str:
     base = os.path.basename(str(name or "").strip()) or fallback
