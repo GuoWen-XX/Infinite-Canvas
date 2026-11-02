@@ -2381,7 +2381,7 @@ def update_allowed_file(path: str) -> bool:
     path = str(path or "").replace("\\", "/").lstrip("/")
     if not path or any(part in {"", ".", ".."} for part in path.split("/")):
         return False
-    return path in {"main.py", "VERSION"} or path.startswith("static/")
+    return path in {"main.py", "VERSION", "storage_guard.py"} or path.startswith("static/")
 
 # 缓存 GitHub Tree API 响应（含 ETag），减少 60 次/h 限流压力
 GITHUB_TREE_CACHE: Dict[str, Any] = {"etag": "", "data": None, "expires_at": 0.0}
@@ -2674,7 +2674,16 @@ def validate_staged_update(staging_root: str, root_files: List[str], static_file
     if not os.path.isfile(main_path) or not os.path.isfile(version_path):
         raise RuntimeError("更新暂存缺少 main.py 或 VERSION")
     with open(main_path, "rb") as f:
-        compile(f.read(), main_path, "exec")
+        main_source = f.read()
+        compile(main_source, main_path, "exec")
+    # The new media handler is a required dependency. Never replace main.py
+    # while leaving storage_guard.py absent or syntactically invalid.
+    if b"from storage_guard import" in main_source:
+        guard_path = os.path.join(staging_root, "storage_guard.py")
+        if "storage_guard.py" not in (root_files or []) or not os.path.isfile(guard_path):
+            raise RuntimeError("更新暂存缺少 storage_guard.py，拒绝安装不完整版本")
+        with open(guard_path, "rb") as f:
+            compile(f.read(), guard_path, "exec")
     with open(version_path, "r", encoding="utf-8") as f:
         version = (f.read().strip().splitlines() or [""])[0].strip()
     if not version or len(version) > 80 or any(ch in version for ch in "<>\\r\\n"):
