@@ -1734,8 +1734,6 @@ async function patchCanvasMeta(id, patch){
             body:JSON.stringify({...patch, base_revision:item?.revision ?? canvas?.revision ?? null})
         });
         if(res.status === 409){
-            try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
-            window.CanvasConflictRecovery?.showMetadata({id,patch});
             throw new Error('metadata revision conflict; attempted changes preserved locally');
         }
         if(!res.ok) throw new Error('meta save failed');
@@ -1749,6 +1747,10 @@ async function patchCanvasMeta(id, patch){
             }
         }
     } catch(e){
+        // Network/5xx failures are just as recoverable as a 409: keep the
+        // optimistic title/icon/metadata patch available after a reload.
+        try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+        window.CanvasConflictRecovery?.showMetadata({id,patch});
         setStatus(tr('canvas.metaSaveFailed') || '保存失败');
         console.error(e);
         await loadCanvasList(false);
