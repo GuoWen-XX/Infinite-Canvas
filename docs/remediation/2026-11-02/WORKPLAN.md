@@ -227,3 +227,11 @@ Final merge SHA:
 - The GitHub workflow remains `workflow_dispatch`-only; no Actions runs or paid AI were triggered. The local container still cannot resolve github.com and lacks a full checkout.
 - **REVIEW_BLOCKED:** PR #7 has no formal reviews and no inline threads; the Codex connector bot requires creating a repository Codex environment. This requires user-side configuration or an alternative independent reviewer. Do not self-approve or merge S04.
 - Further S04 verification: two-tab simultaneous add/edit/delete, same-node delete-vs-edit, title/icon changes, explicit recovery-copy flow, stale draft retention, smart-canvas background saves and cross-tab revisions. S02/S03 deferred full tests remain S08 release blockers.
+
+
+## S04 Smart Canvas 并发保存修复与可核查隔离回归（2026-11-02）
+
+- **真实复现（修复前）**：直接提取 PR #7 中 `smart-canvas.js` 的 `saveCanvas/scheduleSave`，在隔离 V8 Deferred HTTP 中观察到两次同时发送的 PUT 使用相同 `base_revision=4`，且请求期间新增节点未写入 409 恢复草稿（草稿只有旧节点）。这是本阶段 R1 的实质性数据丢失风险，不是纯静态推测。
+- **同 PR 最小修复**：`smart-canvas.js` 现在串行化 PUT，合并保存期间的新编辑，并在服务器确认最新 revision 后按新版本重新保存；409/404/410 备份当前最新节点与设置而非旧请求快照；切换画布后的迟到响应不能修改新画布；暂时网络失败保留本地恢复草稿。新增 `tests/test_smart_canvas_save_serialization.cjs` 5 项。
+- **实际有限验证**：在准确代码 HEAD `5c98abbc9ca24b8057003b62ed5c7c74589b1233` 通过 GitHub 连接器读取四份 JS 模块及五份 CJS 测试原文，在隔离 V8 中用 Node 内置模块等价 shim 执行全部 **32/32 PASS**（8 recovery + 9 delete CAS + 3 metadata + 7 save races + 5 smart serialization）。这不是 Node CLI `node --test`，不是完整浏览器双标签测试，也不是 Python `main.py` 集成回归。
+- **门禁不变**：S04 PR #7 仍为 Draft；独立 Codex Review 因仓库 environment 未配置而阻断，正确 HEAD 的 Python unittest、真实 Node/浏览器及跨平台测试尚未通过。S05 不得启动；Actions 未触发、未使用真实用户数据/密钥或付费模型。
