@@ -855,6 +855,22 @@ async function moveCanvasToProject(id, projectId){
 
 /* ===== Card meta persist (POST /meta) ===== */
 async function persistMeta(id, patch){
+    function preserveFailedPatch(){
+        const key = 'canvas_meta_conflict_' + id;
+        let previous = {};
+        try {
+            const stored = JSON.parse(localStorage.getItem(key) || 'null');
+            if(stored?.patch && typeof stored.patch === 'object' && !Array.isArray(stored.patch)) previous = stored.patch;
+        } catch(_) {}
+        const merged = {...previous, ...patch};
+        let persisted = false;
+        try {
+            localStorage.setItem(key, JSON.stringify({patch:merged, saved_at:Date.now()}));
+            persisted = true;
+        } catch(err) { console.error('Unable to persist metadata recovery draft', err); }
+        window.CanvasConflictRecovery?.showMetadata({id, patch:merged, ...(!persisted ? {persistenceError:true} : {})});
+        return persisted;
+    }
     const record = canvases.find(x => x.id === id);
     try {
         const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
@@ -863,7 +879,7 @@ async function persistMeta(id, patch){
             body: JSON.stringify({...patch, base_revision: record?.revision ?? null})
         });
         if(res.status === 409){
-            try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+            preserveFailedPatch();
             const latest = await fetch(`/api/canvases/${encodeURIComponent(id)}`);
             if(latest.ok){
                 const data = await latest.json();
@@ -871,7 +887,6 @@ async function persistMeta(id, patch){
                 if(idx >= 0 && data.canvas) canvases[idx] = {...canvases[idx], ...data.canvas};
                 renderBoard();
             }
-            window.CanvasConflictRecovery?.showMetadata({id,patch});
             setStatus(L('修改冲突：已保留本地修改，请重新确认','Conflict: local change saved for recovery'));
             return;
         }
@@ -884,8 +899,7 @@ async function persistMeta(id, patch){
     } catch(e){
         // Transport/server failures must retain the optimistic metadata edit,
         // just like a 409. Otherwise a reload silently loses the user's change.
-        try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
-        window.CanvasConflictRecovery?.showMetadata({id,patch});
+        preserveFailedPatch();
         console.error(e);
         setStatus(L('属性未保存：已保留本地修改','Metadata not saved: local edit preserved'));
     }
