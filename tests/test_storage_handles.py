@@ -191,29 +191,68 @@ sys.exit(3)
             self.skipTest("POSIX search-only directory")
         if not (getattr(os, "O_PATH", None) is not None
                 or getattr(os, "O_SEARCH", None) is not None):
-            self.skipTest("platform does not support search-only directory FD")
+            self.skipTest("platform lacks search-only descriptor support")
         folder = self.root / "search_only"
         folder.mkdir()
         file = folder / "readable.png"
         file.write_bytes(b"READABLE")
-        # 0711 leaves the owner with read permission and gives a false pass.
-        # Owner needs write+search for unlink, but must NOT have read access.
-        if not hasattr(os, "geteuid") or os.geteuid() == 0:
-            self.skipTest("directory permission regression requires a non-root POSIX user")
-        folder.chmod(0o311)
+        file.chmod(0o644)
+
+        # In a normal user process: owner has write+search but NO read (0311).
+        # Under root: execute the same test after dropping to 'nobody',
+        # letting "others" write+search but NOT read (0733).
+        run_as = None
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            try:
+                import pwd
+                nobody = pwd.getpwnam("nobody")
+            except (ImportError, KeyError):
+                self.skipTest("cannot create an unprivileged POSIX fixture")
+            os.chmod(self.temp.name, 0o755)
+            self.root.chmod(0o755)
+            folder.chmod(0o733)
+
+            def drop_privileges():
+                os.setgroups([])
+                os.setgid(nobody.pw_gid)
+                os.setuid(nobody.pw_uid)
+
+            run_as = drop_privileges
+        else:
+            folder.chmod(0o311)
         self.addCleanup(folder.chmod, 0o755)
-        # First prove this fixture catches the old O_RDONLY regression.
-        with self.assertRaises(PermissionError):
-            old_fd = os.open(
-                str(folder), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-            )
-            os.close(old_fd)
-        # O_PATH/O_SEARCH must succeed where O_RDONLY failed.
-        with storage_guard.open_scoped_file(str(self.root), str(file)) as stream:
-            self.assertEqual(stream.read(), b"READABLE")
-        # The same search-only directory must permit anchored deletion.
-        storage_guard.unlink_scoped_file(str(self.root), str(file))
-        self.assertFalse(file.exists())
+
+        # Copy the exact helper source into the temporary fixture, so a
+        # process without permission to enter the checkout can still import.
+        helper_copy = Path(self.temp.name) / "storage_guard.py"
+        helper_copy.write_bytes(Path(storage_guard.__file__).read_bytes())
+        helper_copy.chmod(0o644)
+        script = r"""
+import os
+import sys
+sys.path.insert(0, sys.argv[4])
+import storage_guard
+root, path, restricted = sys.argv[1:4]
+flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+try:
+    old_fd = os.open(restricted, flags)
+except PermissionError:
+    pass
+else:
+    os.close(old_fd)
+    sys.exit("old O_RDONLY unexpectedly opened a no-read directory")
+with storage_guard.open_scoped_file(root, path) as source:
+    assert source.read() == b"READABLE"
+storage_guard.unlink_scoped_file(root, path)
+assert not os.path.lexists(path)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(self.root), str(file),
+             str(folder), str(self.temp.name)],
+            capture_output=True, text=True, timeout=10,
+            preexec_fn=run_as,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_windows_handle_compare_does_not_reresolve_mutable_root(self):
         trusted = r"C:\\media\\allowed"
