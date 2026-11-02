@@ -166,6 +166,26 @@ sys.exit(3)
         )
         self.assertEqual(run.returncode, 0, run.stderr)
 
+    def test_posix_root_replaced_with_symlink_cannot_escape(self):
+        if os.name == "nt":
+            self.skipTest("POSIX root replacement fixture")
+        file = self.root / "image.png"
+        file.write_bytes(b"INSIDE")
+        (self.outside / "image.png").write_bytes(b"OUTSIDE")
+        original = storage_guard._parts_beneath
+        moved = self.root.with_name("original_moved")
+
+        def replace_root(root, path, **kwargs):
+            parts = original(root, path, **kwargs)
+            self.root.rename(moved)
+            self._link(self.root, self.outside)
+            return parts
+
+        with patch.object(storage_guard, "_parts_beneath", side_effect=replace_root):
+            with self.assertRaises((OSError, storage_guard.UnsafeStoragePath)):
+                storage_guard.open_scoped_file(str(self.root), str(file))
+        self.assertEqual((self.outside / "image.png").read_bytes(), b"OUTSIDE")
+
     def test_posix_search_only_directory_remains_accessible(self):
         if os.name == "nt":
             self.skipTest("POSIX search-only directory")
