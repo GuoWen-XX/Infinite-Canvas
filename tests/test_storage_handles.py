@@ -191,48 +191,62 @@ sys.exit(3)
             self.skipTest("POSIX search-only directory")
         if not (getattr(os, "O_PATH", None) is not None
                 or getattr(os, "O_SEARCH", None) is not None):
-            self.skipTest("platform lacks search-only descriptor support")
-        folder = self.root / "search_only"
-        folder.mkdir()
-        file = folder / "readable.png"
-        file.write_bytes(b"READABLE")
-        file.chmod(0o644)
+            self.skipTest("platform lacks search-only directory FD")
+        # Do not use TMPDIR: under root it may be /root/private/0700 and
+        # nobody cannot traverse its *ancestors*. Never chmod TMPDIR itself.
+        public_base = Path("/tmp")
+        if not public_base.is_dir():
+            self.skipTest("No public POSIX test fixture base")
+        import stat
+        for ancestor in (public_base.resolve(), *public_base.resolve().parents):
+            if not (ancestor.stat().st_mode & stat.S_IXOTH):
+                self.skipTest("Public POSIX test fixture has private ancestor")
 
-        # In a normal user process: owner has write+search but NO read (0311).
-        # Under root: execute the same test after dropping to 'nobody',
-        # letting "others" write+search but NOT read (0733).
-        run_as = None
-        if hasattr(os, "geteuid") and os.geteuid() == 0:
+        privileged = hasattr(os, "geteuid") and os.geteuid() == 0
+        if privileged:
             try:
                 import pwd
-                nobody = pwd.getpwnam("nobody")
+                pwd.getpwnam("nobody")
             except (ImportError, KeyError):
-                self.skipTest("cannot create an unprivileged POSIX fixture")
-            os.chmod(self.temp.name, 0o755)
-            self.root.chmod(0o755)
-            folder.chmod(0o733)
+                self.skipTest("nobody account unavailable for unprivileged fixture")
 
-            def drop_privileges():
-                os.setgroups([])
-                os.setgid(nobody.pw_gid)
-                os.setuid(nobody.pw_uid)
+        # This is a new isolated fixture under a verified public base, not a
+        # change to an existing user-controlled or configured media folder.
+        with tempfile.TemporaryDirectory(prefix="s03_search_perm_", dir=str(public_base)) as temp:
+            sandbox = Path(temp)
+            sandbox.chmod(0o755)
+            root = sandbox / "allowed"
+            root.mkdir(mode=0o755)
+            folder = root / "search_only"
+            folder.mkdir()
+            target = folder / "readable.png"
+            target.write_bytes(b"READABLE")
+            target.chmod(0o644)
+            folder.chmod(0o733 if privileged else 0o311)
 
-            run_as = drop_privileges
-        else:
-            folder.chmod(0o311)
-        self.addCleanup(folder.chmod, 0o755)
-
-        # Copy the exact helper source into the temporary fixture, so a
-        # process without permission to enter the checkout can still import.
-        helper_copy = Path(self.temp.name) / "storage_guard.py"
-        helper_copy.write_bytes(Path(storage_guard.__file__).read_bytes())
-        helper_copy.chmod(0o644)
-        script = r"""
+            # -I isolates imports from checkout cwd and PYTHONPATH. Staging
+            # an exact helper copy also avoids relying on checkout permissions.
+            helper_copy = sandbox / "storage_guard.py"
+            helper_copy.write_bytes(Path(storage_guard.__file__).read_bytes())
+            helper_copy.chmod(0o644)
+            script = r"""
 import os
 import sys
-sys.path.insert(0, sys.argv[4])
+root, path, restricted, helper_dir, drop = sys.argv[1:6]
+sys.path.insert(0, helper_dir)
 import storage_guard
-root, path, restricted = sys.argv[1:4]
+assert os.path.realpath(storage_guard.__file__) == os.path.realpath(
+    os.path.join(helper_dir, "storage_guard.py")
+)
+# The interpreter, stdlib and helper have ALL been loaded before changing UID.
+# This permits Python installed under private /root/.pyenv or similar.
+if drop == "1":
+    import pwd
+    nobody = pwd.getpwnam("nobody")
+    os.setgroups([])
+    os.setgid(nobody.pw_gid)
+    os.setuid(nobody.pw_uid)
+    assert os.geteuid() == nobody.pw_uid
 flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 try:
     old_fd = os.open(restricted, flags)
@@ -240,19 +254,18 @@ except PermissionError:
     pass
 else:
     os.close(old_fd)
-    sys.exit("old O_RDONLY unexpectedly opened a no-read directory")
+    sys.exit("old O_RDONLY unexpectedly opened a directory without read")
 with storage_guard.open_scoped_file(root, path) as source:
     assert source.read() == b"READABLE"
 storage_guard.unlink_scoped_file(root, path)
 assert not os.path.lexists(path)
 """
-        result = subprocess.run(
-            [sys.executable, "-c", script, str(self.root), str(file),
-             str(folder), str(self.temp.name)],
-            capture_output=True, text=True, timeout=10,
-            preexec_fn=run_as,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", script, str(root), str(target),
+                 str(folder), str(sandbox), "1" if privileged else "0"],
+                cwd=str(sandbox), capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_windows_handle_compare_does_not_reresolve_mutable_root(self):
         trusted = r"C:\\media\\allowed"
