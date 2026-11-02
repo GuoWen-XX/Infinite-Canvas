@@ -53,7 +53,7 @@
 - [x] 已提交实施 PR #4（`fix/S01-provider-key-binding` → `main`），列明凭据出站风险、变更、离线测试、运行限制与回滚。
 - [ ] 远端审查通过，合入后才能解锁 S02。
 
-**验证现状（S01，PR #4）：** 在隔离的 Python 环境执行独立 `provider_probe_security.py` 8 项单元测试：8/8 PASS；新增了 `tests/test_provider_probe_endpoints.py` 路由/配置重新绑定 Mock 回归，完整仓库回归及该路由测试当前**尚未执行**，需在 PR 远端独立审查/维护者本地测试中完成。已修复“删除平台配置后使用残留 env Key 同 ID 重建”的路径；**GitHub Actions 运行次数：0。**
+**验证现状（S01，PR #4）：** 在隔离 Python 环境运行与最新内联规则等价的纯函数测试：**10/10 PASS**（新增 IDNA 差异回归）；已为三项 Codex P1 审查反馈补充 Mock 路由和配置覆盖测试，**完整项目环境中的路由测试与全量测试尚未运行**。2026-11-02 Codex 对较早提交 `4fb8d82` 提出三项 P1：非 RunningHub 凭据经固定域名二次请求外送、内置 IDNA 与 HTTPX 不一致、新增根模块无法被旧更新器下载；上述问题均已在本 PR 新提交中修正，已逐条回复原审查意见，**等待最新 HEAD 复审**。**GitHub Actions 运行次数：0**，不得因缺少 CI 成功标记而绕过独立审查或误报完整回归通过。
 
 ### S02 — 身份和 Token（SEC-02）
 
