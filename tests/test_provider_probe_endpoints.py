@@ -53,6 +53,50 @@ class ProviderProbeEndpointSecurityTests(unittest.TestCase):
             self.assertEqual(exc.exception.status_code, 400)
             save.assert_not_called()
 
+    def test_saved_non_runninghub_key_cannot_run_runninghub_probe(self):
+        payload = main.TestConnectionPayload(
+            base_url="https://approved.example/v1",
+            provider_id="demo", protocol="runninghub",
+        )
+        with patch.object(main, "runninghub_models_payload", new=AsyncMock(side_effect=AssertionError("must not send key"))) as upstream:
+            with self.assertRaises(main.HTTPException) as error:
+                asyncio.run(main.test_provider_connection(payload))
+            self.assertEqual(error.exception.status_code, 400)
+            upstream.assert_not_awaited()
+        with patch.object(main, "runninghub_models_payload", new=AsyncMock(side_effect=AssertionError("must not send key"))) as upstream:
+            with self.assertRaises(main.HTTPException) as error:
+                asyncio.run(main.fetch_upstream_models_from_payload(payload))
+            self.assertEqual(error.exception.status_code, 400)
+            upstream.assert_not_awaited()
+
+    def test_custom_runninghub_base_skips_fixed_host_llm_probe(self):
+        provider = {"id": "runninghub", "base_url": "https://rh-approved.example", "wallet_api_key": "test-wallet"}
+        with patch.object(main, "runninghub_api_headers", side_effect=AssertionError("must not read or send key")) as headers:
+            result, meta = asyncio.run(main.fetch_runninghub_llm_models(provider))
+            self.assertEqual(result, [])
+            self.assertEqual(meta["count"], 0)
+            headers.assert_not_called()
+        self.assertTrue(main.runninghub_official_llm_probe_allowed({"base_url": "https://www.runninghub.ai"}))
+        self.assertFalse(main.runninghub_official_llm_probe_allowed({"base_url": "https://runninghub.ai.attacker.example"}))
+        self.assertFalse(main.runninghub_official_llm_probe_allowed({"base_url": "http://www.runninghub.ai"}))
+
+    def test_put_unicode_idna_alias_must_rekey_even_when_built_in_codec_collides(self):
+        with patch.object(main, "load_api_providers", return_value=[{"id": "demo", "base_url": "https://fass.example/v1", "enabled": True}]):
+            payload = main.ApiProviderPayload(id="demo", base_url="https://faß.example/v1", protocol="openai")
+            with patch.object(main, "save_api_providers", side_effect=AssertionError("must not write")) as save:
+                with self.assertRaises(main.HTTPException) as error:
+                    asyncio.run(main.save_providers([payload]))
+                self.assertEqual(error.exception.status_code, 400)
+                save.assert_not_called()
+
+    def test_invalid_prior_url_never_silently_rebinds_saved_key(self):
+        with patch.object(main, "load_api_providers", return_value=[{"id": "demo", "base_url": "https://faß.example/v1", "enabled": True}]):
+            payload = main.ApiProviderPayload(id="demo", base_url="https://faß.example/v1", protocol="openai")
+            with patch.object(main, "save_api_providers", side_effect=AssertionError("must not write")) as save:
+                with self.assertRaises(main.HTTPException):
+                    asyncio.run(main.save_providers([payload]))
+                save.assert_not_called()
+
     def test_saved_key_rejected_for_changed_provider_url(self):
         payload = main.TestConnectionPayload(base_url="https://attacker.example/v1", provider_id="demo")
         with self.assertRaises(main.HTTPException) as exc:
