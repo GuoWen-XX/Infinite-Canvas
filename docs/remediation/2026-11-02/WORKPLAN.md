@@ -24,8 +24,8 @@
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
 | S02 | MERGED / DEFERRED VALIDATION | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
-| S03 | IN_PROGRESS | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
-| S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
+| S03 | MERGED / DEFERRED VALIDATION | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
+| S04 | IN_PROGRESS | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
@@ -124,6 +124,9 @@
 - [x] `5ae5f710b78afc83317333c9884fb5d93fefe835` 最新 Codex 审查 `completed / findings=true / unresolved=true`，新提 P2 `PRRT_kwDOUaWIpM6ysc4e`：root 的私有 `sys.executable` 无法在 `preexec_fn` 降权后执行；P2 `PRRT_kwDOUaWIpM6ysc4n`：私有 `TMPDIR` 祖先不可搜索使 nobody 无法进入测试目录。
 - [x] 同一 PR 已提交针对性修复：先**以当前权限启动**原 Python，传入 `-I` 隔离模块搜索路径，并从专用临时目录导入该提交的 `storage_guard.py` 兼容源码后**才在子进程内 setuid/setgid(nobody)**；整个测试目录创建于所有祖先经过 `other +x` 检查的标准 `/tmp` 下，完全不修改用户 `TMPDIR` 的权限；在同一降权身份先核实旧 `O_RDONLY` 必失败，再测试 `O_PATH/O_SEARCH` 读取和删临时文件，最后恢复目录权限以保证 `TemporaryDirectory` 可清理。non-root 时仍直接验证 0311 目录，无额外降权。
 - [ ] 此次修复需要对 **最终 HEAD** 再次独立审查，九条原有未解决 findings（已提交代码修复或测试修复）不能预先关闭。S03 共 **45 项回归代码**，没有完整项目 PASS；隔离内核权限验证 1 次成功并非仓库回归测试。S02 延期实测必须在 S08 发布前补齐。
+
+
+**2026-11-02 S03 合并、S04 启动记录：** PR #6 最新代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的独立 review 0 findings、14/14 历史线程 resolved。已以明确记录的有限风险例外合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`；风险公告见 PR #6 issue comment `657?`（以 PR 最新 Discussion 为准）。**S03 45 项新增回归并未在完整仓库实际通过，Windows HANDLE/junction/UNC、FFmpeg/Range/Streaming、旧版发布源升级均为 S08 发布阻断验证，绝不可写成 PASS。** 旧更新源不指向本仓库 main，不能据合并称已发布。S02 延期的 28 项与 LAN/Chrome/Photoshop/ModelScope 联调同样是 S08 必补。已从上述 merge SHA 创建 `fix/S04-canvas-conflicts`，开始 R1/R6；GitHub Actions 未触发，不手动请求 Codex Review。
 
 ### S04 — 画布保存（R1/R6）
 
