@@ -1,13 +1,8 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)"
-if [ -z "$LAN_IP" ]; then
-  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-fi
-if [ -z "$LAN_IP" ]; then
-  LAN_IP="127.0.0.1"
-fi
-APP_URL="http://${LAN_IP}:3000/"
+# The server binds loopback by default; the local browser should use it
+# even when this workstation has a LAN IP address.
+APP_URL="http://127.0.0.1:3000/"
 
 echo "Starting ComfyUI-API-Modelscope..."
 echo "Visit: ${APP_URL}"
