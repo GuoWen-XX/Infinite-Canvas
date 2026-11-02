@@ -97,6 +97,35 @@ class ProviderProbeEndpointSecurityTests(unittest.TestCase):
                     asyncio.run(main.save_providers([payload]))
                 save.assert_not_called()
 
+    def test_cli_model_discovery_with_empty_base_url_skips_key_resolution(self):
+        """Codex, Gemini CLI and Jimeng do not need an HTTP credential."""
+        for protocol in ("codex", "gemini-cli", "jimeng"):
+            with self.subTest(protocol=protocol):
+                payload = main.TestConnectionPayload(
+                    provider_id=protocol, protocol=protocol, base_url="", api_key=""
+                )
+                expected = {"total": 0, "all": [], "protocol": protocol}
+                with patch.object(main, "api_key_from_payload", side_effect=AssertionError("no key lookup")) as resolver:
+                    with patch.object(main, "fetch_models_from_upstream", new=AsyncMock(return_value=expected)) as fetch:
+                        result = asyncio.run(main.fetch_upstream_models_from_payload(payload))
+                        self.assertEqual(result, expected)
+                        fetch.assert_awaited_once_with("", "", protocol, payload.image_request_mode)
+                    resolver.assert_not_called()
+
+    def test_cli_model_discovery_does_not_make_http_requests(self):
+        """Exercise real CLI/static dispatch with mocked local status functions."""
+        for protocol in ("codex", "gemini-cli", "jimeng"):
+            with self.subTest(protocol=protocol):
+                payload = main.TestConnectionPayload(
+                    provider_id=protocol, protocol=protocol, base_url=""
+                )
+                with patch.object(main, "codex_status", new=AsyncMock(return_value={"installed": False, "message": "mocked"})):
+                    with patch.object(main, "gemini_cli_status", new=AsyncMock(return_value={"installed": False, "message": "mocked"})):
+                        with patch.object(main.httpx, "AsyncClient", side_effect=AssertionError("must not make HTTP request")) as client:
+                            result = asyncio.run(main.fetch_upstream_models_from_payload(payload))
+                            self.assertIn("all", result)
+                            client.assert_not_called()
+
     def test_saved_key_rejected_for_changed_provider_url(self):
         payload = main.TestConnectionPayload(base_url="https://attacker.example/v1", provider_id="demo")
         with self.assertRaises(main.HTTPException) as exc:
