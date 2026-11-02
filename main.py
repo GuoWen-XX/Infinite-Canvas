@@ -41,6 +41,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
+from storage_guard import open_scoped_file, unlink_scoped_file, UnsafeStoragePath
 from fastapi.middleware.cors import CORSMiddleware
 
 class UntrustedProbeTarget(ValueError):
@@ -7606,6 +7608,87 @@ def storage_contained_realpath(root, candidate):
         return None
 
 
+def open_local_media_scoped(path):
+    """Read from a pinned descriptor belonging to a configured media root.
+
+    Do not return to path-based open after this point: a writable volume
+    may be changed by another process after an earlier realpath check.
+    """
+    roots = (OUTPUT_OUTPUT_DIR, OUTPUT_INPUT_DIR, LOCAL_UPLOAD_DIR, ASSETS_DIR, OUTPUT_DIR)
+    for root in roots:
+        if storage_contained_realpath(root, path) is not None:
+            return open_scoped_file(root, path)
+    raise UnsafeStoragePath("file is outside configured media roots")
+
+
+def scoped_local_file_response(root, path, *, media_type, request=None, filename=None):
+    """Stream an already-validated file descriptor, including single ranges."""
+    try:
+        source = open_scoped_file(root, path)
+    except UnsafeStoragePath as exc:
+        raise HTTPException(status_code=400, detail="文件不在许可存储目录中") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="本地文件不可读取") from exc
+    size = os.fstat(source.fileno()).st_size
+    start, end = 0, size - 1
+    status = 200
+    headers = {"Accept-Ranges": "bytes"}
+    requested = request.headers.get("range") if request is not None else None
+    if requested:
+        match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip(), flags=re.I)
+        if not match or not size or not (match.group(1) or match.group(2)):
+            source.close()
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        first, last = match.group(1), match.group(2)
+        if not first:
+            suffix = int(last)
+            if suffix < 1:
+                source.close()
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+            start = max(0, size - suffix)
+        else:
+            start = int(first)
+            end = min(int(last), size - 1) if last else size - 1
+        if start > end or start >= size:
+            source.close()
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        status = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers["Content-Length"] = str(end - start + 1 if size else 0)
+    if filename:
+        headers["Content-Disposition"] = (
+            "attachment; filename*=UTF-8''" + urllib.parse.quote(str(filename))
+        )
+
+    def read_pinned():
+        try:
+            source.seek(start)
+            remaining = end - start + 1 if size else 0
+            while remaining > 0:
+                chunk = source.read(min(256 * 1024, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+        finally:
+            source.close()
+
+    return StreamingResponse(
+        read_pinned(), status_code=status, media_type=media_type,
+        headers=headers, background=BackgroundTask(source.close),
+    )
+
+
+def scoped_media_file_response(path, *, media_type, request=None, filename=None):
+    roots = (OUTPUT_OUTPUT_DIR, OUTPUT_INPUT_DIR, LOCAL_UPLOAD_DIR, ASSETS_DIR, OUTPUT_DIR)
+    for root in roots:
+        if storage_contained_realpath(root, path) is not None:
+            return scoped_local_file_response(
+                root, path, media_type=media_type, request=request, filename=filename
+            )
+    raise HTTPException(status_code=400, detail="本地文件不在许可的媒体目录中")
+
+
 def storage_file_path(kind, rel, *, preserve_entry=False):
     root = storage_kind_dir(kind)
     rel_path = str(rel or "").replace("\\", "/").lstrip("/")
@@ -7731,11 +7814,14 @@ async def list_storage_files(kind: str = "generated", offset: int = 0, limit: in
     }
 
 @app.get("/api/storage-files/{kind}/{rel_path:path}")
-async def get_storage_file(kind: str, rel_path: str):
+async def get_storage_file(kind: str, rel_path: str, request: Request):
     path = storage_file_path(kind, rel_path)
-    if not path or not os.path.isfile(path):
+    if not path:
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(path, media_type=content_type_for_path(path))
+    return scoped_local_file_response(
+        storage_kind_dir(kind), path,
+        media_type=content_type_for_path(path), request=request,
+    )
 
 @app.post("/api/storage-files/delete")
 async def delete_storage_files(payload: Dict[str, Any]):
@@ -7749,8 +7835,10 @@ async def delete_storage_files(payload: Dict[str, Any]):
         if not path or not os.path.isfile(path):
             continue
         try:
-            os.remove(path)
+            unlink_scoped_file(storage_kind_dir(kind), path)
             removed += 1
+        except UnsafeStoragePath as exc:
+            raise HTTPException(status_code=400, detail="文件路径发生越界变更") from exc
         except OSError:
             pass
     return {"removed": removed}
@@ -12620,7 +12708,7 @@ def view_image(filename: str, type: str = "input", subfolder: str = ""):
         if safe_name:
             local_path = output_path_for(safe_name, "input" if type == "input" else "output")
             if os.path.isfile(local_path):
-                return FileResponse(local_path, media_type=content_type_for_path(local_path))
+                return scoped_media_file_response(local_path, media_type=content_type_for_path(local_path))
     raise HTTPException(status_code=404, detail="Image not found on any available backend")
 
 @app.get("/api/download-output")
@@ -12631,7 +12719,10 @@ def download_output(request: Request, url: str, name: str = "", inline: bool = F
         path = local_media_file_by_basename(filename_from_media_url(url, ""))
     if path:
         filename = sanitize_export_filename(os.path.basename(name) if name else os.path.basename(path), os.path.basename(path))
-        return FileResponse(path, media_type=content_type_for_path(path), filename=None if inline else filename)
+        return scoped_media_file_response(
+            path, media_type=content_type_for_path(path), request=request,
+            filename=None if inline else filename,
+        )
     # 远程文件：流式代理，绝不把整段视频/大文件读进内存（否则多个视频同时代理会撑爆内存、拖垮单进程服务）。
     try:
         upstream_headers = {"User-Agent": "ComfyUI-API-Modelscope/1.0"}
@@ -17309,7 +17400,7 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
                 used_names.add(archive_name)
                 if path and os.path.isfile(path):
                     read_bytes = 0
-                    with open(path, "rb") as source, zf.open(archive_name, "w") as dest:
+                    with open_local_media_scoped(path) as source, zf.open(archive_name, "w") as dest:
                         while True:
                             chunk = source.read(256 * 1024)
                             if not chunk:
