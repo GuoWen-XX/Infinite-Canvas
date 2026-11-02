@@ -167,9 +167,9 @@ class AccessBoundaryTests(unittest.TestCase):
         # urlsplit then truncates literal '#'/'?' in decoded filenames.
         # StaticFiles serves scope['path'], so signatures must bind to it.
         secret = "test-only-s02-media-signing-key-" + "a"*32
-        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), \\
-             patch("main.time.time", return_value=10_000_000), \\
-             patch.object(main, "canvas_trusted_host", return_value=True), \\
+        with patch.dict(os.environ, {"PUBLIC_MEDIA_TOKEN": secret}), \
+             patch("main.time.time", return_value=10_000_000), \
+             patch.object(main, "canvas_trusted_host", return_value=True), \
              patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
             signed_plain = main.public_media_url_suffix("/assets/a.png")
             with TestClient(main.app) as client:
