@@ -121,7 +121,7 @@ function show({id,kind='classic',record,storageKey}){
 }
 function showSaved(id,kind){
     let record;
-    try { record = JSON.parse(global.localStorage.getItem(PREFIX + id) || 'null'); }
+    try { record = JSON.parse(global.localStorage.getItem((kind === 'smart' ? 'smart_canvas_conflict_draft_' : PREFIX) + id) || 'null'); }
     catch(_) { return false; }
     if(record) return show({id,kind,record});
     const previous = document.getElementById('canvas-conflict-recovery');
