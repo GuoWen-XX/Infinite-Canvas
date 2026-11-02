@@ -2389,9 +2389,20 @@ async function restoreCanvas(id, event){
 async function purgeCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = deletedCanvases.find(item => item.id === id);
+    if(record?.revision == null){
+        setStatus('Trash record has no revision — reload before deleting');
+        await loadTrashList();
+        return;
+    }
     setStatus('Deleting...');
     try {
-        const res = await fetch(`/api/canvases/${id}/purge`, {method:'DELETE'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/purge?base_revision=${encodeURIComponent(record.revision)}`, {method:'DELETE'});
+        if(res.status === 409){
+            setStatus('Trash entry changed — permanent deletion cancelled');
+            await loadTrashList();
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.purgeFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
