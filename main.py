@@ -14042,7 +14042,7 @@ async def test_provider_connection(payload: TestConnectionPayload):
         api_key = api_key_from_payload(payload, protocol)
         if not api_key:
             raise HTTPException(status_code=400, detail="请先填写或保存 API Key")
-        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url, "protocol": "runninghub", "api_key": api_key}
+        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url, "protocol": "runninghub", "api_key": api_key, "wallet_api_key": api_key}
         payload_models = await runninghub_models_payload(provider)
         return {
             "ok": True,
@@ -14311,7 +14311,7 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
     if protocol == "runninghub":
         if not str(api_key or "").strip():
             raise HTTPException(status_code=400, detail="请先填写或保存 API Key")
-        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url or RUNNINGHUB_DEFAULT_BASE_URL, "protocol": "runninghub", "api_key": api_key}
+        provider = {"id": "runninghub", "name": "RunningHub", "base_url": base_url or RUNNINGHUB_DEFAULT_BASE_URL, "protocol": "runninghub", "api_key": api_key, "wallet_api_key": api_key}
         return await runninghub_models_payload(provider)
     base_url = (base_url or "").strip().rstrip("/")
     if not base_url:
