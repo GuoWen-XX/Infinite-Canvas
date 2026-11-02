@@ -39,7 +39,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-from provider_probe_security import resolve_probe_key, UntrustedProbeTarget
+from provider_probe_security import canonical_api_base, resolve_probe_key, UntrustedProbeTarget
 
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
@@ -13655,10 +13655,35 @@ async def api_providers():
 async def save_providers(payload: List[ApiProviderPayload]):
     providers = []
     env_updates = {}
+    # A saved key must never be rebound to a newly supplied Base URL unless
+    # the caller explicitly replaces or clears that credential in this PUT.
+    previous_by_id = {p["id"]: p for p in load_api_providers()}
     # 收集每个 item 的 primary 字段
     raw_primary_flags = [bool(getattr(item, "primary", False)) for item in payload]
     for item in payload:
         provider = normalize_provider(item.dict(exclude={"api_key"}))
+        previous = previous_by_id.get(provider["id"])
+        if previous:
+            try:
+                destination_changed = (
+                    canonical_api_base(previous.get("base_url"))
+                    != canonical_api_base(provider.get("base_url"))
+                )
+            except ValueError:
+                destination_changed = previous.get("base_url") != provider.get("base_url")
+            if destination_changed:
+                saved_key = provider_env_key_value(provider["id"])
+                if saved_key and not (item.api_key or "").strip() and not item.clear_key:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"修改 {provider['id']} 请求地址前，必须重新填写或清除已保存的 API Key",
+                    )
+                if (provider["id"] == "runninghub" and runninghub_wallet_key_value()
+                        and not (item.wallet_api_key or "").strip() and not item.clear_wallet_key):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="修改 RunningHub 请求地址前，必须重新填写或清除已保存的钱包 Key",
+                    )
         if provider["id"] == "runninghub":
             provider = preserve_runninghub_hidden_overrides(provider)
             prune_runninghub_workflow_store_for_provider(provider)
