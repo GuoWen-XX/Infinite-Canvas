@@ -13831,33 +13831,21 @@ def _is_loopback_or_lan_host(host: str) -> bool:
 
 @app.get("/api/config/token")
 async def get_global_token(request: Request):
-    """把已保存的 ModelScope Token 下发给同源的 zimage / angle 页面。
+    """Report whether the server has a ModelScope token, never export it.
 
-    这两个页面需要把 Token 交给外部的 /generate 服务（由 ModelScope 侧提供，
-    不在本进程内），所以 Token 必须经过浏览器中转，无法改成后端代理而不改动
-    那条链路的架构。因此这里保留原行为，但记录访问来源，便于发现异常访问。
-
-    注意该响应不进入日志：access log 只记录路径不记录响应体，body 里也不要
-    加任何打印，否则等于把密钥写进日志。
+    Existing same-origin zimage/angle clients now submit an empty api_key so
+    their requests are authorized upstream by this server, not the browser.
+    The legacy global_config.json fallback remains server-side only.
     """
-    client_host = request.client.host if request.client else ""
-    if not _is_loopback_or_lan_host(client_host):
-        logging.getLogger("uvicorn.access").warning(
-            "警告：/api/config/token 被非本机来源访问 (client=%s)", client_host
-        )
-
-    # 优先读 env，回退到 global_config.json（兼容旧数据）
-    saved_token = modelscope_api_key()
-    if saved_token:
-        return {"token": saved_token}
-    if os.path.exists(GLOBAL_CONFIG_FILE):
+    present = bool(modelscope_api_key())
+    if not present and os.path.exists(GLOBAL_CONFIG_FILE):
         try:
-            with open(GLOBAL_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                return {"token": config.get("modelscope_token", "")}
-        except:
-            pass
-    return {"token": ""}
+            with open(GLOBAL_CONFIG_FILE, "r", encoding="utf-8") as f:
+                present = bool(str((json.load(f) or {}).get("modelscope_token") or "").strip())
+        except Exception:
+            present = False
+    return {"has_token": present, "token": ""}
+
 
 # --- 在线生图 (COMFLY) ---
 
