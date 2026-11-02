@@ -3419,6 +3419,7 @@ class CanvasMetaUpdate(BaseModel):
     project: Optional[str] = None
     board_x: Optional[float] = None
     board_y: Optional[float] = None
+    base_revision: Optional[int] = None
 
 class ProjectCreateRequest(BaseModel):
     name: str = "新项目"
@@ -3437,6 +3438,7 @@ class CanvasSaveRequest(BaseModel):
     settings: Dict[str, Any] = {}
     client_id: str = ""
     base_updated_at: int = 0
+    base_revision: Optional[int] = None
 
 class CanvasAssetCheckRequest(BaseModel):
     urls: List[str] = []
@@ -4010,6 +4012,8 @@ def write_canvas(canvas, *, bump_updated_at=True):
     """把画布落盘。调用方必须已持有该画布的事务锁（canvas_transaction_lock）。"""
     if bump_updated_at:
         canvas["updated_at"] = next_canvas_updated_at(canvas.get("updated_at"))
+    # Revision advances even for metadata-only changes that leave updated_at intact.
+    canvas["revision"] = int(canvas.get("revision") or 0) + 1
     with CANVAS_LOCK:
         atomic_write_json(canvas_path(canvas["id"]), canvas, indent=2)
     return canvas
@@ -4031,6 +4035,25 @@ def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=Tr
         if mutator(canvas) is False:
             return canvas
         return write_canvas(canvas, bump_updated_at=bump_updated_at)
+
+def check_canvas_base_revision(canvas, base_revision=None, base_updated_at=None):
+    """Compare-and-swap under the canvas transaction lock.
+
+    Legacy editors may supply a timestamp; title/icon edits advance that
+    timestamp so older clients cannot silently overwrite renamed canvases.
+    """
+    current = int(canvas.get("revision") or 0)
+    if base_revision is not None:
+        matches = int(base_revision) == current
+    else:
+        matches = bool(base_updated_at) and int(base_updated_at) == int(canvas.get("updated_at") or 0)
+    if not matches:
+        raise HTTPException(status_code=409, detail={
+            "message": "画布已被其他页面更新，已拒绝旧版本覆盖。",
+            "canvas": canvas, "revision": current,
+            "updated_at": int(canvas.get("updated_at") or 0),
+        })
+
 
 def normalize_canvas_kind(kind="classic"):
     return "smart" if str(kind or "").strip().lower() == "smart" else "classic"
@@ -4160,6 +4183,7 @@ def canvas_record(data):
         "board_y": data.get("board_y"),
         "created_at": data.get("created_at", 0),
         "updated_at": data.get("updated_at", 0),
+        "revision": int(data.get("revision") or 0),
         "deleted_at": data.get("deleted_at", 0),
         "node_count": len(data.get("nodes", [])),
     }
@@ -17346,6 +17370,7 @@ async def get_canvas_meta(canvas_id: str):
     return {
         "id": canvas.get("id"),
         "updated_at": canvas.get("updated_at", 0),
+        "revision": int(canvas.get("revision") or 0),
         "title": canvas.get("title", "未命名画布"),
         "icon": canvas.get("icon", "layers"),
         "kind": normalize_canvas_kind(canvas.get("kind")),
@@ -17374,7 +17399,13 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
         if payload.board_y is not None:
             canvas["board_y"] = float(payload.board_y)
 
-    canvas = mutate_canvas(canvas_id, apply, bump_updated_at=False)
+    # Renames/icons invalidate legacy timestamp-based editor snapshots, too.
+    bump_time = payload.title is not None or payload.icon is not None
+    def checked_apply(canvas):
+        if payload.base_revision is not None:
+            check_canvas_base_revision(canvas, payload.base_revision)
+        apply(canvas)
+    canvas = mutate_canvas(canvas_id, checked_apply, bump_updated_at=bump_time)
     return {"canvas": canvas_record(canvas)}
 
 @app.get("/api/canvases/{canvas_id}")
@@ -18561,13 +18592,7 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         # 乐观并发检查必须在锁内做。放在锁外会出现 TOCTOU：读到 updated_at 之后、
         # 真正写入之前，另一个请求已经保存过，于是本次比较基于过期的值通过，
         # 静默覆盖掉那次保存。锁内比较才能保证检查与写入之间没有窗口。
-        current_updated_at = int(canvas.get("updated_at") or 0)
-        if payload.base_updated_at and current_updated_at and int(payload.base_updated_at) < current_updated_at:
-            raise HTTPException(status_code=409, detail={
-                "message": "画布已被其他页面更新，已拒绝旧版本覆盖。",
-                "canvas": canvas,
-                "updated_at": current_updated_at,
-            })
+        check_canvas_base_revision(canvas, payload.base_revision, payload.base_updated_at)
         canvas["title"] = (payload.title or canvas.get("title") or "未命名画布")[:80]
         canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
         canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
