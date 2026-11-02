@@ -1543,6 +1543,17 @@ async function saveCanvas(){
             setStatus('Synced');
             return;
         }
+        if(res.status === 404 || res.status === 410){
+            // Another tab may have moved this canvas to trash while we edited it.
+            // Keep our nodes and metadata as a separate recoverable draft.
+            const record = captureCanvasConflictDraft();
+            canvasConflictPending = true;
+            localCanvasDirty = true;
+            saveCanvasAgain = false;
+            window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+            setStatus('Canvas no longer exists on server — local edits preserved for recovery');
+            return;
+        }
         if(!res.ok) throw new Error('save failed');
         const data = await res.json().catch(() => ({}));
         if(!canvas || canvas.id !== saveTargetId) return;
