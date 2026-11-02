@@ -262,13 +262,18 @@ def canvas_access_result(client_host, host_header, headers, cookies, scheme="htt
 async def canvas_http_access_boundary(request: Request, call_next):
     client_host = request.client.host if request.client else ""
     host = request.headers.get("host") or ""
+    # Verify the actual decoded ASGI path that StaticFiles will serve.
+    # request.url.path is reconstructed via urlsplit and can truncate literal
+    # '#'/'?' filenames (encoded as %23/%3F on the wire), letting a signature
+    # for /assets/a.png authorize /assets/a.png#private.png.
+    media_path = request.scope.get("path", "")
     # Permit only signed, expiring reads of individual media files by cloud
     # services; this is not a bearer password for other studio endpoints.
     if (request.method in {"GET", "HEAD"}
-            and request.url.path.startswith(("/assets/", "/output/"))
+            and media_path.startswith(("/assets/", "/output/"))
             and canvas_trusted_host(host, client_host)
             and canvas_signed_public_media_valid(
-                request.url.path,
+                media_path,
                 request.query_params.get("ic_exp", ""),
                 request.query_params.get("ic_sig", ""),
             )):
