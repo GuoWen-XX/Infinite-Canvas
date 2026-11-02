@@ -270,6 +270,21 @@ class AccessBoundaryTests(unittest.TestCase):
                         pass
                 self.assertEqual(caught.exception.code, 1008)
 
+    def test_websocket_lan_accepts_valid_session_at_real_asgi_boundary(self):
+        password = "test-s02-password-long"
+        with patch.object(main, "CANVAS_LAN_ENABLED", True), \
+             patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": password}):
+            session = main.canvas_new_session(password)
+            # Starlette TestClient does not automatically forward the HTTP
+            # cookie jar to WebSocket; provide the valid session explicitly.
+            headers = {
+                "Host": "192.168.1.10:3000",
+                "Cookie": f"{main.CANVAS_SESSION_NAME}={session}",
+            }
+            with TestClient(main.app, base_url="http://192.168.1.10:3000") as client:
+                with client.websocket_connect("/ws/stats", headers=headers):
+                    pass
+
     def test_token_route_only_reports_presence(self):
         with patch.object(main, "modelscope_api_key", return_value="fake-unit-test-secret"):
             with TestClient(main.app) as client:
