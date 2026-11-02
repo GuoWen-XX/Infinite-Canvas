@@ -36,6 +36,18 @@ class AccessBoundaryTests(unittest.TestCase):
             {"origin": "https://attacker.example"}, {}, "http")
         self.assertEqual(status, 403)
 
+    def test_loopback_reverse_proxy_cannot_bypass_lan_auth(self):
+        # Reverse proxy TCP peer is 127.0.0.1, but requested LAN Host is remote.
+        with patch.object(main, "CANVAS_LAN_ENABLED", True), \
+             patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": "dummy-password-long"}):
+            status, _, _ = main.canvas_access_result(
+                "127.0.0.1", "192.168.1.10:3000", {}, {}, "http")
+            self.assertEqual(status, 401)
+        with patch.object(main, "CANVAS_LAN_ENABLED", False):
+            status, _, _ = main.canvas_access_result(
+                "127.0.0.1", "192.168.1.10:3000", {}, {}, "http")
+            self.assertEqual(status, 403)
+
     def test_same_origin_is_accepted_on_loopback(self):
         status, _, _ = main.canvas_access_result(
             "127.0.0.1", "127.0.0.1:3000",
