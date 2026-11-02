@@ -97,6 +97,53 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
         self.assertEqual(response.content, b"2345")
         self.assertEqual(response.headers.get("content-range"), "bytes 2-5/10")
 
+    def test_if_range_matching_etag_returns_pinned_partial_content(self):
+        from fastapi.testclient import TestClient
+        file = self.root / "resume.png"
+        file.write_bytes(b"0123456789")
+        with TestClient(main.app) as client:
+            initial = client.get("/api/storage-files/generated/resume.png")
+            etag = initial.headers["etag"]
+            response = client.get(
+                "/api/storage-files/generated/resume.png",
+                headers={"Range": "bytes=4-", "If-Range": etag},
+            )
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response.content, b"456789")
+        self.assertEqual(response.headers["etag"], etag)
+
+    def test_if_range_stale_etag_returns_full_new_file(self):
+        from fastapi.testclient import TestClient
+        file = self.root / "resume.png"
+        file.write_bytes(b"OLD-FILE-111")
+        os.utime(file, (1600000000, 1600000000))
+        with TestClient(main.app) as client:
+            old = client.get("/api/storage-files/generated/resume.png")
+            file.write_bytes(b"NEW-FILE-222")
+            os.utime(file, (1600000060, 1600000060))
+            response = client.get(
+                "/api/storage-files/generated/resume.png",
+                headers={"Range": "bytes=4-", "If-Range": old.headers["etag"]},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"NEW-FILE-222")
+
+    def test_if_range_stale_date_returns_full_new_file(self):
+        from fastapi.testclient import TestClient
+        file = self.root / "resume.png"
+        file.write_bytes(b"OLD-FILE-111")
+        os.utime(file, (1600000000, 1600000000))
+        with TestClient(main.app) as client:
+            old = client.get("/api/storage-files/generated/resume.png")
+            file.write_bytes(b"NEW-FILE-222")
+            os.utime(file, (1600000060, 1600000060))
+            response = client.get(
+                "/api/storage-files/generated/resume.png",
+                headers={"Range": "bytes=4-", "If-Range": old.headers["last-modified"]},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"NEW-FILE-222")
+
     def test_response_stream_remains_pinned_after_path_swap(self):
         if os.name == "nt":
             self.skipTest("Windows share-delete/reparse semantics require a native fixture")
