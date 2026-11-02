@@ -3435,7 +3435,8 @@ class CanvasSaveRequest(BaseModel):
     connections: List[Dict[str, Any]] = []
     viewport: Dict[str, Any] = {}
     logs: List[Dict[str, Any]] = []
-    settings: Dict[str, Any] = {}
+    # None means an older/classic editor did not send settings; do not erase it.
+    settings: Optional[Dict[str, Any]] = None
     client_id: str = ""
     base_updated_at: int = 0
     base_revision: Optional[int] = None
@@ -18606,7 +18607,8 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         else:
             canvas["viewport"] = canvas.get("viewport") or {"x": 0, "y": 0, "scale": 1}
         canvas["logs"] = payload.logs[-500:]
-        canvas["settings"] = payload.settings or {}
+        if payload.settings is not None:
+            canvas["settings"] = payload.settings
 
     canvas = mutate_canvas(canvas_id, apply)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
