@@ -2110,12 +2110,27 @@ async function openCanvas(id){
         const data = await res.json();
         // Local edits may arrive while the GET is waiting on the network.
         if(preserveDraftBeforeCanvasSwitch()) return;
+        let openingCanvas = data.canvas;
+        if(!openingCanvas || openingCanvas.id !== id) throw new Error(tr('canvas.openFailed'));
+        const touched = await touchCanvasOpened(openingCanvas.id);
+        if(preserveDraftBeforeCanvasSwitch()) return;
+        // Touch returns the CURRENT server revision, not necessarily the one
+        // associated with the GET's nodes. Never pair a newer CAS token with
+        // stale content: another editor may have saved between GET and touch.
+        if(touched?.canvas?.revision != null &&
+           Number(touched.canvas.revision) !== Number(openingCanvas.revision || 0)){
+            const latest = await fetch(`/api/canvases/${encodeURIComponent(id)}`);
+            if(!latest.ok) throw new Error(tr('canvas.openFailed'));
+            const latestData = await latest.json();
+            if(!latestData.canvas || latestData.canvas.id !== id) throw new Error(tr('canvas.openFailed'));
+            openingCanvas = latestData.canvas;
+        } else if(touched?.updated_at){
+            openingCanvas.updated_at = Number(touched.updated_at);
+        }
+        if(preserveDraftBeforeCanvasSwitch()) return;
         resetCascadeRuntimeState();
-        canvas = data.canvas;
+        canvas = openingCanvas;
         rememberCanvasListProject(canvas.project || 'default');
-        const touched = await touchCanvasOpened(canvas.id);
-        if(touched?.updated_at) canvas.updated_at = Number(touched.updated_at);
-        if(touched?.canvas?.revision != null) canvas.revision = Number(touched.canvas.revision);
         if((canvas.kind || 'classic') === 'smart'){
             openSmartCanvasPage(canvas.id);
             return;
