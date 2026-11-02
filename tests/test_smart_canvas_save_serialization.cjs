@@ -17,7 +17,7 @@ function fixture(){
         canvas:{id:'smart-one',title:'Smart',revision:4,updated_at:100,nodes:[],settings:{}},
         nodes:[{id:'old'}], viewport:{x:0,y:0,scale:1}, settings:{},
         initialSmartSettings:{}, canvasDefaultSmartSettings:{},
-        smartClientId:'offline-test', smartCanvasConflictPending:false,
+        smartClientId:'offline-test', smartCanvasConflictPending:false, smartCanvasLocalDirty:false,
         canvasSyncInFlight:false, saveTimer:null,
         savePromptDraftForCurrent(){},
         mediaItemForStorage:x=>x, stripImageGenerationMeta:x=>x,
@@ -44,6 +44,7 @@ test('two overlapping Smart Canvas saves are serialized and queued CAS uses ackn
     const first=x.saveCanvas();
     x.ctx.nodes=[{id:'newer'}];
     x.scheduleSave();
+    assert.equal(x.ctx.smartCanvasLocalDirty,true,'queued edits remain dirty');
     await x.saveCanvas();
     assert.equal(x.calls.length,1,'no second PUT while first is pending');
     x.pending[0](response(5));
@@ -56,6 +57,7 @@ test('two overlapping Smart Canvas saves are serialized and queued CAS uses ackn
     x.pending[1](response(6));
     await second;
     assert.equal(x.ctx.canvas.revision,6);
+    assert.equal(x.ctx.smartCanvasLocalDirty,false,'acknowledged final save clears dirty state');
 });
 test('409 conflict draft captures edits made during in-flight save, not stale request snapshot',async()=>{
     const x=fixture();
@@ -64,6 +66,7 @@ test('409 conflict draft captures edits made during in-flight save, not stale re
     x.pending[0](response(9,409));
     await first;
     assert.equal(x.ctx.smartCanvasConflictPending,true);
+    assert.equal(x.ctx.smartCanvasLocalDirty,true,'conflicting work remains dirty');
     assert.equal(x.drafts[0].record.canvas.nodes[0].id,'edited-during-request');
     assert.equal(x.panels.length,1);
 });
@@ -92,4 +95,5 @@ test('transport failure leaves a local recovery draft',async()=>{
     await first;
     assert.equal(x.drafts.length,1);
     assert.equal(x.ctx.smartCanvasConflictPending,false,'transient failure should permit retry');
+    assert.equal(x.ctx.smartCanvasLocalDirty,true,'failed save must not clear dirty state');
 });
