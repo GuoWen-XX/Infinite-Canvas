@@ -184,3 +184,11 @@ S00–S02 已合并；S02 以明确延期完整测试/Windows/LAN/Chrome/Photosh
 - 同一 PR 提交修复 `206388b5aaaa8ac622869983629a85502d7e0d3f`，新增回归 `tests/test_canvas_navigation_failure.cjs` 于 `a792a08484b129333125fab95d7fbe9f8cc07d65`。后端业务未改。最新编辑器在保存中/脏数据/冲突状态返回时展示草稿恢复并阻止丢数据；beforeunload 保存并请求确认；传输异常保留草稿并进入人工恢复门，不盲目 CAS 重试。
 - 从准确 `a792a08` 读取实际 JS/CJS，独立 V8 4/4 行为检查 PASS，2/2 文件语法检查 PASS。**不等于原生 `node --test`、完整 Python 主程序集成、真实浏览器/Windows 测试**。正确 HEAD 需运行新增 CJS 和既有 8 份 CJS 回归，并执行 `tests/test_canvas_revision.py`（已编写 21 项）及全量测试。
 - 远端独立审查尚缺 Codex repository environment，PR #7 继续 REVIEW_BLOCKED / TEST_GATE_BLOCKED；不能合并，S05 仍锁定。GitHub Actions `workflow_dispatch` only，未触发；不使用真实 Key、用户画布或付费 AI。
+
+
+## S04 连续元数据失败草稿合并（2026-11-03）
+
+- 真实旧函数隔离复现：离线先改名再改图标，两次失败共用 canvas_meta_conflict_<id> 键，后一次覆盖前一次，恢复草稿仅剩 icon，丢失 title。
+- 已在 classic patchCanvasMeta 与列表 persistMeta 修复：按字段合并既有失败草稿，同字段最新编辑优先；localStorage 不可写时恢复面板明确警告，并提供属性 JSON 导出；更新 HTML 资源版本避免旧缓存。
+- 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
+- S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。
