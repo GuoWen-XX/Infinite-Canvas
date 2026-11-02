@@ -1,6 +1,7 @@
 import json
 import uuid
 import base64
+import binascii
 import hashlib
 import ipaddress
 import hmac
@@ -229,7 +230,7 @@ def canvas_basic_auth(headers, password):
     try:
         username, supplied = base64.b64decode(raw[6:].strip(), validate=True).decode("utf-8").split(":", 1)
         return hmac.compare_digest(username, "canvas") and hmac.compare_digest(supplied, password)
-    except (ValueError, UnicodeDecodeError, TypeError):
+    except (ValueError, UnicodeDecodeError, TypeError, binascii.Error):
         return False
 
 
