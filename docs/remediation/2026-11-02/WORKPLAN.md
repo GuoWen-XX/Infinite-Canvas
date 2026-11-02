@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 已完成，S01 PR #4 等待远端评审`；**S01 审查通过并合并 main 前，不启动 S02**。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 PR_OPEN / REVIEW_RUNNING / TEST_GATE_BLOCKED（上一实现 HEAD Codex 0 findings；新测试提交待最新 HEAD 复审，缺正确分支全量回归）`。S02 尚未完成完整项目环境与 Chrome/Photoshop/LAN 联调，不得启动 S03。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -22,8 +22,8 @@
 | 阶段 | 状态 | 目标 | 主文件 | 交付与验收 |
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
-| S01 | PR_OPEN | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
-| S02 | NOT_STARTED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
+| S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
+| S02 | PR_OPEN / BLOCKED | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
@@ -51,17 +51,27 @@
 - [x] 使用严格 URL 基址校验并保证 mismatched URL 时尚未读取保存 Key；RunningHub 只使用已经解析/验证的本次 Key；不额外记录完整凭据。
 - [x] 所有共用 `TestConnectionPayload` 的模型列表/探测入口已接入统一密钥绑定；为 Ark 无 ID 借用与 RunningHub 钱包 fallback 增加专门回归。
 - [x] 已提交实施 PR #4（`fix/S01-provider-key-binding` → `main`），列明凭据出站风险、变更、离线测试、运行限制与回滚。
-- [ ] 远端审查通过，合入后才能解锁 S02。
+- [x] PR #4 最新 HEAD `856ef2de1cd3089df1d0cdae2bc237ccae145e74` 的 Codex Review completed / 0 findings，原 4 条线程已全部 resolved；2026-11-02T08:22:26Z 合并 `main@0f661b20a0996f311cf187d93c6db2b3f939fd97`。
 
-**验证现状（S01，PR #4）：** 在隔离 Python 环境运行与最新内联规则等价的纯函数测试：**10/10 PASS**（新增 IDNA 差异回归）；已为三项 Codex P1 审查反馈补充 Mock 路由和配置覆盖测试，**完整项目环境中的路由测试与全量测试尚未运行**。2026-11-02 Codex 对较早提交 `4fb8d82` 提出三项 P1：非 RunningHub 凭据经固定域名二次请求外送、内置 IDNA 与 HTTPX 不一致、新增根模块无法被旧更新器下载；上述问题均已在本 PR 新提交中修正，已逐条回复原审查意见。**Codex 对 `b0b382f` 的最新复审新增一项 P2**：本地 `codex`、`gemini-cli`、`jimeng` 的 POST 模型发现被空 Base URL 的保存 Key 校验误拒；已在 S01 同一 PR 中增加 CLI 直通分支和无网络/无 Key 的 Mock 回归，**等待修复后最新 HEAD 再审**。独立路由测试与全量测试仍未实际运行，PR 不得合并。**GitHub Actions 运行次数：0**，不得因缺少 CI 成功标记而绕过独立审查或误报完整回归通过。
+**S01 验证与残余限制（PR #4）：** 修复三项 P1 与一项 P2 后，最新 HEAD 的 Codex Review completed / 0 findings / 0 unresolved，四条 review threads 均 resolved。隔离纯函数回归 **10/10 PASS**、CLI 分派隔离回归 **2/2 PASS**；合并前另记录了隔离 `python -m unittest discover -s tests -p 'test_provider_probe_security.py' -v` 及提取模块 `py_compile` 通过。**完整仓库 `main.py` 端点集成与全量测试尚未运行**，不应把隔离验证误称为全面通过；该限制在 S08 跨模块验收中保留。GitHub Actions：**0 次主动运行**，不得自动触发。合并证据：PR #4、merge SHA `0f661b20a0996f311cf187d93c6db2b3f939fd97`。
 
 ### S02 — 身份和 Token（SEC-02）
 
-- [ ] 画出 HTTP、WebSocket、zimage/angle、Chrome、PS 的调用关系。
-- [ ] 安全变更前建立 LAN 与插件联调样例。
-- [ ] 引入访问认证与 Origin/CSRF 策略；同源 Token 返回或后端代理方案须经实际功能验证。
-- [ ] 加入未授权读 Token、更新/删除、跨源和授权功能测试。
-- [ ] 提交 PR、审查、合并后解锁 S03。
+- [x] 在独立 `fix/S02-lan-auth-token` 分支建立只读基线审计 `S02_AUDIT.md`，确认 CORS wildcard、Token 明文接口、WebSocket 无鉴权，以及 zimage/angle 与后端现有 ModelScope 代理调用链。**这是静态证据，不是运行时测试或修复。**
+
+- [x] 已追踪 HTTP、WebSocket、zimage/angle、Chrome/PS 源码路径；具体调用关系和迁移限制记录于 `S02_AUDIT.md` 与 `S02_LAN_ACCESS.md`。
+- [ ] 按 `S02_LAN_ACCESS.md` 在独立 Windows/Chrome/Photoshop 与 LAN 环境执行真实联调；当前不能以文档代替验证。
+- [x] 已新增默认 localhost 绑定、LAN 显式密码认证、Host/Origin/CORS/WS 检查，以及 `has_token` + 原后端 ModelScope 代理。**真实设备兼容性及全量回归尚未验证。**
+- [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**当前 28 项（新增真实 ASGI LAN Basic/Session、两项 WebSocket 拒绝与已认证连接检查），尚未在完整仓库执行。**
+- [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的 Codex 独立 Code Review 已完成、0 findings，全部 6 条 inline review threads 已 resolved。GitHub Actions 曾由用户授权手动运行 1 次，但实际选中默认分支 `zcode/iteration-01`，不是 S02，不能用于本阶段验收。
+- [x] 对初轮 Review 的三个 P2 已提交修复：API/.env 加载后初始化 LAN/CORS；Basic 非 ASCII 密码改成 UTF-8 字节恒定时间比较；公网媒体变为绑定 `/assets/` / `/output/` 单文件、30 分钟的 HMAC 签名 GET/HEAD。补充安全回归与迁移说明。
+- [x] 第二轮 Review 对签名 URL 的二次解码及字面 `%` 文件名提出 2 个 P2。已修复为“生成端 URL 解码一次 / 验证端使用已解码 ASGI 路径原样签名”，并修正 URL 序列化对字面 `%` 的重新编码；新增 `%23` / `%3F` / `%2520` 回归；提取安全函数隔离测试 **9/9 PASS**。完整后端与实际 LAN/插件联调**尚未运行**。
+- [x] 2026-11-02 新增真实 ASGI 路径边界修复：Starlette `Request.url.path` 在已解码的文件名含 `#` / `?` 时会截断，导致普通文件的有效签名可授权读取另一文件；签名校验现使用与 StaticFiles 一致的 `request.scope["path"]`。新增 `TestClient` 回归。**隔离 FastAPI/Starlette ASGI 实测：旧实现可错误读取文件，新实现拒绝跨文件复用且允许正确签名，3/3 PASS**（`/mnt/data/ic_review/s02_asgi_path_regression.py`；该脚本是独立提取验证，不是完整仓库测试）。
+- [x] 2026-11-02 最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的独立 Codex Review `completed / has_any_findings=false / has_unresolved_findings=false`，6/6 旧线程已 resolved；补充 macOS 启动脚本与 `tests/test_mac_launcher.py`，隔离 Mock `2/2 PASS` 和 `bash -n` PASS。
+- [x] 2026-11-02 使用 GitHub 连接器读取 S02 HEAD `e68ca0e`，完成 17 项源码策略不变量检查（`17/17 PASS`：Host/Origin/CORS/WS、Token 后端保密、签名媒体路径、URL 编码、前端本地 Token 清理、macOS loopback、workflow manual-only 等）。**此为静态结构检查，不能替代执行 28 项真实后端测试。**
+- [x] 用户明确授权并亲自启动 [Actions Tests #41439808653](https://github.com/GuoWen-XX/Infinite-Canvas/actions/runs/41439808653)：`success`，`78/78`；但工作流实际检出 `zcode/iteration-01@bb778e26a9b84d63d059c83ff511dbb0dc2e7067`，不是 S02 分支，不可用于 S02 的全量回归证据。未启动第二次 Actions。
+- [x] 2026-11-02 已补充 `tests/test_access_boundary.py` 真实 ASGI 边界回归 4 项：LAN Basic 认证授予 Session 后的 token 保密、跨源 WebSocket 1008 拒绝、无认证 LAN WebSocket 1008 拒绝、合法 Session 允许 LAN WebSocket 连接；新测试代码通过 Python AST 语法检查，但**未能在完整 `main.py` 环境实际执行**。
+- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（28 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 正式合并 main 并补齐交接记录前，不提交 S03 实施代码。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
 

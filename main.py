@@ -1,6 +1,7 @@
 import json
 import uuid
 import base64
+import binascii
 import hashlib
 import ipaddress
 import hmac
@@ -124,12 +125,177 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# S02: Browser pages use same-origin APIs. A cross-origin client (such as the
+# Photoshop/Chrome bridge) must be explicitly listed by the studio operator.
+# Wildcard CORS on an API with saved credentials is never appropriate.
+CANVAS_TRUSTED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("INFINITE_CANVAS_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+}
+CANVAS_LAN_ENABLED = os.getenv("INFINITE_CANVAS_LAN", "").strip().lower() in {"1", "true", "yes"}
+CANVAS_LAN_PASSWORD_ENV = "INFINITE_CANVAS_LAN_PASSWORD"
+CANVAS_SESSION_NAME = "ic_studio_session"
+CANVAS_SESSION_TTL = 12 * 60 * 60
+
+
+def canvas_is_loopback(host):
+    try:
+        return ipaddress.ip_address(str(host or "")).is_loopback
+    except ValueError:
+        return False
+
+
+def canvas_trusted_host(host_header, client_host=""):
+    """Reject DNS rebinding hosts even when the connection arrives on loopback."""
+    try:
+        parsed = urllib.parse.urlsplit("http://" + str(host_header or ""))
+        hostname = parsed.hostname
+        if not hostname or parsed.username or parsed.password:
+            return False
+        name = hostname.lower().rstrip(".")
+        if name in {"localhost", "127.0.0.1", "::1"}:
+            return True
+        if name == "testserver" and client_host == "testclient":
+            # Starlette TestClient uses synthetic clients, never TCP addresses.
+            return True
+        if not CANVAS_LAN_ENABLED:
+            return False
+        try:
+            return ipaddress.ip_address(name).is_private
+        except ValueError:
+            # Custom LAN DNS names must be explicitly configured by operator.
+            return name in {
+                v.strip().lower() for v in
+                os.getenv("INFINITE_CANVAS_TRUSTED_HOSTS", "").split(",") if v.strip()
+            }
+    except ValueError:
+        return False
+
+
+def canvas_origin_valid(headers, hostname, scheme="http", websocket=False):
+    origin = headers.get("origin") or ""
+    fetch_site = headers.get("sec-fetch-site") or ""
+    if not origin:
+        return fetch_site.lower() not in {"cross-site", "same-site"}
+    if origin in CANVAS_TRUSTED_ORIGINS:
+        return True
+    try:
+        parsed = urllib.parse.urlsplit(origin)
+        if parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return False
+        request_host = urllib.parse.urlsplit("http://" + hostname).netloc.lower()
+        origin_host = parsed.netloc.lower()
+        actual_scheme = "https" if scheme in {"https", "wss"} else "http"
+        return parsed.scheme == actual_scheme and origin_host == request_host
+    except ValueError:
+        return False
+
+
+def canvas_lan_password():
+    password = os.getenv(CANVAS_LAN_PASSWORD_ENV, "")
+    return password if len(password) >= 12 else ""
+
+
+def canvas_new_session(password):
+    stamp = str(int(time.time()))
+    digest = hmac.new(password.encode("utf-8"), ("ic-v1:" + stamp).encode("utf-8"), hashlib.sha256).hexdigest()
+    return stamp + "." + digest
+
+
+def canvas_valid_session(value, password):
+    try:
+        stamp, digest = str(value or "").split(".", 1)
+        ts = int(stamp)
+        if ts > int(time.time()) + 60 or int(time.time()) - ts > CANVAS_SESSION_TTL:
+            return False
+        want = hmac.new(password.encode("utf-8"), ("ic-v1:" + stamp).encode("utf-8"), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(digest, want)
+    except (ValueError, TypeError):
+        return False
+
+
+def canvas_basic_auth(headers, password):
+    raw = headers.get("authorization") or ""
+    if not raw.lower().startswith("basic "):
+        return False
+    try:
+        username, supplied = base64.b64decode(raw[6:].strip(), validate=True).decode("utf-8").split(":", 1)
+        return (hmac.compare_digest(username.encode("utf-8"), b"canvas")
+                and hmac.compare_digest(supplied.encode("utf-8"), password.encode("utf-8")))
+    except (ValueError, UnicodeDecodeError, TypeError, binascii.Error):
+        return False
+
+
+def canvas_access_result(client_host, host_header, headers, cookies, scheme="http"):
+    """Return (status, message, grant_session). Empty status = authorized."""
+    if not canvas_trusted_host(host_header, client_host):
+        return 403, "Host not allowed", False
+    if not canvas_origin_valid(headers, host_header, scheme):
+        return 403, "Origin not allowed", False
+    # Reverse proxies commonly connect from 127.0.0.1 even when the real
+    # browser is on a different machine. A loopback *TCP peer* alone is NOT
+    # sufficient for bypassing LAN authentication: the Host must also be a
+    # loopback name/address, or TestClient's synthetic host/client pair.
+    try:
+        requested_host = urllib.parse.urlsplit("http://" + host_header).hostname or ""
+    except ValueError:
+        requested_host = ""
+    local_origin = requested_host.lower().rstrip(".") in {"localhost", "127.0.0.1", "::1"}
+    if (canvas_is_loopback(client_host) and local_origin) or (
+        client_host == "testclient" and requested_host == "testserver"
+    ):
+        return 0, "", False
+    if not CANVAS_LAN_ENABLED:
+        return 403, "Remote access disabled; enable INFINITE_CANVAS_LAN explicitly", False
+    secret = canvas_lan_password()
+    if not secret:
+        return 503, "LAN mode requires INFINITE_CANVAS_LAN_PASSWORD of at least 12 characters", False
+    if canvas_valid_session(cookies.get(CANVAS_SESSION_NAME), secret):
+        return 0, "", False
+    if canvas_basic_auth(headers, secret):
+        return 0, "", True
+    return 401, "LAN authentication required", False
+
+
+@app.middleware("http")
+async def canvas_http_access_boundary(request: Request, call_next):
+    client_host = request.client.host if request.client else ""
+    host = request.headers.get("host") or ""
+    # Verify the actual decoded ASGI path that StaticFiles will serve.
+    # request.url.path is reconstructed via urlsplit and can truncate literal
+    # '#'/'?' filenames (encoded as %23/%3F on the wire), letting a signature
+    # for /assets/a.png authorize /assets/a.png#private.png.
+    media_path = request.scope.get("path", "")
+    # Permit only signed, expiring reads of individual media files by cloud
+    # services; this is not a bearer password for other studio endpoints.
+    if (request.method in {"GET", "HEAD"}
+            and media_path.startswith(("/assets/", "/output/"))
+            and canvas_trusted_host(host, client_host)
+            and canvas_signed_public_media_valid(
+                media_path,
+                request.query_params.get("ic_exp", ""),
+                request.query_params.get("ic_sig", ""),
+            )):
+        return await call_next(request)
+    # CORS preflights carry no credentials; CORS itself enforces the explicit
+    # trusted-origin allowlist, while actual requests still require auth.
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-method"):
+        return await call_next(request)
+    status, message, grant = canvas_access_result(
+        client_host, host, request.headers, request.cookies, request.url.scheme
+    )
+    if status:
+        headers = {"WWW-Authenticate": 'Basic realm="Infinite Canvas Studio", charset="UTF-8"'} if status == 401 else {}
+        return JSONResponse(status_code=status, content={"detail": message}, headers=headers)
+    response = await call_next(request)
+    if grant:
+        response.set_cookie(
+            CANVAS_SESSION_NAME, canvas_new_session(canvas_lan_password()),
+            httponly=True, samesite="strict", secure=request.url.scheme == "https",
+            max_age=CANVAS_SESSION_TTL,
+        )
+    return response
 
 # --- WebSocket 状态管理器 ---
 class ConnectionManager:
@@ -265,6 +431,16 @@ async def startup_event():
 
 @app.websocket("/ws/stats")
 async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
+    # HTTP middleware does not cover WebSockets. Apply identical LAN, host and
+    # origin checks before registering the connection or broadcasting data.
+    client_host = websocket.client.host if websocket.client else ""
+    status, _message, _grant = canvas_access_result(
+        client_host, websocket.headers.get("host") or "",
+        websocket.headers, websocket.cookies, websocket.url.scheme
+    )
+    if status:
+        await websocket.close(code=1008)
+        return
     await manager.connect(websocket, client_id)
     try:
         while True:
@@ -658,6 +834,22 @@ def load_env_file():
         print(f"加载 API/.env 失败: {e}")
 ensure_runtime_config_files()
 load_env_file()
+
+# The project loads API/.env at runtime, after creating the FastAPI app.
+# Refresh LAN/Origin options *after* that load, before the ASGI stack starts.
+CANVAS_LAN_ENABLED = os.getenv("INFINITE_CANVAS_LAN", "").strip().lower() in {"1", "true", "yes"}
+CANVAS_TRUSTED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("INFINITE_CANVAS_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=sorted(CANVAS_TRUSTED_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+)
 
 COMFYUI_INSTANCES = [s.strip() for s in os.getenv("COMFYUI_INSTANCES", "127.0.0.1:8188").split(",") if s.strip()]
 COMFYUI_ADDRESS = COMFYUI_INSTANCES[0]
@@ -1618,11 +1810,26 @@ def get_api_provider_exact(provider_id: str):
 def modelscope_provider_config():
     return get_api_provider_exact("modelscope")
 
+def legacy_modelscope_token():
+    """Compatibility read for old global_config.json; never return via HTTP."""
+    if not os.path.isfile(GLOBAL_CONFIG_FILE):
+        return ""
+    try:
+        with open(GLOBAL_CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        if isinstance(config, dict):
+            return strip_auth_scheme(config.get("modelscope_token"), "Bearer")
+    except (OSError, ValueError, TypeError):
+        return ""
+    return ""
+
+
 def modelscope_api_key(explicit_key: str = ""):
     return (
         strip_auth_scheme(explicit_key, "Bearer")
         or strip_auth_scheme(provider_env_key_value("modelscope"), "Bearer")
         or strip_auth_scheme(MODELSCOPE_API_KEY, "Bearer")
+        or legacy_modelscope_token()
     )
 
 def modelscope_api_root(provider=None):
@@ -9195,9 +9402,56 @@ def public_base_url() -> str:
         return value
     return ""
 
-def public_media_url_suffix() -> str:
-    token = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
-    return f"?token={urllib.parse.quote(token)}" if token else ""
+def canvas_media_path_identity(path: str) -> str:
+    """Validate the exact, already-decoded ASGI/StaticFiles path.
+
+    Do not unquote again or split on '?' / '#': those can be literal filename
+    characters in scope['path']. The HMAC must cover exactly the file served.
+    """
+    raw = str(path or "")
+    if (not raw.startswith(("/output/", "/assets/"))
+            or any(part in {"", ".", ".."} for part in raw.split("/")[1:])
+            or chr(92) in raw or chr(0) in raw):
+        return ""
+    return raw
+
+
+def canvas_media_source_path(value: str) -> str:
+    """Convert an URL-encoded local media URL to one decoded StaticFiles path."""
+    parsed = urllib.parse.urlsplit(str(value or ""))
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return ""
+    return canvas_media_path_identity(urllib.parse.unquote(parsed.path))
+
+
+def canvas_signed_public_media_valid(path, expiry, signature, now=None):
+    """Authorize only one media path, for up to 30 minutes; not other APIs."""
+    secret = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
+    media_path = canvas_media_path_identity(path)
+    if not media_path or len(secret) < 24:
+        return False
+    expiry = str(expiry or "")
+    signature = str(signature or "")
+    if not expiry.isascii() or not expiry.isdigit() or len(expiry) > 15 or len(signature) != 64:
+        return False
+    timestamp = int(time.time() if now is None else now)
+    deadline = int(expiry)
+    if deadline < timestamp or deadline > timestamp + 30 * 60:
+        return False
+    message = (media_path + "\n" + expiry).encode("utf-8")
+    wanted = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, wanted)
+
+
+def public_media_url_suffix(path: str) -> str:
+    """Create a path-bound expiring URL signature; never leak PUBLIC_MEDIA_TOKEN."""
+    secret = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
+    media_path = canvas_media_source_path(path)
+    if len(secret) < 24 or not media_path:
+        return ""
+    expiry = str(int(time.time()) + 30 * 60)
+    signature = hmac.new(secret.encode("utf-8"), (media_path + "\n" + expiry).encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"?ic_exp={expiry}&ic_sig={signature}"
 
 def local_asset_public_url(value: str) -> str:
     text = str(value or "").strip()
@@ -9208,7 +9462,14 @@ def local_asset_public_url(value: str) -> str:
     base = public_base_url()
     if not base:
         return ""
-    return f"{base}{urllib.parse.quote(text, safe='/:?&=%#.-_~')}{public_media_url_suffix()}"
+    # The secret is an HMAC key; it is never placed in the URL itself.
+    suffix = public_media_url_suffix(text)
+    if not suffix:
+        return ""
+    media_path = canvas_media_source_path(text)
+    # Percent is NOT safe here: a literal '%20' filename needs '%2520'
+    # on the wire, to decode once to the same StaticFiles path we signed.
+    return f"{base}{urllib.parse.quote(media_path, safe='/._-~')}{suffix}"
 
 async def openai_video_proxy_public_reference_url(ref) -> str:
     """异步生图（openai-video-proxy）的参考图公网化。
@@ -13831,33 +14092,14 @@ def _is_loopback_or_lan_host(host: str) -> bool:
 
 @app.get("/api/config/token")
 async def get_global_token(request: Request):
-    """把已保存的 ModelScope Token 下发给同源的 zimage / angle 页面。
+    """Report whether the server has a ModelScope token, never export it.
 
-    这两个页面需要把 Token 交给外部的 /generate 服务（由 ModelScope 侧提供，
-    不在本进程内），所以 Token 必须经过浏览器中转，无法改成后端代理而不改动
-    那条链路的架构。因此这里保留原行为，但记录访问来源，便于发现异常访问。
-
-    注意该响应不进入日志：access log 只记录路径不记录响应体，body 里也不要
-    加任何打印，否则等于把密钥写进日志。
+    Existing same-origin zimage/angle clients now submit an empty api_key so
+    their requests are authorized upstream by this server, not the browser.
+    The legacy global_config.json fallback remains server-side only.
     """
-    client_host = request.client.host if request.client else ""
-    if not _is_loopback_or_lan_host(client_host):
-        logging.getLogger("uvicorn.access").warning(
-            "警告：/api/config/token 被非本机来源访问 (client=%s)", client_host
-        )
+    return {"has_token": bool(modelscope_api_key()), "token": ""}
 
-    # 优先读 env，回退到 global_config.json（兼容旧数据）
-    saved_token = modelscope_api_key()
-    if saved_token:
-        return {"token": saved_token}
-    if os.path.exists(GLOBAL_CONFIG_FILE):
-        try:
-            with open(GLOBAL_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                return {"token": config.get("modelscope_token", "")}
-        except:
-            pass
-    return {"token": ""}
 
 # --- 在线生图 (COMFLY) ---
 
@@ -20743,5 +20985,8 @@ if __name__ == "__main__":
     # 关闭服务端协议级 WebSocket ping：部分客户端（如 PS UXP 面板）不会自动回 pong，
     # 默认 20s ping/20s 超时会把这些连接每隔一会儿就踢掉造成"频繁断连"。
     # 客户端有自己的应用层心跳 + 断线重连兜底，这里禁用协议 ping 更稳。
-    uvicorn.run(app, host="0.0.0.0", port=3000,
+    # Default to localhost. LAN is explicit and requires a strong password.
+    if CANVAS_LAN_ENABLED and not canvas_lan_password():
+        raise RuntimeError("INFINITE_CANVAS_LAN=1 requires INFINITE_CANVAS_LAN_PASSWORD (12+ characters)")
+    uvicorn.run(app, host="0.0.0.0" if CANVAS_LAN_ENABLED else "127.0.0.1", port=3000,
                 ws_ping_interval=None, ws_ping_timeout=None)

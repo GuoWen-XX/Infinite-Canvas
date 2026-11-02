@@ -953,25 +953,21 @@
         async function runCloudTask() {
             if (!uploadedFile) throw new Error("Please upload an image first");
 
-            // Get token from centralized management (Global server token first, legacy localStorage fallback)
-            let token = '';
+            // 后端仅返回 has_token，实际保管 ModelScope Key 并代理云端请求。
+            let hasServerKey = false;
             try {
                 const res = await fetch('/api/config/token');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.token) token = data.token;
-                }
+                if (res.ok) hasServerKey = Boolean((await res.json()).has_token);
             } catch (e) {
-                console.warn("Failed to fetch global token", e);
+                console.warn("Failed to check global token configuration", e);
             }
-            if (token) {
-                // 自愈：清掉可能过期的旧版本地 Token，避免覆盖服务端有效 Token
+            if (hasServerKey) {
                 try { localStorage.removeItem('modelscope_api_token'); } catch (e) { }
-            } else {
-                token = localStorage.getItem('modelscope_api_token') || '';
             }
+            // 老版本地手动 Token 仍能使用，但不会读取/传输服务端保存的 Token。
+            const token = hasServerKey ? '' : (localStorage.getItem('modelscope_api_token') || '');
 
-            if (!token) {
+            if (!hasServerKey && !token) {
                 if (window.parent && typeof window.parent.openTokenModal === 'function') {
                     window.parent.openTokenModal();
                     // Allow the error to propagate so user sees the message

@@ -382,20 +382,19 @@
 
         // 4. ModelScope 云端逻辑
         async function runCloudTask(prompt) {
-            // 优先用 API 设置里集中管理的 Token（服务端）；localStorage 仅作旧版兜底
-            let apiKey = '';
+            // 已配置的 ModelScope Key 留在服务端，由 /generate 代理使用。
+            // 不要把它通过 /api/config/token 传回浏览器。
+            let hasServerKey = false;
             try {
                 const res = await fetch('/api/config/token');
-                const data = await res.json();
-                if (data.token) apiKey = data.token;
+                if (res.ok) hasServerKey = Boolean((await res.json()).has_token);
             } catch (e) { }
-            if (apiKey) {
-                // 自愈：清掉可能过期的旧版本地 Token，避免覆盖服务端有效 Token
+            if (hasServerKey) {
                 try { localStorage.removeItem(MS_TOKEN_KEY); } catch (e) { }
-            } else {
-                apiKey = localStorage.getItem(MS_TOKEN_KEY) || '';
             }
-            if (!apiKey) return alert(tr('studio.modelscopeTokenRequired'));
+            // 兼容曾在浏览器本地手动填写 Key 的旧用户。
+            const apiKey = hasServerKey ? '' : (localStorage.getItem(MS_TOKEN_KEY) || '');
+            if (!hasServerKey && !apiKey) return alert(tr('studio.modelscopeTokenRequired'));
 
             const btn = document.getElementById('mainGenBtn');
             setLoading(true);
