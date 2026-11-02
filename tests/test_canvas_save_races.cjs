@@ -124,3 +124,38 @@ test('smart editor still preserves a recoverable draft on stale 409',async()=>{
     assert.equal(x.ctx.smartCanvasConflictPending,true);
     assert.equal(typeof x.seen[0],'object');
 });
+
+test('smart saves serialize pending edits and use the newly acknowledged revision',async()=>{
+    const begin=smartSource.indexOf('function scheduleSave(){');
+    const end=smartSource.indexOf('function imageMetaFromNode(',begin);
+    assert.ok(begin>=0 && end>begin,'real smart save functions missing');
+    const requests=[],pending=[],timers=[];
+    const ctx={
+        canvasId:'smart',canvas:{id:'smart',revision:5,updated_at:100,title:'Title'},
+        smartCanvasConflictPending:false,canvasSyncInFlight:false,saveTimer:null,
+        savePromptDraftForCurrent(){},nodes:[],viewport:{x:0,y:0,scale:1},
+        settingsForStorage:x=>x||{},canvasDefaultSmartSettings:{},initialSmartSettings:{},
+        canvasForStorage(){return {title:ctx.canvas.title,icon:'sparkles',updated_at:ctx.canvas.updated_at,settings:{},nodes:[],viewport:{}};},
+        fetch:async(url,opts)=>{
+            requests.push(JSON.parse(opts.body).base_revision);
+            return new Promise(resolve=>pending.push(resolve));
+        },
+        clearTimeout(){},setTimeout(callback){timers.push(callback);return 1;},
+        window:{CanvasConflictRecovery:{show(){}}},toast(){},tr:x=>x,
+        smartClientId:'offline',console:{error(){}}
+    };
+    const api=new Function('scope','with(scope){'+smartSource.slice(begin,end)+' return {save:saveCanvas,schedule:scheduleSave};}')(ctx);
+    const first=api.save();
+    ctx.canvas.title='New title while saving';
+    api.schedule();
+    assert.deepEqual(requests,[5],'must not start second PUT with stale revision');
+    pending.shift()({ok:true,status:200,json:async()=>({canvas:{revision:6,updated_at:101}})});
+    await first;
+    assert.equal(timers.length,1,'must enqueue a follow-up save');
+    const second=timers.shift()();
+    assert.deepEqual(requests,[5,6],'second PUT must use acknowledged revision');
+    pending.shift()({ok:true,status:200,json:async()=>({canvas:{revision:7,updated_at:102}})});
+    await second;
+    assert.equal(ctx.canvas.title,'New title while saving');
+    assert.equal(ctx.canvas.revision,7);
+});
