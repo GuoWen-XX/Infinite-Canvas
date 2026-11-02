@@ -7606,15 +7606,24 @@ def storage_contained_realpath(root, candidate):
         return None
 
 
-def storage_file_path(kind, rel):
+def storage_file_path(kind, rel, *, preserve_entry=False):
     root = storage_kind_dir(kind)
     rel_path = str(rel or "").replace("\\", "/").lstrip("/")
     rel_path = os.path.normpath(rel_path).replace("\\", "/")
     if not rel_path or rel_path == "." or rel_path == ".." or rel_path.startswith("../") or os.path.isabs(rel_path):
         raise HTTPException(status_code=400, detail="非法文件路径")
-    path = storage_contained_realpath(root, os.path.join(root, rel_path))
+    candidate = os.path.join(root, rel_path)
+    path = storage_contained_realpath(root, candidate)
     if path is None:
         raise HTTPException(status_code=400, detail="非法文件路径")
+    if preserve_entry:
+        # Delete the directory entry itself, not the dereferenced target.
+        # Never follow a parent symlink outside the selected storage root.
+        parent = storage_contained_realpath(root, os.path.dirname(candidate))
+        if parent is None:
+            raise HTTPException(status_code=400, detail="非法文件路径")
+        entry = os.path.join(parent, os.path.basename(candidate))
+        return entry if os.path.lexists(entry) else None
     return path if os.path.exists(path) else None
 
 def output_file_from_url(url):
@@ -7736,7 +7745,7 @@ async def delete_storage_files(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="请选择要删除的文件")
     removed = 0
     for rel in rels:
-        path = storage_file_path(kind, rel)
+        path = storage_file_path(kind, rel, preserve_entry=True)
         if not path or not os.path.isfile(path):
             continue
         try:
