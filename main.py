@@ -4008,12 +4008,13 @@ def next_canvas_updated_at(previous):
         previous = 0
     return max(now_ms(), previous + 1)
 
-def write_canvas(canvas, *, bump_updated_at=True):
+def write_canvas(canvas, *, bump_updated_at=True, bump_revision=True):
     """把画布落盘。调用方必须已持有该画布的事务锁（canvas_transaction_lock）。"""
     if bump_updated_at:
         canvas["updated_at"] = next_canvas_updated_at(canvas.get("updated_at"))
     # Revision advances even for metadata-only changes that leave updated_at intact.
-    canvas["revision"] = int(canvas.get("revision") or 0) + 1
+    if bump_revision:
+        canvas["revision"] = int(canvas.get("revision") or 0) + 1
     with CANVAS_LOCK:
         atomic_write_json(canvas_path(canvas["id"]), canvas, indent=2)
     return canvas
@@ -4023,7 +4024,7 @@ def save_canvas(canvas):
     with canvas_transaction_lock(canvas.get("id")):
         return write_canvas(canvas)
 
-def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=True):
+def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=True, bump_revision=True):
     """在一个事务里完成"读取 → 修改 → 落盘"，全程持有该画布的事务锁。
 
     mutator 直接修改传入的 canvas；返回 False 表示本次无需改动、不落盘。
@@ -4034,7 +4035,7 @@ def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=Tr
         canvas = load_canvas_any(canvas_id) if allow_deleted else load_canvas(canvas_id)
         if mutator(canvas) is False:
             return canvas
-        return write_canvas(canvas, bump_updated_at=bump_updated_at)
+        return write_canvas(canvas, bump_updated_at=bump_updated_at, bump_revision=bump_revision)
 
 def check_canvas_base_revision(canvas, base_revision=None, base_updated_at=None):
     """Compare-and-swap under the canvas transaction lock.
@@ -17414,7 +17415,9 @@ async def get_canvas(canvas_id: str):
 
 @app.post("/api/canvases/{canvas_id}/touch")
 async def touch_canvas(canvas_id: str):
-    canvas = mutate_canvas(canvas_id, lambda c: None)
+    # Touch updates activity time but not content. Another tab opening the
+    # canvas must not invalidate a legitimate editor's content revision.
+    canvas = mutate_canvas(canvas_id, lambda c: None, bump_revision=False)
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @app.get("/api/canvas-assets")
