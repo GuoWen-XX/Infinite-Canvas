@@ -5453,6 +5453,9 @@ function applyMergedServerCanvas(serverCanvas){
     canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
     canvas.title = serverCanvas.title || canvas.title;
     canvas.icon = serverCanvas.icon || canvas.icon;
+    // Keep existing completed-task cleanup after adopting remote content.
+    const cleanedState = clearCompletedNodeBusyStates();
+    const recoveredLoopOutputs = recoverStuckLoopOutputsFromLogs();
     if(serverCanvas.settings && typeof serverCanvas.settings === 'object'){
         canvas.settings = serverCanvas.settings;
         settings = {...settings, ...serverCanvas.settings};
@@ -5462,6 +5465,7 @@ function applyMergedServerCanvas(serverCanvas){
     if(titleEl) titleEl.textContent = canvas.title;
     render();
     if(typeof scheduleConnectionLayerRefresh === 'function') scheduleConnectionLayerRefresh();
+    if(cleanedState || recoveredLoopOutputs) scheduleSave();
     resumeSmartPendingTasks();
     resumeJimengPendingNodes();
     return true;
