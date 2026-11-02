@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 IN_PROGRESS（安全边界代码与回归测试已提交分支）`。S02 尚未完成完整运行环境验证与独立 Code Review，不得启动 S03。  
+> 当前状态：`S00 MERGED → S01 MERGED → S02 PR_OPEN（PR #5 等待远端 Code Review）`。S02 尚未完成完整项目环境与 Chrome/Photoshop/LAN 联调，不得启动 S03。  
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -23,7 +23,7 @@
 | --- | --- | --- | --- | --- |
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
-| S02 | IN_PROGRESS | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
+| S02 | PR_OPEN | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | NOT_STARTED | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
@@ -63,7 +63,8 @@
 - [ ] 按 `S02_LAN_ACCESS.md` 在独立 Windows/Chrome/Photoshop 与 LAN 环境执行真实联调；当前不能以文档代替验证。
 - [x] 已新增默认 localhost 绑定、LAN 显式密码认证、Host/Origin/CORS/WS 检查，以及 `has_token` + 原后端 ModelScope 代理。**真实设备兼容性及全量回归尚未验证。**
 - [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**仅编写，尚未在完整仓库执行。**
-- [ ] 提交 PR、审查、合并后解锁 S03。
+- [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。正在等待最新 HEAD 独立 Code Review；未运行 GitHub Actions。
+- [ ] 对审查反馈逐项修复并补回归，在完整运行环境验证 LAN/插件/本地云生图，审查通过且合并 main 后解锁 S03。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
 
