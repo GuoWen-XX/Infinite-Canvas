@@ -116,7 +116,7 @@
 
 **S03 搜索权限测试复审（2026-11-02）**：
 
-- [x] Codex `cb702594aa7169ab2b619cecadab0700b430d9d0` 复审 `completed / findings=true / unresolved=true`，新增 **P2 测试假阳性**：之前 0711 目录的所有者依然有目录读取权限、root 测试也会绕过 ACL（`PRRT_kwDOUaWIpM6yr_6p`；以 GitHub 实时 review thread ID 为准）。现已修改测试：非 root 场景目录使用 `0311` 使所有者拥有写入/搜索但无读取；root 场景仅在 `nobody` 账户存在时，通过子进程放弃 root 权限并将该目录设为 `0733`，保证子进程仅有写入/搜索。测试必须**先确认旧 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开出现 `PermissionError`**，再由同一进程执行安全读取与 dir_fd 删除。子进程只操作 `TemporaryDirectory` 文件。
+- [x] Codex `cb702594aa7169ab2b619cecadab0700b430d9d0` 复审 `completed / findings=true / unresolved=true`，新增 **P2 测试假阳性**：之前 0711 目录的所有者依然有目录读取权限、root 测试也会绕过 ACL（`PRRT_kwDOUaWIpM6ysRGk`）。现已修改测试：非 root 场景目录使用 `0311` 使所有者拥有写入/搜索但无读取；root 场景仅在 `nobody` 账户存在时，通过子进程放弃 root 权限并将该目录设为 `0733`，保证子进程仅有写入/搜索。测试必须**先确认旧 `O_RDONLY|O_DIRECTORY|O_NOFOLLOW` 打开出现 `PermissionError`**，再由同一进程执行安全读取与 dir_fd 删除。子进程只操作 `TemporaryDirectory` 文件。
 - [ ] 此改进已经实际提交，但 **仍未在此容器完整运行且未获最新 HEAD 复审**，不得以撰写测试取代通过证据；S03 新增测试源码仍为 **45 项**。需新 HEAD 独立复审后再逐项处理 7 条未解决审查线程；不自动跑 Actions。
 
 ### S04 — 画布保存（R1/R6）
