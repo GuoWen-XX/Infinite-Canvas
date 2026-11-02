@@ -1,5 +1,16 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## 最新实时核查与 S04 续接（2026-11-02；优先于以下历史快照）
+
+- `main@081edae763ec73505bed9f82e4274bfeaabc16c3`：S03 PR #6 于 2026-11-02 15:00:18 UTC 合并，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65`；独立 Codex Review 0 findings、14/14 threads resolved。维护者明确记录 **DEFERRED_VALIDATION** 风险例外，S03 的 45 项新增测试及完整主程序/Windows UNC/FFmpeg/Range/更新渠道实测尚未执行；不得视为 TEST_GATE_PASS。S02 的 28 项及 LAN/Chrome/Photoshop/ModelScope 延期验收仍须 S08 发布前补齐。
+- **当前阶段 S04**：Draft [PR #7](https://github.com/GuoWen-XX/Infinite-Canvas/pull/7)，`fix/S04-canvas-conflicts` → `main`。首批已防止普通画布 409 盲目重试及未保存编辑被同步覆盖；本次进一步新增 `tests/test_canvas_revision.py`，`main.py` revision/CAS、元数据改名兼容、`canvas.js` / `canvas-list.js` / `smart-canvas.js` revision 与冲突草稿保存。每次仍须读取 PR 最新 HEAD，不复用本文 SHA。
+- **审查阻断**：PR #7 自动审查评论要求先创建 Codex environment，当前无正式 review；不要误称独立审查通过。**测试阻断**：本地容器 `git ls-remote` 再次证实 `Could not resolve host: github.com`；无法运行正确 HEAD 完整 Python 测试，三份 JS 仅 V8 语法解析 PASS，不能当成 UI PASS。
+- **下一步只做 S04**：完整评估并实现可见的冲突恢复/人工决策 UI，双标签新增/删除/重命名、智能画布 409、元数据版本/并发与旧客户端兼容测试；可用环境运行 `python -m unittest discover -s tests -p 'test_*.py' -v` 和浏览器用例，修复发现的问题；取得独立 Review 和无 blocking threads 后才能合并 PR #7。**不得启动 S05。**
+- **硬约束**：不运行/重跑 GitHub Actions，不恢复自动触发；不修改真实用户画布、密钥、更新源或默认分支，不调用计费 AI。旧版 updater 仍指向其他仓库分支，S08 发布前必须验证实际部署路径。
+
+---
+
+
 ## 2026-11-02 最新 S03 Review 门禁（独立核查后更新）
 
 - GitHub `main` 在本次核查为 `ae042d816c7881005a6e180a8e38aeaa8f9f07f5`；S03 PR #6（draft、base main）在本次**文档更新前** HEAD 为 `b3b02ae56d9d4c604439337c192b006e59ff1d86`。
