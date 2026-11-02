@@ -2328,9 +2328,27 @@ function cancelDeleteCanvas(event){
 async function deleteCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = canvases.find(item => item.id === id) || (canvas?.id === id ? canvas : null);
+    if(record?.revision == null){
+        setStatus('Canvas revision unavailable — refresh before deleting');
+        await loadCanvasList(false);
+        return;
+    }
+    // A stale tab must not move a newer remote version into trash.
+    if(canvas?.id === id && (localCanvasDirty || savingCanvasNow || canvasConflictPending)){
+        const draft = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id,kind:'classic',record:draft});
+        setStatus('Unsaved local changes — resolve before deleting');
+        return;
+    }
     setStatus('Moving to trash...');
     try {
-        const res = await fetch(`/api/canvases/${id}`, {method:'DELETE'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}?base_revision=${encodeURIComponent(record.revision)}`, {method:'DELETE'});
+        if(res.status === 409){
+            setStatus('Canvas changed in another tab — refresh before deleting');
+            await loadCanvasList(false);
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.moveToTrashFailed'));
         const deletingCurrent = canvas?.id === id;
         pendingDeleteCanvasId = null;
