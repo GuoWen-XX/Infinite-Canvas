@@ -231,6 +231,43 @@ class AccessBoundaryTests(unittest.TestCase):
                 {main.CANVAS_SESSION_NAME: session}, "http")
             self.assertEqual(status, 403)
 
+
+    def test_lan_real_http_middleware_requires_basic_then_session(self):
+        password = "test-s02-password-long"
+        basic = base64.b64encode(("canvas:" + password).encode("utf-8")).decode("ascii")
+        with patch.object(main, "CANVAS_LAN_ENABLED", True), \
+             patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": password}), \
+             patch.object(main, "modelscope_api_key", return_value="test-only-s02-secret"):
+            with TestClient(main.app, base_url="http://192.168.1.10:3000") as client:
+                denied = client.get("/api/config/token")
+                self.assertEqual(denied.status_code, 401)
+                approved = client.get("/api/config/token", headers={"Authorization": "Basic " + basic})
+                self.assertEqual(approved.status_code, 200)
+                self.assertEqual(approved.json(), {"has_token": True, "token": ""})
+                self.assertIn("httponly", approved.headers.get("set-cookie", "").lower())
+                self.assertIn("samesite=strict", approved.headers.get("set-cookie", "").lower())
+                session = client.get("/api/config/token")
+                self.assertEqual(session.status_code, 200)
+                self.assertNotIn("test-only-s02-secret", session.text)
+
+    def test_websocket_rejects_foreign_origin_at_real_asgi_boundary(self):
+        from starlette.websockets import WebSocketDisconnect
+        with TestClient(main.app) as client:
+            with self.assertRaises(WebSocketDisconnect) as caught:
+                with client.websocket_connect("/ws/stats", headers={"Origin": "https://attacker.example"}):
+                    pass
+            self.assertEqual(caught.exception.code, 1008)
+
+    def test_websocket_rejects_unauthenticated_lan_at_real_asgi_boundary(self):
+        from starlette.websockets import WebSocketDisconnect
+        with patch.object(main, "CANVAS_LAN_ENABLED", True), \
+             patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": "test-s02-password-long"}):
+            with TestClient(main.app, base_url="http://192.168.1.10:3000") as client:
+                with self.assertRaises(WebSocketDisconnect) as caught:
+                    with client.websocket_connect("/ws/stats"):
+                        pass
+                self.assertEqual(caught.exception.code, 1008)
+
     def test_token_route_only_reports_presence(self):
         with patch.object(main, "modelscope_api_key", return_value="fake-unit-test-secret"):
             with TestClient(main.app) as client:
