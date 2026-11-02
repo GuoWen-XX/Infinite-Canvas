@@ -33,6 +33,8 @@ INFINITE_CANVAS_LAN_PASSWORD=<由用户自己生成的12字符以上强密码>
 
 在手动以 `uvicorn main:app --host 0.0.0.0` 运行时也仍受全局 HTTP/WS 中间件的 LAN 检查；不能借命令行绑定绕开认证。
 
+反向代理从本机 `127.0.0.1` 连接后端时，也不会仅凭代理 TCP 连接来自 loopback 就跳过 LAN 密码；若 HTTP Host 为局域网 IP 或显式授权的 LAN 主机名，仍将执行 LAN 身份检查。代理配置应保留正确的 `Host` 与 `Origin`，建议使用 HTTPS。
+
 ## 3. Chrome / Photoshop 兼容要求
 
 - 正常的**本机同源 HTML 页面**直接继续工作，无需向 JS 注入密码。
