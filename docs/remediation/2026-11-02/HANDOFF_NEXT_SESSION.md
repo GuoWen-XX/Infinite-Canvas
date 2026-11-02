@@ -122,3 +122,13 @@ S00–S02 已合并；S02 以明确延期完整测试/Windows/LAN/Chrome/Photosh
 - [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)
 - [S03 review thread](https://github.com/GuoWen-XX/Infinite-Canvas/pull/6/files)
 - 本文：`docs/remediation/2026-11-02/HANDOFF_NEXT_SESSION.md`。
+
+
+## S04 recovery UI increment — 2026-11-02
+
+- S04 PR #7 remains **DRAFT / NOT MERGED**, target `main@081edae763ec73505bed9f82e4274bfeaabc16c3`. Previous S03 merge is not proof that deferred tests passed.
+- Added `static/js/canvas-conflict-recovery.js` and loaded it in the classic editor, smart editor and canvas list. A 409 now exposes an actionable, non-destructive panel: export the local JSON draft, create a **new independent canvas** (POST new ID then revision-checked PUT to that new ID only), or inspect the current server canvas in another tab. Original canvas is never automatically overwritten. Conflict drafts remain in localStorage, including across reload; smart-canvas edits after 409 refresh the local recovery snapshot. Metadata conflicts offer an explicit latest-revision CAS retry and keep the patch until success.
+- Added `tests/test_canvas_conflict_recovery.cjs` (**8 authored tests**). The exact committed helper and test source were executed in an **isolated V8 mock harness: 8/8 PASS**, covering independent copy, smart settings, failures, metadata CAS and persisted smart-draft discovery. This is **not a Node test run or a browser/UI integration pass**. The three modified application JS files were parsed in V8 (syntax only); Python `tests/test_canvas_revision.py` **8 authored cases NOT_RUN** on full `main.py`. Actual `node --test tests/test_canvas_conflict_recovery.cjs`, browser two-tab races, recovery UI, Windows/LAN/plugin and full Python regression remain **NOT_RUN**.
+- The GitHub workflow remains `workflow_dispatch`-only; no Actions runs or paid AI were triggered. The local container still cannot resolve github.com and lacks a full checkout.
+- **REVIEW_BLOCKED:** PR #7 has no formal reviews and no inline threads; the Codex connector bot requires creating a repository Codex environment. This requires user-side configuration or an alternative independent reviewer. Do not self-approve or merge S04.
+- Further S04 verification: two-tab simultaneous add/edit/delete, same-node delete-vs-edit, title/icon changes, explicit recovery-copy flow, stale draft retention, smart-canvas background saves and cross-tab revisions. S02/S03 deferred full tests remain S08 release blockers.
