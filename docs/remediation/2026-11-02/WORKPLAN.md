@@ -247,3 +247,11 @@ Final merge SHA:
 - [x] 最新代码快照 `6bdbfa13abde05f38f2a449e4ca797b332f690e6`：通过 GitHub 连接器读取 **4 个真实 JS 模块与 5 个 CJS 测试文件**，在隔离 V8 中以 Node built-ins 等价 shim 实际执行 **33/33 用例通过**（save races 8、metadata 3、conflict recovery 8、delete CAS 9、smart serialization 5），另做 4/4 文件 V8 语法解析；共 37/37 项有限检查。**非真实 `node --test`、非浏览器双标签、非主程序 Python unittest、非全仓测试。**
 - [ ] **S04 合并仍阻断**：正确 HEAD 的 Python 后端 18 项及全量 unittest、原生 Node、真实浏览器两标签并发与 Windows/兼容性没有实际运行。PR #7 尚无独立审查通过；仓库自动 review 评论要求先创建 Codex environment，本会话不手动请求 Review。Actions 默认 0 次，不使用真实画布、密钥或付费模型。
 - [ ] S02 延期 28 项与 LAN/Chrome/Photoshop/ModelScope、S03 45 项与 Windows/UNC/Range/旧 updater 发布源测试必须在 S08 发布前补齐；S05 不得提前启动。
+
+
+### S04 经典画布 GET→touch CAS 版本错配修复（2026-11-02）
+
+- [x] **新复现的 R1 数据覆盖窗口**：经典编辑器打开画布时先 GET 旧快照（revision 4，旧 nodes），然后 `/touch` 返回其他客户端刚提交的 revision 5；旧代码直接把 revision 5 写入 revision 4 的本地节点快照。下一次 PUT 会以合法的 revision 5 覆盖远端新节点。以实际旧版 `openCanvas` 函数和模拟时序独立复现；新增 `tests/test_canvas_open_touch_race.cjs`，修复前两项中 **1 FAIL / 1 PASS**（预期红测）。
+- [x] 修复：仅在 GET 的 revision 与 touch 观察的 revision 相等时保留原快照；不同则重新 GET 最新**节点与对应 revision**，且在异步阶段重复检查本地待保存编辑，不再把 touch 的较新 revision 赋给旧内容。版本不变的 touch 不多发 GET。
+- [x] 正确提交 `203705615a86574eed6cb3e714171a9fea572a6c` 上从 GitHub 获取 4 个实际应用 JS 与 7 个 CJS 回归文件，在**隔离 V8 + Node 内置模块 shim** 执行 **43/43 PASS**、4/4 JS 语法解析 PASS（新增 2 项）。**不是**原生 Node、真实浏览器、Python `main.py` 或跨平台联调通过。
+- [ ] S04 PR #7 仍 DRAFT，独立审查受仓库 Codex environment 缺失阻断；Python 18 项、原生 Node、真实双标签及完整项目测试未执行。不得合并或启动 S05。GitHub Actions 未运行；S02/S03 延期验收仍为 S08 发布前阻断。
