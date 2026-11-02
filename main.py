@@ -124,12 +124,157 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 
 app = FastAPI()
 
+# S02: Browser pages use same-origin APIs. A cross-origin client (such as the
+# Photoshop/Chrome bridge) must be explicitly listed by the studio operator.
+# Wildcard CORS on an API with saved credentials is never appropriate.
+CANVAS_TRUSTED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("INFINITE_CANVAS_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+}
+CANVAS_LAN_ENABLED = os.getenv("INFINITE_CANVAS_LAN", "").strip().lower() in {"1", "true", "yes"}
+CANVAS_LAN_PASSWORD_ENV = "INFINITE_CANVAS_LAN_PASSWORD"
+CANVAS_SESSION_NAME = "ic_studio_session"
+CANVAS_SESSION_TTL = 12 * 60 * 60
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=sorted(CANVAS_TRUSTED_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
+
+
+def canvas_is_loopback(host):
+    try:
+        return ipaddress.ip_address(str(host or "")).is_loopback
+    except ValueError:
+        return False
+
+
+def canvas_trusted_host(host_header, client_host=""):
+    """Reject DNS rebinding hosts even when the connection arrives on loopback."""
+    try:
+        parsed = urllib.parse.urlsplit("http://" + str(host_header or ""))
+        hostname = parsed.hostname
+        if not hostname or parsed.username or parsed.password:
+            return False
+        name = hostname.lower().rstrip(".")
+        if name in {"localhost", "127.0.0.1", "::1"}:
+            return True
+        if name == "testserver" and client_host == "testclient":
+            # Starlette TestClient uses synthetic clients, never TCP addresses.
+            return True
+        if not CANVAS_LAN_ENABLED:
+            return False
+        try:
+            return ipaddress.ip_address(name).is_private
+        except ValueError:
+            # Custom LAN DNS names must be explicitly configured by operator.
+            return name in {
+                v.strip().lower() for v in
+                os.getenv("INFINITE_CANVAS_TRUSTED_HOSTS", "").split(",") if v.strip()
+            }
+    except ValueError:
+        return False
+
+
+def canvas_origin_valid(headers, hostname, scheme="http", websocket=False):
+    origin = headers.get("origin") or ""
+    fetch_site = headers.get("sec-fetch-site") or ""
+    if not origin:
+        return fetch_site.lower() not in {"cross-site", "same-site"}
+    if origin in CANVAS_TRUSTED_ORIGINS:
+        return True
+    try:
+        parsed = urllib.parse.urlsplit(origin)
+        if parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return False
+        request_host = urllib.parse.urlsplit("http://" + hostname).netloc.lower()
+        origin_host = parsed.netloc.lower()
+        actual_scheme = "https" if scheme in {"https", "wss"} else "http"
+        return parsed.scheme == actual_scheme and origin_host == request_host
+    except ValueError:
+        return False
+
+
+def canvas_lan_password():
+    password = os.getenv(CANVAS_LAN_PASSWORD_ENV, "")
+    return password if len(password) >= 12 else ""
+
+
+def canvas_new_session(password):
+    stamp = str(int(time.time()))
+    digest = hmac.new(password.encode("utf-8"), ("ic-v1:" + stamp).encode("utf-8"), hashlib.sha256).hexdigest()
+    return stamp + "." + digest
+
+
+def canvas_valid_session(value, password):
+    try:
+        stamp, digest = str(value or "").split(".", 1)
+        ts = int(stamp)
+        if ts > int(time.time()) + 60 or int(time.time()) - ts > CANVAS_SESSION_TTL:
+            return False
+        want = hmac.new(password.encode("utf-8"), ("ic-v1:" + stamp).encode("utf-8"), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(digest, want)
+    except (ValueError, TypeError):
+        return False
+
+
+def canvas_basic_auth(headers, password):
+    raw = headers.get("authorization") or ""
+    if not raw.lower().startswith("basic "):
+        return False
+    try:
+        username, supplied = base64.b64decode(raw[6:].strip(), validate=True).decode("utf-8").split(":", 1)
+        return hmac.compare_digest(username, "canvas") and hmac.compare_digest(supplied, password)
+    except (ValueError, UnicodeDecodeError, TypeError):
+        return False
+
+
+def canvas_access_result(client_host, host_header, headers, cookies, scheme="http"):
+    """Return (status, message, grant_session). Empty status = authorized."""
+    if not canvas_trusted_host(host_header, client_host):
+        return 403, "Host not allowed", False
+    if not canvas_origin_valid(headers, host_header, scheme):
+        return 403, "Origin not allowed", False
+    if canvas_is_loopback(client_host) or (client_host == "testclient" and host_header.startswith("testserver")):
+        return 0, "", False
+    if not CANVAS_LAN_ENABLED:
+        return 403, "Remote access disabled; enable INFINITE_CANVAS_LAN explicitly", False
+    secret = canvas_lan_password()
+    if not secret:
+        return 503, "LAN mode requires INFINITE_CANVAS_LAN_PASSWORD of at least 12 characters", False
+    if canvas_valid_session(cookies.get(CANVAS_SESSION_NAME), secret):
+        return 0, "", False
+    if canvas_basic_auth(headers, secret):
+        return 0, "", True
+    return 401, "LAN authentication required", False
+
+
+@app.middleware("http")
+async def canvas_http_access_boundary(request: Request, call_next):
+    client_host = request.client.host if request.client else ""
+    host = request.headers.get("host") or ""
+    # CORS preflights carry no credentials; CORS itself enforces the explicit
+    # trusted-origin allowlist, while actual requests still require auth.
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-method"):
+        return await call_next(request)
+    status, message, grant = canvas_access_result(
+        client_host, host, request.headers, request.cookies, request.url.scheme
+    )
+    if status:
+        headers = {"WWW-Authenticate": 'Basic realm="Infinite Canvas Studio"'} if status == 401 else {}
+        return JSONResponse(status_code=status, content={"detail": message}, headers=headers)
+    response = await call_next(request)
+    if grant:
+        response.set_cookie(
+            CANVAS_SESSION_NAME, canvas_new_session(canvas_lan_password()),
+            httponly=True, samesite="strict", secure=request.url.scheme == "https",
+            max_age=CANVAS_SESSION_TTL,
+        )
+    return response
 
 # --- WebSocket 状态管理器 ---
 class ConnectionManager:
@@ -265,6 +410,16 @@ async def startup_event():
 
 @app.websocket("/ws/stats")
 async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
+    # HTTP middleware does not cover WebSockets. Apply identical LAN, host and
+    # origin checks before registering the connection or broadcasting data.
+    client_host = websocket.client.host if websocket.client else ""
+    status, _message, _grant = canvas_access_result(
+        client_host, websocket.headers.get("host") or "",
+        websocket.headers, websocket.cookies, websocket.url.scheme
+    )
+    if status:
+        await websocket.close(code=1008)
+        return
     await manager.connect(websocket, client_id)
     try:
         while True:
@@ -20739,5 +20894,8 @@ if __name__ == "__main__":
     # 关闭服务端协议级 WebSocket ping：部分客户端（如 PS UXP 面板）不会自动回 pong，
     # 默认 20s ping/20s 超时会把这些连接每隔一会儿就踢掉造成"频繁断连"。
     # 客户端有自己的应用层心跳 + 断线重连兜底，这里禁用协议 ping 更稳。
-    uvicorn.run(app, host="0.0.0.0", port=3000,
+    # Default to localhost. LAN is explicit and requires a strong password.
+    if CANVAS_LAN_ENABLED and not canvas_lan_password():
+        raise RuntimeError("INFINITE_CANVAS_LAN=1 requires INFINITE_CANVAS_LAN_PASSWORD (12+ characters)")
+    uvicorn.run(app, host="0.0.0.0" if CANVAS_LAN_ENABLED else "127.0.0.1", port=3000,
                 ws_ping_interval=None, ws_ping_timeout=None)
