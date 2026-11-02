@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas.js'), 'utf8');
+const smartSource = fs.readFileSync(path.join(__dirname, '../static/js/smart-canvas.js'), 'utf8');
 
 function extract(name, until) {
     const start = source.indexOf('async function ' + name + '(){');
@@ -74,4 +75,52 @@ test('a 409 cannot advance the base token and overwrite the remote canvas', asyn
     assert.equal(x.ctx.canvasConflictPending,true);
     assert.equal(x.ctx.localCanvasDirty,true);
     assert.equal(showed,true);
+});
+
+test('classic editor opens recovery panel if canvas was deleted remotely',async()=>{
+    const x=sandbox();
+    let shown=false;
+    x.ctx.window.CanvasConflictRecovery.show=()=>{shown=true;};
+    const pending=x.save();
+    x.reply(response(null,404));
+    await pending;
+    assert.equal(x.ctx.canvasConflictPending,true);
+    assert.equal(x.ctx.localCanvasDirty,true);
+    assert.equal(x.ctx.canvas.revision,3);
+    assert.equal(shown,true);
+});
+function smartSandbox(status){
+    const begin=smartSource.indexOf('async function saveCanvas(){');
+    const end=smartSource.indexOf('function imageMetaFromNode(',begin);
+    assert.ok(begin>=0 && end>begin,'missing real smart-canvas save function');
+    const seen=[];
+    const ctx={
+        canvasId:'smart-canvas-one',canvas:{id:'smart-canvas-one',title:'Smart',revision:3,updated_at:100},
+        smartCanvasConflictPending:false,canvasSyncInFlight:false,saveTimer:null,
+        savePromptDraftForCurrent(){},nodes:[],viewport:{x:0,y:0,scale:1},
+        settingsForStorage:s=>s||{},canvasDefaultSmartSettings:{},initialSmartSettings:{},
+        canvasForStorage(){return {title:'Smart',icon:'sparkles',nodes:[],connections:[],viewport:ctx.viewport,logs:[],settings:{},updated_at:100};},
+        mediaItemForStorage:v=>v,stripImageGenerationMeta:v=>v,
+        fetch:async()=>({ok:false,status}),clearTimeout(){},
+        persistSmartConflictDraft(snapshot){return {canvas_id:ctx.canvasId,canvas:snapshot};},
+        window:{CanvasConflictRecovery:{show:details=>seen.push(details)}},
+        toast:msg=>seen.push(msg),tr:x=>x,smartClientId:'offline-test',
+        console:{error(){}}
+    };
+    const save=new Function('scope','with(scope){'+smartSource.slice(begin,end)+' return saveCanvas;}')(ctx);
+    return {ctx,seen,save};
+}
+test('smart editor preserves a recoverable draft after remote 404 deletion',async()=>{
+    const x=smartSandbox(404);
+    await x.save();
+    assert.equal(x.ctx.smartCanvasConflictPending,true);
+    assert.equal(x.ctx.canvas.revision,3);
+    assert.equal(typeof x.seen[0],'object');
+    assert.equal(x.seen[0].kind,'smart');
+});
+test('smart editor still preserves a recoverable draft on stale 409',async()=>{
+    const x=smartSandbox(409);
+    await x.save();
+    assert.equal(x.ctx.smartCanvasConflictPending,true);
+    assert.equal(typeof x.seen[0],'object');
 });
