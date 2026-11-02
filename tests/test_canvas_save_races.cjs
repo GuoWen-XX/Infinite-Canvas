@@ -159,3 +159,42 @@ test('smart saves serialize pending edits and use the newly acknowledged revisio
     assert.equal(ctx.canvas.title,'New title while saving');
     assert.equal(ctx.canvas.revision,7);
 });
+
+function switchingSandbox(){
+    const start=source.indexOf('function preserveDraftBeforeCanvasSwitch(){');
+    const stop=source.indexOf('function applyRemoteCanvasData(',start);
+    assert.ok(start>=0 && stop>start,'missing actual canvas-switch guard');
+    let release;
+    const events=[];
+    const ctx={
+        canvas:{id:'original',title:'Unsaved'},localCanvasDirty:false,
+        savingCanvasNow:false,saveCanvasAgain:false,canvasConflictPending:false,
+        captureCanvasConflictDraft(){events.push('backup');return {canvas_id:'original'};},
+        window:{CanvasConflictRecovery:{show(){events.push('shown');}}},
+        setStatus(){},tr:x=>x,console:{error(){}},
+        fetch(){events.push('fetch');return new Promise(resolve=>{release=resolve;});},
+        resetCascadeRuntimeState(){events.push('reset');},
+        canvasListUrlForProject(){return '/list';},requestedCanvasListProject(){},
+        rememberedCanvasListProject(){}
+    };
+    const open=new Function('scope','with(scope){'+source.slice(start,stop)+'return openCanvas;}')(ctx);
+    return {ctx,events,open,reply(result){release(result);}};
+}
+test('switching canvas with unsaved work does not start a destructive GET',async()=>{
+    const x=switchingSandbox();
+    x.ctx.localCanvasDirty=true;
+    await x.open('other');
+    assert.equal(x.events.includes('fetch'),false);
+    assert.equal(x.ctx.canvas.id,'original');
+    assert.equal(x.events.includes('backup'),true);
+});
+test('late GET response cannot discard edits made while loading another canvas',async()=>{
+    const x=switchingSandbox();
+    const pending=x.open('other');
+    x.ctx.localCanvasDirty=true;
+    x.reply({ok:true,json:async()=>({canvas:{id:'other'}})});
+    await pending;
+    assert.equal(x.ctx.canvas.id,'original');
+    assert.equal(x.events.includes('reset'),false);
+    assert.equal(x.events.includes('shown'),true);
+});
