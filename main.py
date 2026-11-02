@@ -13663,6 +13663,10 @@ async def save_providers(payload: List[ApiProviderPayload]):
     for item in payload:
         provider = normalize_provider(item.dict(exclude={"api_key"}))
         previous = previous_by_id.get(provider["id"])
+        # A previously removed provider can still have a key in API/.env.
+        # Treat that as an unbound secret, not as permission to reuse it for
+        # any newly created provider with the same (or colliding) ID.
+        destination_changed = previous is None
         if previous:
             try:
                 destination_changed = (
@@ -13671,19 +13675,19 @@ async def save_providers(payload: List[ApiProviderPayload]):
                 )
             except ValueError:
                 destination_changed = previous.get("base_url") != provider.get("base_url")
-            if destination_changed:
-                saved_key = provider_env_key_value(provider["id"])
-                if saved_key and not (item.api_key or "").strip() and not item.clear_key:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"修改 {provider['id']} 请求地址前，必须重新填写或清除已保存的 API Key",
-                    )
-                if (provider["id"] == "runninghub" and runninghub_wallet_key_value()
-                        and not (item.wallet_api_key or "").strip() and not item.clear_wallet_key):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="修改 RunningHub 请求地址前，必须重新填写或清除已保存的钱包 Key",
-                    )
+        if destination_changed:
+            saved_key = provider_env_key_value(provider["id"])
+            if saved_key and not (item.api_key or "").strip() and not item.clear_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"修改或新建 {provider['id']} 请求地址前，必须重新填写或清除已保存的 API Key",
+                )
+            if (provider["id"] == "runninghub" and runninghub_wallet_key_value()
+                    and not (item.wallet_api_key or "").strip() and not item.clear_wallet_key):
+                raise HTTPException(
+                    status_code=400,
+                    detail="修改或新建 RunningHub 请求地址前，必须重新填写或清除已保存的钱包 Key",
+                )
         if provider["id"] == "runninghub":
             provider = preserve_runninghub_hidden_overrides(provider)
             prune_runninghub_workflow_store_for_provider(provider)
