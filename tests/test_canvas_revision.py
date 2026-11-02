@@ -4,6 +4,8 @@ No real canvas files or network services are used. Requires the full project
 environment to execute; merely committing these tests is not a PASS result.
 """
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -70,6 +72,34 @@ class CanvasRevisionTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             self._save(base_revision=None, base_updated_at=0)
         self.assertEqual(ctx.exception.status_code, 409)
+
+    def test_parallel_editors_share_one_revision_only_one_write_wins(self):
+        original = main.load_canvas(self.canvas["id"])
+        barrier = threading.Barrier(2)
+
+        def writer(title):
+            payload = main.CanvasSaveRequest(
+                title=title, icon="layers", nodes=[{"id": title}],
+                connections=[], viewport={}, logs=[],
+                base_revision=original["revision"],
+                base_updated_at=original["updated_at"],
+            )
+            barrier.wait(timeout=5)
+            try:
+                asyncio.run(main.update_canvas(self.canvas["id"], payload))
+                return "saved"
+            except HTTPException as exc:
+                return exc.status_code
+
+        with patch.object(main.manager, "broadcast_canvas_updated", new_callable=AsyncMock):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(writer, "A"), pool.submit(writer, "B")]
+                results = [future.result(timeout=10) for future in futures]
+        self.assertCountEqual(results, ["saved", 409])
+        final = main.load_canvas(self.canvas["id"])
+        self.assertIn(final["title"], ("A", "B"))
+        self.assertEqual(final["nodes"], [{"id": final["title"]}])
+        self.assertEqual(final["revision"], original["revision"] + 1)
 
     def test_two_editors_same_revision_only_first_can_commit(self):
         first = self._save()
