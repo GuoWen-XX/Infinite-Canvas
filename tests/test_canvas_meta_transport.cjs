@@ -75,14 +75,14 @@ for(const kind of ['classic','list']){
         await x.apply({title:'Unsent title'});
         await x.apply({icon:'unsent-icon'});
         const expected = {title:'Unsent title',icon:'unsent-icon'};
-        assert.deepEqual(JSON.parse(x.store.canvas_meta_conflict_canvas-one).patch,expected);
+        assert.deepEqual(JSON.parse(x.store['canvas_meta_conflict_canvas-one']).patch,expected);
         assert.deepEqual(x.shown.at(-1).patch,expected);
     });
     test(kind + ' latest failed value wins for the same field', async()=>{
         const x = fixture(kind, ()=>Promise.reject(new Error('offline')));
         await x.apply({title:'First'});
         await x.apply({title:'Second'});
-        assert.deepEqual(JSON.parse(x.store.canvas_meta_conflict_canvas-one).patch,{title:'Second'});
+        assert.deepEqual(JSON.parse(x.store['canvas_meta_conflict_canvas-one']).patch,{title:'Second'});
     });
     test(kind + ' warns when browser storage cannot persist recovery', async()=>{
         const x = fixture(kind, ()=>Promise.reject(new Error('offline')),true);
