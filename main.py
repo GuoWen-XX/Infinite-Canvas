@@ -9398,14 +9398,25 @@ def public_base_url() -> str:
     return ""
 
 def canvas_media_path_identity(path: str) -> str:
-    """Canonical single-file URL path for a short-lived cloud download grant."""
-    raw = str(path or "").split("?", 1)[0].split("#", 1)[0]
-    raw = urllib.parse.unquote(raw)
+    """Validate the exact, already-decoded ASGI/StaticFiles path.
+
+    Do not unquote again or split on '?' / '#': those can be literal filename
+    characters in scope['path']. The HMAC must cover exactly the file served.
+    """
+    raw = str(path or "")
     if (not raw.startswith(("/output/", "/assets/"))
             or any(part in {"", ".", ".."} for part in raw.split("/")[1:])
             or chr(92) in raw or chr(0) in raw):
         return ""
     return raw
+
+
+def canvas_media_source_path(value: str) -> str:
+    """Convert an URL-encoded local media URL to one decoded StaticFiles path."""
+    parsed = urllib.parse.urlsplit(str(value or ""))
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return ""
+    return canvas_media_path_identity(urllib.parse.unquote(parsed.path))
 
 
 def canvas_signed_public_media_valid(path, expiry, signature, now=None):
@@ -9430,7 +9441,7 @@ def canvas_signed_public_media_valid(path, expiry, signature, now=None):
 def public_media_url_suffix(path: str) -> str:
     """Create a path-bound expiring URL signature; never leak PUBLIC_MEDIA_TOKEN."""
     secret = str(os.getenv("PUBLIC_MEDIA_TOKEN") or "").strip()
-    media_path = canvas_media_path_identity(path)
+    media_path = canvas_media_source_path(path)
     if len(secret) < 24 or not media_path:
         return ""
     expiry = str(int(time.time()) + 30 * 60)
@@ -9450,8 +9461,10 @@ def local_asset_public_url(value: str) -> str:
     suffix = public_media_url_suffix(text)
     if not suffix:
         return ""
-    media_path = canvas_media_path_identity(text)
-    return f"{base}{urllib.parse.quote(media_path, safe='/%._-~')}{suffix}"
+    media_path = canvas_media_source_path(text)
+    # Percent is NOT safe here: a literal '%20' filename needs '%2520'
+    # on the wire, to decode once to the same StaticFiles path we signed.
+    return f"{base}{urllib.parse.quote(media_path, safe='/._-~')}{suffix}"
 
 async def openai_video_proxy_public_reference_url(ref) -> str:
     """异步生图（openai-video-proxy）的参考图公网化。
