@@ -260,12 +260,17 @@ with storage_guard.open_scoped_file(root, path) as source:
 storage_guard.unlink_scoped_file(root, path)
 assert not os.path.lexists(path)
 """
-            result = subprocess.run(
-                [sys.executable, "-I", "-c", script, str(root), str(target),
-                 str(folder), str(sandbox), "1" if privileged else "0"],
-                cwd=str(sandbox), capture_output=True, text=True, timeout=10,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-I", "-c", script, str(root), str(target),
+                     str(folder), str(sandbox), "1" if privileged else "0"],
+                    cwd=str(sandbox), capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+            finally:
+                # Preserve TemporaryDirectory cleanup even after a test
+                # failure; owner needs read permission for rmtree/scandir.
+                folder.chmod(0o755)
 
     def test_windows_handle_compare_does_not_reresolve_mutable_root(self):
         trusted = r"C:\\media\\allowed"
