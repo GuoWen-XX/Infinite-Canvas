@@ -84,6 +84,44 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
         self.assertFalse(os.path.lexists(alias))
         self.assertEqual(original.read_bytes(), b"original-should-survive")
 
+    def test_storage_http_byte_range_uses_pinned_file(self):
+        from fastapi.testclient import TestClient
+        image = self.root / "range.png"
+        image.write_bytes(b"0123456789")
+        with TestClient(main.app) as client:
+            response = client.get(
+                "/api/storage-files/generated/range.png",
+                headers={"Range": "bytes=2-5"},
+            )
+        self.assertEqual(response.status_code, 206, response.text[:200])
+        self.assertEqual(response.content, b"2345")
+        self.assertEqual(response.headers.get("content-range"), "bytes 2-5/10")
+
+    def test_response_stream_remains_pinned_after_path_swap(self):
+        image = self.root / "fixed.png"
+        image.write_bytes(b"SAFE-CONTENT")
+        response = main.scoped_local_file_response(
+            str(self.root), str(image), media_type="image/png",
+        )
+        image.unlink()
+        self._symlink(image, self.secret)
+
+        async def collect():
+            body = b""
+            async for part in response.body_iterator:
+                body += part
+            return body
+
+        self.assertEqual(asyncio.run(collect()), b"SAFE-CONTENT")
+        self.assertEqual(self.secret.read_bytes(), b"not-an-image-secret")
+
+    def test_storage_http_external_symlink_cannot_be_downloaded(self):
+        from fastapi.testclient import TestClient
+        self._symlink(self.root / "leak.png", self.secret)
+        with TestClient(main.app) as client:
+            response = client.get("/api/storage-files/generated/leak.png")
+        self.assertEqual(response.status_code, 400)
+
     def test_storage_delete_cannot_remove_external_symlink_target(self):
         self._symlink(self.root / "leak.png", self.secret)
         with self.assertRaises(HTTPException) as caught:
