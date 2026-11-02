@@ -132,6 +132,9 @@
 
 ### S04 — 画布保存（R1/R6）
 
+**S04 元数据网络失败保护（2026-11-02）：** 在 PR #7 实际 `canvas.js::patchCanvasMeta`、`canvas-list.js::persistMeta` 隔离复现网络异常/503 时乐观更新未持久化、未出现恢复提示（四种失败场景）。已在本阶段 PR 同时修复：任意失败均保留 `canvas_meta_conflict_<id>` 草稿并展示显式确认后 CAS 重试，不静默覆盖远端。新增 `tests/test_canvas_meta_transport.cjs` 6 项；准确代码提交 `0cd5ecdeb879d627e943d231d3cec162f5c20213` 的真实 JS/CJS 在隔离 V8 + Node shim **6/6 PASS**，两份 JS 语法解析 **2/2 PASS**，不是原生 Node/浏览器/完整 Python PASS。`test_canvas_revision.py` 目前含 21 个已编写测试方法，完整项目未运行。S04 仍 DRAFT / REVIEW_BLOCKED / TEST_GATE_BLOCKED，S05 不启动，Actions NOT_RUN。
+
+
 **S04 新增 Smart Canvas 远端修订竞态闭环（2026-11-02）：** 在旧 `applyMergedServerCanvas` 真实源码的隔离 V8 复现：远端删除节点后，本地并集合并仍保留已删除节点，且只更新 `updated_at` 未更新 `revision`。已在 PR #7 同阶段修复：显式追踪 dirty 状态；远端新 revision 与未保存/在途/排队/运行中本地工作冲突时保留草稿并要求人工恢复；无本地改动时精确采用远端节点集和 revision，过期 GET/touch-only 不误合并。新增 `tests/test_smart_canvas_remote_merge.cjs` 6 项，增强已有 Smart Canvas save fixture；从 GitHub 准确提交的源码和 6 份 CJS 测试中进行 V8+Node built-in shim 隔离执行 **41/41 PASS**、4 份 JS 语法解析 **4/4 PASS**。**非原生 Node/浏览器/完整 Python PASS**；S04 审查和测试门禁继续 BLOCKED，PR #7 不合并、S05 不启动；Actions NOT_RUN。
 
 - [x] S03 已合并后从 `main@081edae` 建立 `fix/S04-canvas-conflicts` 与 Draft PR #7；不触及 S05。
