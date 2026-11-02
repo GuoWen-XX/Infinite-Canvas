@@ -17243,6 +17243,7 @@ async def check_canvas_assets(payload: CanvasAssetCheckRequest):
 CANVAS_ASSET_ZIP_MAX_FILES = 250
 CANVAS_ASSET_ZIP_MAX_FILE_BYTES = 200 * 1024 * 1024
 CANVAS_ASSET_ZIP_MAX_TOTAL_BYTES = 512 * 1024 * 1024
+CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES = 550 * 1024 * 1024
 
 
 @app.post("/api/canvas-assets/download")
@@ -17320,7 +17321,11 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
                             total_input += len(chunk)
                 else:
                     zf.writestr(archive_name, content)
+                if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+                    raise HTTPException(status_code=413, detail="ZIP 输出大小超过限制")
                 count += 1
+        if buffer.tell() > CANVAS_ASSET_ZIP_MAX_OUTPUT_BYTES:
+            raise HTTPException(status_code=413, detail="ZIP 输出大小超过限制")
         if count <= 0:
             raise HTTPException(status_code=404, detail="没有可下载的本地图片")
         buffer.seek(0)
