@@ -7666,9 +7666,16 @@ def scoped_local_file_response(root, path, *, media_type, request=None, filename
     requested = request.headers.get("range") if request is not None else None
     if requested and request is not None:
         if_range = request.headers.get("if-range")
-        # If-Range requires a strong matching validator. On doubt, send 200.
-        if if_range is not None and if_range.strip() not in (etag, last_modified):
-            requested = None
+        # A file date is a strong validator only if it has whole-second
+        # precision and is sufficiently old (RFC 9110, 8.8.2.2). Fresh
+        # dates and weak/unknown tags always fall back to a full 200.
+        if if_range is not None:
+            candidate = if_range.strip()
+            strong_date = (candidate == last_modified
+                           and metadata.st_mtime_ns % 1_000_000_000 == 0
+                           and time.time() - metadata.st_mtime >= 60)
+            if candidate != etag and not strong_date:
+                requested = None
     if requested:
         match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip(), flags=re.I)
         if not match or not size or not (match.group(1) or match.group(2)):
