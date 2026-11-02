@@ -62,16 +62,16 @@
 - [x] 已追踪 HTTP、WebSocket、zimage/angle、Chrome/PS 源码路径；具体调用关系和迁移限制记录于 `S02_AUDIT.md` 与 `S02_LAN_ACCESS.md`。
 - [ ] 按 `S02_LAN_ACCESS.md` 在独立 Windows/Chrome/Photoshop 与 LAN 环境执行真实联调；当前不能以文档代替验证。
 - [x] 已新增默认 localhost 绑定、LAN 显式密码认证、Host/Origin/CORS/WS 检查，以及 `has_token` + 原后端 ModelScope 代理。**真实设备兼容性及全量回归尚未验证。**
-- [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**当前 27 项（新增真实 ASGI LAN Basic/Session 与两项 WebSocket 拒绝检查），尚未在完整仓库执行。**
+- [x] 新增 `tests/test_access_boundary.py`：LAN、Host、Origin、Basic、Cookie、Token 不回传与旧配置服务器读取测试；**当前 28 项（新增真实 ASGI LAN Basic/Session、两项 WebSocket 拒绝与已认证连接检查），尚未在完整仓库执行。**
 - [x] 创建 [S02 PR #5](https://github.com/GuoWen-XX/Infinite-Canvas/pull/5)，目标 main。最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的 Codex 独立 Code Review 已完成、0 findings，全部 6 条 inline review threads 已 resolved。GitHub Actions 曾由用户授权手动运行 1 次，但实际选中默认分支 `zcode/iteration-01`，不是 S02，不能用于本阶段验收。
 - [x] 对初轮 Review 的三个 P2 已提交修复：API/.env 加载后初始化 LAN/CORS；Basic 非 ASCII 密码改成 UTF-8 字节恒定时间比较；公网媒体变为绑定 `/assets/` / `/output/` 单文件、30 分钟的 HMAC 签名 GET/HEAD。补充安全回归与迁移说明。
 - [x] 第二轮 Review 对签名 URL 的二次解码及字面 `%` 文件名提出 2 个 P2。已修复为“生成端 URL 解码一次 / 验证端使用已解码 ASGI 路径原样签名”，并修正 URL 序列化对字面 `%` 的重新编码；新增 `%23` / `%3F` / `%2520` 回归；提取安全函数隔离测试 **9/9 PASS**。完整后端与实际 LAN/插件联调**尚未运行**。
 - [x] 2026-11-02 新增真实 ASGI 路径边界修复：Starlette `Request.url.path` 在已解码的文件名含 `#` / `?` 时会截断，导致普通文件的有效签名可授权读取另一文件；签名校验现使用与 StaticFiles 一致的 `request.scope["path"]`。新增 `TestClient` 回归。**隔离 FastAPI/Starlette ASGI 实测：旧实现可错误读取文件，新实现拒绝跨文件复用且允许正确签名，3/3 PASS**（`/mnt/data/ic_review/s02_asgi_path_regression.py`；该脚本是独立提取验证，不是完整仓库测试）。
 - [x] 2026-11-02 最新 HEAD `e68ca0e5980c0f894f68de44ca19f5dc536c9431` 的独立 Codex Review `completed / has_any_findings=false / has_unresolved_findings=false`，6/6 旧线程已 resolved；补充 macOS 启动脚本与 `tests/test_mac_launcher.py`，隔离 Mock `2/2 PASS` 和 `bash -n` PASS。
-- [x] 2026-11-02 使用 GitHub 连接器读取 S02 HEAD `e68ca0e`，完成 17 项源码策略不变量检查（`17/17 PASS`：Host/Origin/CORS/WS、Token 后端保密、签名媒体路径、URL 编码、前端本地 Token 清理、macOS loopback、workflow manual-only 等）。**此为静态结构检查，不能替代执行 27 项真实后端测试。**
+- [x] 2026-11-02 使用 GitHub 连接器读取 S02 HEAD `e68ca0e`，完成 17 项源码策略不变量检查（`17/17 PASS`：Host/Origin/CORS/WS、Token 后端保密、签名媒体路径、URL 编码、前端本地 Token 清理、macOS loopback、workflow manual-only 等）。**此为静态结构检查，不能替代执行 28 项真实后端测试。**
 - [x] 用户明确授权并亲自启动 [Actions Tests #41439808653](https://github.com/GuoWen-XX/Infinite-Canvas/actions/runs/41439808653)：`success`，`78/78`；但工作流实际检出 `zcode/iteration-01@bb778e26a9b84d63d059c83ff511dbb0dc2e7067`，不是 S02 分支，不可用于 S02 的全量回归证据。未启动第二次 Actions。
-- [x] 2026-11-02 已补充 `tests/test_access_boundary.py` 真实 ASGI 边界回归 3 项：LAN Basic 认证授予 Session 后的 token 保密、跨源 WebSocket 1008 拒绝、无认证 LAN WebSocket 1008 拒绝；新测试代码通过 Python AST 语法检查，但**未能在完整 `main.py` 环境实际执行**。
-- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（27 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 正式合并 main 并补齐交接记录前，不提交 S03 实施代码。
+- [x] 2026-11-02 已补充 `tests/test_access_boundary.py` 真实 ASGI 边界回归 4 项：LAN Basic 认证授予 Session 后的 token 保密、跨源 WebSocket 1008 拒绝、无认证 LAN WebSocket 1008 拒绝、合法 Session 允许 LAN WebSocket 连接；新测试代码通过 Python AST 语法检查，但**未能在完整 `main.py` 环境实际执行**。
+- [ ] S02 **TEST_GATE_BLOCKED**：尚缺在准确 HEAD 上导入 `main.py` 后执行 `tests/test_access_boundary.py`（28 项）及 `unittest discover` 的成功记录；真正的 LAN/Chrome/Photoshop/ModelScope Mock 兼容性验证也未完成。当前本地容器 DNS 无法访问 GitHub；替代隔离云环境不具备创建权限。禁止以错误分支的 78 项旧测试绿灯放行，禁止为绕过门禁自动重跑 Actions。S02 正式合并 main 并补齐交接记录前，不提交 S03 实施代码。
 
 ### S03 — 本地文件及远程下载（SEC-03–05）
 
