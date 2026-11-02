@@ -1,5 +1,14 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## S04 增量：离线/5xx 元数据编辑恢复（2026-11-02，最新代码以 PR 实时 HEAD 为准）
+
+- 本轮 GitHub 实时核查：S03 PR #6 已合并至 main@081edae；S04 PR #7 仍 Draft，正式 reviews 0、review threads 0。Codex connector 仍要求先配置仓库 environment。
+- 在 **实际 PR #7 代码** 的隔离 V8 中复现：经典编辑器 `patchCanvasMeta` 与画布列表 `persistMeta` 遇网络拒绝或 HTTP 503，均 **没有持久化元数据 patch，也没有展示恢复面板**（四种组合均 saved=0/shown=0）；UI 已先乐观更新，刷新后会丢失改名/图标等修改。
+- 已在同一 S04 PR 修复两条路径：所有失败（包括网络/5xx）保存 `canvas_meta_conflict_<id>` 本地恢复记录并展示用户确认后 CAS 重试面板；保留已有 409 路径，不自动覆盖服务器版本。新增 `tests/test_canvas_meta_transport.cjs` 6 项（失败/503/成功 × 经典编辑器/画布列表）。
+- 从**精确代码提交 `0cd5ecdeb879d627e943d231d3cec162f5c20213`** 读取真实两份 JS 与新增 CJS 测试，在隔离 V8 + Node built-in shims 中执行 **6/6 PASS**，两份应用 JS 语法解析 **2/2 PASS**。**不是**原生 `node --test`、真实浏览器、完整 Python `main.py` 或设备集成 PASS。S04 `test_canvas_revision.py` 目前有 21 个已编写测试方法，未在完整项目执行。
+- 门禁仍为 REVIEW_BLOCKED / TEST_GATE_BLOCKED；不得合并 PR #7、启动 S05 或运行 GitHub Actions。S02/S03 延期实测仍是 S08 发布前阻断项。无真实用户数据、密钥或付费模型调用。
+
+
 ## S04 最新增量：远端 Smart Canvas 合并安全（2026-11-02；优先于下方历史记录）
 
 - 在 PR #7 的实际 `static/js/smart-canvas.js` 中复现旧行为：本地 revision 4 含节点、远端 revision 5 已删除该节点时，`applyMergedServerCanvas` 仍以并集把被删除节点留在本地，并只更新 `updated_at` 而不更新 `revision`。提取真实函数的隔离 V8 复现确认了这两项结果；后续保存必遇 stale CAS 409，界面误显示被删除内容。
