@@ -258,3 +258,11 @@ Final merge SHA:
 - [x] 修复：仅在 GET 的 revision 与 touch 观察的 revision 相等时保留原快照；不同则重新 GET 最新**节点与对应 revision**，且在异步阶段重复检查本地待保存编辑，不再把 touch 的较新 revision 赋给旧内容。版本不变的 touch 不多发 GET。
 - [x] 正确提交 `203705615a86574eed6cb3e714171a9fea572a6c` 上从 GitHub 获取 4 个实际应用 JS 与 7 个 CJS 回归文件，在**隔离 V8 + Node 内置模块 shim** 执行 **43/43 PASS**、4/4 JS 语法解析 PASS（新增 2 项）。**不是**原生 Node、真实浏览器、Python `main.py` 或跨平台联调通过。
 - [ ] S04 PR #7 仍 DRAFT，独立审查受仓库 Codex environment 缺失阻断；Python 18 项、原生 Node、真实双标签及完整项目测试未执行。不得合并或启动 S05。GitHub Actions 未运行；S02/S03 延期验收仍为 S08 发布前阻断。
+
+
+### S04 经典画布传输失败与离开页面数据保全（2026-11-02）
+
+- [x] **修复前失败复现**：准确 PR HEAD `89af5ac4` 的 `canvas.js` 真实回退按钮监听器在 PUT 未完成时仍直接跳转管理页；同一源码的 `saveCanvas` 遇网络拒绝仅显示 `Save failed`，不持久化草稿、不展示恢复面板。两项隔离 V8 反例均 FAIL，属于 R1 数据丢失路径。
+- [x] 同一 PR 修复：未保存/正在保存/冲突状态下，编辑器内返回管理页按钮先保存最新草稿并展示恢复面板，阻止直接跳转；`beforeunload` 保存草稿并请求浏览器确认；网络异常/5xx 保留草稿、进入人工恢复状态且禁止盲目重试。无未保存修改时仍正常返回。
+- [x] 新增 `tests/test_canvas_navigation_failure.cjs` 4 项原生 Node 可执行测试**源码**；在准确提交 `a792a08484b129333125fab95d7fbe9f8cc07d65` 通过 GitHub 读取真实 `canvas.js`，在独立 V8 对四个行为进行隔离验证 **4/4 PASS**，另 `canvas.js` 和新增 CJS 语法解析 **2/2 PASS**。**不是** `node --test`、完整 Python `main.py` 或浏览器双标签集成通过。
+- [ ] 门禁不变：PR #7 仍 Draft；正式独立 Review 0，仓库 Codex environment 尚未配置；原生 Node、Python 21 项及完整项目、浏览器/Windows 联调未执行。不得合并 S04 或开始 S05。S02/S03 延期测试仍须 S08 发布前补齐；GitHub Actions 不运行。
