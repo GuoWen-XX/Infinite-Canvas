@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 IN_PROGRESS`。S02 PR #5 已在独立审查通过后经有限风险例外合入 `main@ae042d816c7881005a6e180a8e38aeaa8f9f07f5`；其正确分支全量后端测试及 Windows/LAN/Chrome/Photoshop 实机联调**没有实际通过证据**，不得在 S08 发布时遗漏；S03 仅从已合并 main 创建新分支逐步修复。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 IN_PROGRESS / CODE_REVIEW_RECHECK_REQUIRED / TEST_GATE_BLOCKED`。S02 全量回归与 Windows/LAN/Chrome/Photoshop 验证必须在 S08 发布前补齐；S03 新发现的 P1/P2 已提交修复但未获最新 HEAD 复审。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -96,6 +96,15 @@
 - [ ] 合法自定义目录、UNC/跨盘路径及用户素材保留。
 - [ ] 最小必要修复路径信任根、目标 URL、资源配额、ZIP 文件流。
 - [ ] PR 审查 + 无未解决安全问题后解锁 S04。
+
+**S03 最新复审与修复记录（2026-11-02，PR #6）**：
+
+- [x] Codex 对 `5a49add6976d5518e46988af26d701bd340df6c1` 的评审 `completed / has_any_findings=true / has_unresolved_findings=true`，新增三条阻断项：P1 旧版 updater 不会下载 root `storage_guard.py`；P2 POSIX FIFO 阻塞打开；P2 `If-Range` 未验证而错误返回 206。
+- [x] **已实际提交修复**：`main.py` 在 root helper 缺失时安全回退到 `static.storage_guard`；新增 `static/storage_guard.py` 与 root 文件字节一致，利用 S02 旧更新器一直支持的 `static/*` allowlist 首次升级；新版 staging 校验同时要求 root/static 模块相同。POSIX 最终句柄使用 `O_NONBLOCK | O_NOFOLLOW` 并 `fstat` 拒绝非普通文件。单段 Range 使用已打开 FD 的强 ETag/Last-Modified，`If-Range` 不匹配返回完整 200（日期仅在满足保守强验证条件时允许 206）。
+- [x] 新增回归代码：无写端 FIFO 与文件换 FIFO **2 项**；If-Range 匹配 ETag、过期 ETag、匹配稳定日期、过期日期 **4 项**；旧版更新器 allowlist/字节一致性/仅有 static helper 的隔离启动 **3 项**。S03 新增测试现为 **42 项源码**（storage safety 16、handles 10、remote security 8、ZIP budget 5、legacy updater 3）；这些新增回归**尚未在完整仓库执行，不能写成 PASS**。
+- [ ] 对 **最新修复 HEAD** 重新请求独立 Codex 评审；逐一关闭旧 TOCTOU + 新发现的 3 条线程，前提是确认问题确已修复且无新增阻断项。禁止提前关闭/合并。
+- [ ] 正确 HEAD 上实际运行完整 Python unittest discover、必要 HTTP/Range/ZIP/自动更新和 Windows/UNC/FFmpeg 验证；当前本地执行容器 `git ls-remote` 因 github.com DNS 失败，仍没有可核实全仓 PASS。不得使用原 `zcode/iteration-01` Actions 成功作为证据；**不得自动运行 Actions**。
+- [ ] 审查与必要门禁通过后方可 merge PR #6 → main，记录实际 merge SHA，再新建 `fix/S04-canvas-conflicts` 分支/PR。
 
 ### S04 — 画布保存（R1/R6）
 
