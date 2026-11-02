@@ -388,6 +388,14 @@ const CANVAS_LIST_PROJECT_KEY = 'canvasListCurrentProjectId';
 const CANVAS_COLOR_OPTIONS = ['red','orange','amber','green','teal','blue','violet','pink','slate'];
 // 先绑定返回，避免编辑器后续初始化较慢时丢失来源项目。
 backToManagerBtn?.addEventListener('click', () => {
+    if(canvas && (savingCanvasNow || localCanvasDirty || canvasConflictPending)){
+        // Do not navigate away while a PUT is pending or an edit is unsaved.
+        // Keep the latest local nodes recoverable even if the request fails.
+        const record = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+        setStatus('Unsaved canvas edits — export or save a recovery copy before leaving');
+        return;
+    }
     window.location.href = canvasListUrlForProject(canvas?.project || requestedCanvasListProject() || rememberedCanvasListProject());
 });
 let localCanvasDirty = false;
@@ -399,6 +407,13 @@ let remoteSyncTimer = null;
 let remoteSyncInterval = null;
 let remoteSyncBusy = false;
 let lastCanvasUpdatedAt = 0;
+window.addEventListener('beforeunload', event => {
+    if(!canvas || !(savingCanvasNow || localCanvasDirty || canvasConflictPending)) return;
+    // A tab close/reload must not silently discard edits or an in-flight PUT.
+    captureCanvasConflictDraft();
+    event.preventDefault();
+    event.returnValue = '';
+});
 let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
 let imageModels = ['gpt-image-2', 'nano-banana-pro'];
 let chatModels = ['gpt-4o-mini'];
@@ -1578,7 +1593,18 @@ async function saveCanvas(){
         setStatus('Saved');
         loadCanvasList(false);
     } catch(e) {
-        setStatus('Save failed');
+        // Network failures and 5xx responses may have an unknown commit state.
+        // Preserve the current draft; never silently retry with a newer CAS token.
+        if(canvas && canvas.id === saveTargetId){
+            const record = captureCanvasConflictDraft();
+            canvasConflictPending = true;
+            localCanvasDirty = true;
+            saveCanvasAgain = false;
+            window.CanvasConflictRecovery?.show({id:saveTargetId,kind:'classic',record});
+            setStatus('Save failed — local draft preserved for recovery');
+        } else {
+            setStatus('Save failed');
+        }
         console.error(e);
     } finally {
         savingCanvasNow = false;
