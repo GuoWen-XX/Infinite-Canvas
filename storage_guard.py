@@ -146,6 +146,15 @@ def unlink_scoped_file(root, path):
         # Windows deletion must use a validated HANDLE: a path-based unlink
         # after validation would reintroduce a reparse-point race.
         kernel = ctypes.windll.kernel32
+        from ctypes import wintypes
+        kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                       ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        kernel.CreateFileW.restype = wintypes.HANDLE
+        kernel.SetFileInformationByHandle.argtypes = [wintypes.HANDLE, ctypes.c_int,
+                                                      ctypes.c_void_p, wintypes.DWORD]
+        kernel.SetFileInformationByHandle.restype = wintypes.BOOL
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
         handle = kernel.CreateFileW(
             os.path.join(root_abs, *parts),
             0x00010000 | 0x00000080,  # DELETE | FILE_READ_ATTRIBUTES
