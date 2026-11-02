@@ -391,6 +391,7 @@ backToManagerBtn?.addEventListener('click', () => {
     window.location.href = canvasListUrlForProject(canvas?.project || requestedCanvasListProject() || rememberedCanvasListProject());
 });
 let localCanvasDirty = false;
+let canvasConflictPending = false;
 let savingCanvasNow = false;
 let saveCanvasAgain = false;
 let applyingRemoteCanvas = false;
@@ -1426,6 +1427,12 @@ function refreshGeometryAfterLayout(){
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
     localCanvasDirty = true;
+    if(canvasConflictPending){
+        const record = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+        setStatus('Save conflict — export or save a separate recovery copy');
+        return;
+    }
     setStatus('Saving...');
     clearTimeout(saveTimer);
     if(savingCanvasNow){
@@ -1475,8 +1482,21 @@ function serializableCanvasNode(node){
 function serializableCanvasNodes(list=nodes){
     return (list || []).map(serializableCanvasNode);
 }
+function captureCanvasConflictDraft(){
+    const record = {
+        canvas_id:canvas.id, kind:'classic', project:canvas.project || 'default',
+        base_revision:Number(canvas.revision || 0),
+        base_updated_at:Number(lastCanvasUpdatedAt || 0),
+        saved_at:Date.now(), title:canvas.title, icon:canvas.icon,
+        nodes:serializableCanvasNodes(), connections, viewport,
+        logs:canvas.logs || [], settings:canvas.settings || {}
+    };
+    try { localStorage.setItem('canvas_conflict_draft_' + canvas.id, JSON.stringify(record)); }
+    catch(err) { console.error('Unable to preserve conflicting canvas draft; export it now',err); }
+    return record;
+}
 async function saveCanvas(){
-    if(!canvas || applyingRemoteCanvas) return;
+    if(!canvas || applyingRemoteCanvas || canvasConflictPending) return;
     if(savingCanvasNow){
         saveCanvasAgain = true;
         return;
@@ -1507,19 +1527,9 @@ async function saveCanvas(){
                 // A 409 means our base is stale: never advance the base token and
                 // blindly retry, which would overwrite another editor's changes.
                 // Keep an independent recovery copy until conflict UI is resolved.
-                try {
-                    localStorage.setItem('canvas_conflict_draft_' + canvas.id, JSON.stringify({
-                        canvas_id: canvas.id,
-                        base_updated_at: Number(lastCanvasUpdatedAt || 0),
-                        saved_at: Date.now(),
-                        title: canvas.title,
-                        icon: canvas.icon,
-                        nodes: serializableCanvasNodes(),
-                        connections, viewport, logs: canvas.logs || []
-                    }));
-                } catch (backupError) {
-                    console.error('Unable to preserve conflicting canvas draft', backupError);
-                }
+                const record = captureCanvasConflictDraft();
+                canvasConflictPending = true;
+                window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
                 localCanvasDirty = true;
                 saveCanvasAgain = false;
                 setStatus('Save conflict — local edits preserved; reload or resolve before saving');
@@ -1698,6 +1708,7 @@ async function patchCanvasMeta(id, patch){
         });
         if(res.status === 409){
             try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+            window.CanvasConflictRecovery?.showMetadata({id,patch});
             throw new Error('metadata revision conflict; attempted changes preserved locally');
         }
         if(!res.ok) throw new Error('meta save failed');
@@ -2128,6 +2139,7 @@ async function openCanvas(id){
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || 0);
         localCanvasDirty = false;
+        canvasConflictPending = false;
         resetTransientRunState(nodes);
         sanitizeConnections();
         pruneMissingComfyWorkflows();
@@ -2139,6 +2151,7 @@ async function openCanvas(id){
         resumeCanvasImageTasks();
         startCanvasRemotePolling();
         setStatus('Ready');
+        window.CanvasConflictRecovery?.showSaved(canvas.id,'classic');
     } catch(e) {
         setStatus(tr('canvas.openFailed'));
         console.error(e);
