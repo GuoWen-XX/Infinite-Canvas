@@ -881,7 +881,14 @@ async function persistMeta(id, patch){
             const idx = canvases.findIndex(x => x.id === id);
             if(idx >= 0) canvases[idx] = { ...canvases[idx], ...data.canvas };
         }
-    } catch(e){ console.error(e); setStatus(L('保存失败','Save failed')); }
+    } catch(e){
+        // Transport/server failures must retain the optimistic metadata edit,
+        // just like a 409. Otherwise a reload silently loses the user's change.
+        try { localStorage.setItem('canvas_meta_conflict_' + id, JSON.stringify({patch, saved_at:Date.now()})); } catch(_) {}
+        window.CanvasConflictRecovery?.showMetadata({id,patch});
+        console.error(e);
+        setStatus(L('属性未保存：已保留本地修改','Metadata not saved: local edit preserved'));
+    }
 }
 
 /* ===== Delete canvas (soft -> trash, with confirm) ===== */
