@@ -91,6 +91,18 @@ class CanvasRevisionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(main.load_canvas(self.canvas["id"])["title"], "first")
 
+    def test_omitted_settings_does_not_erase_saved_canvas_settings(self):
+        main.mutate_canvas(self.canvas["id"], lambda c: c.update({"settings": {"custom": 42}}))
+        latest = main.load_canvas(self.canvas["id"])
+        self._save(base_revision=latest["revision"], base_updated_at=latest["updated_at"])
+        self.assertEqual(main.load_canvas(self.canvas["id"])["settings"], {"custom": 42})
+
+    def test_explicit_empty_settings_can_clear_existing_settings(self):
+        main.mutate_canvas(self.canvas["id"], lambda c: c.update({"settings": {"custom": 42}}))
+        latest = main.load_canvas(self.canvas["id"])
+        self._save(base_revision=latest["revision"], base_updated_at=latest["updated_at"], settings={})
+        self.assertEqual(main.load_canvas(self.canvas["id"])["settings"], {})
+
     def test_stale_delete_rejected_without_trashing_newer_canvas(self):
         before = main.load_canvas(self.canvas["id"])
         self._save(title="newer editor", nodes=[{"id": "keep-new"}])
