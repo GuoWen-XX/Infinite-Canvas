@@ -109,6 +109,29 @@ class CanvasRevisionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(main.load_canvas(self.canvas["id"])["nodes"], [{"id": "new"}])
 
+    def test_unversioned_metadata_write_rejected(self):
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.update_canvas_meta(
+                self.canvas["id"], main.CanvasMetaUpdate(title="unsafe unversioned rename")
+            ))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(main.load_canvas(self.canvas["id"])["title"], "original")
+
+    def test_unchanged_timestamp_metadata_edits_still_conflict_by_revision(self):
+        before = main.load_canvas(self.canvas["id"])
+        asyncio.run(main.update_canvas_meta(
+            self.canvas["id"], main.CanvasMetaUpdate(owner="first", base_revision=before["revision"])
+        ))
+        after = main.load_canvas(self.canvas["id"])
+        self.assertEqual(after["updated_at"], before["updated_at"])
+        self.assertEqual(after["revision"], before["revision"] + 1)
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.update_canvas_meta(
+                self.canvas["id"], main.CanvasMetaUpdate(color="blue", base_revision=before["revision"])
+            ))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(main.load_canvas(self.canvas["id"])["owner"], "first")
+
     def test_stale_metadata_rename_conflicts_without_overwriting(self):
         before = main.load_canvas(self.canvas["id"])
         asyncio.run(main.update_canvas_meta(
