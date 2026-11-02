@@ -20,10 +20,10 @@
 - [x] 本阶段 PR #6 第一批实现：对 `storage_file_path`、`output_file_from_url`、`local_media_file_by_basename`、`storage_file_item` 的根目录判断改为 `realpath/commonpath`，防止目录/文件软链接穿越用户选择的根。保留用户自己配置的绝对路径和 UNC/外置盘含义。
 - [x] `tests/test_storage_safety.py`：8 项回归，使用临时路径、非真实私有数据。
 - [x] `validate_remote_media_target` 对 HTTP(S)、不带用户名密码、无歧义公网 IP/DNS 做入口检查；`open_safe_remote_media_stream` 禁止自动重定向，逐跳验证；共享给单文件下载与 ZIP 远程媒体读取。
-- [x] `tests/test_remote_media_security.py`：5 项 Mock DNS、私网/metadata、私网跳转和超大 Content-Length、合法公网下载回归，不触网。
+- [x] `tests/test_remote_media_security.py`：8 项 Mock DNS、私网/metadata、私网跳转和超大 Content-Length、合法公网下载与连接时 peer 检查回归，不触网。
 - [x] `/api/canvas-assets/download` 改用 `SpooledTemporaryFile` 生成 ZIP 后流式返回，限制最多 250 文件、单文件 200 MiB、所有输入合计 512 MiB；`tests/test_canvas_zip_budget.py`：5 项回归。
-- [ ] 上述新增 **18 项测试尚未在完整 `main.py` 项目 checkout 实际执行**；必须继续查找可运行隔离环境或补足可核实执行证据，不可宣称 PASS。
-- [ ] 目前 DNS `getaddrinfo` 验证与实际 `requests` 建立连接之间仍可能存在 DNS 重绑定时序差；本实现是初步 SSRF 减缓，**不能自称完全消除 SSRF**。需独立 Review 决定是否引入固定已验证 IP 的连接/专用出站代理或出站防火墙。已限制每个重定向目标，拒绝常见私网/metadata，但严格恶意 DNS 仍有残余风险。
+- [ ] 上述新增 **21 项测试尚未在完整 `main.py` 项目 checkout 实际执行**；必须继续查找可运行隔离环境或补足可核实执行证据，不可宣称 PASS。
+- [x] **DNS 重绑定的请求前防护已补强**：基于 urllib3 自定义连接池，在 TCP connect 成功但 HTTP 请求/HTTPS 握手尚未发送前，对实际 socket peer 再做公网 IP 校验；同时强制 media Session `trust_env=False` 禁止环境代理绕过路径。独立使用本地 HTTPServer 实验：127.0.0.1 被拒绝且服务器收到 GET 数为 0；新增 3 项模拟 peer socket 回归（HTTP/HTTPS 拒私网、公网允许）。**此仍需完整主程序集成测试和独立安全复审**，不能将单一独立实验说成正式 PASS。
 - [ ] 文件系统 TOCTOU：检查后文件/软链接可能被另一本地进程替换；需要审核是否有不可信共享卷或并发攻击模型，并评估使用句柄级目录隔离的必要性。
 - [ ] 正确分支回归、Linux/Windows UNC/外置盘验证、长期兼容性和实际业务浏览器联调，列入本 PR 后续验收。
 
