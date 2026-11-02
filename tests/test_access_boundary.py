@@ -80,6 +80,32 @@ class AccessBoundaryTests(unittest.TestCase):
         with patch("main.time.time", return_value=2_000_000 + main.CANVAS_SESSION_TTL + 10):
             self.assertFalse(main.canvas_valid_session(old_session, "dummy-password-long"))
 
+    def test_http_middleware_blocks_unauthorized_read_and_mutation(self):
+        # Stub the access decision; requests must not reach actual endpoints.
+        with patch.object(main, "canvas_access_result", return_value=(401, "LAN auth required", False)):
+            with TestClient(main.app) as client:
+                get_result = client.get("/api/config/token")
+                self.assertEqual(get_result.status_code, 401)
+                self.assertIn("Basic", get_result.headers.get("www-authenticate", ""))
+                post_result = client.post("/api/history/delete", json={"id": "dummy"})
+                self.assertEqual(post_result.status_code, 401)
+
+    def test_http_middleware_does_not_serve_api_to_foreign_origin(self):
+        with TestClient(main.app) as client:
+            result = client.get("/api/config/token", headers={"Origin": "https://attacker.example"})
+            self.assertEqual(result.status_code, 403)
+
+    def test_cross_origin_cookie_is_not_enough(self):
+        password = "dummy-password-long"
+        session = main.canvas_new_session(password)
+        with patch.object(main, "CANVAS_LAN_ENABLED", True), \
+             patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": password}):
+            status, _, _ = main.canvas_access_result(
+                "192.168.1.20", "192.168.1.10:3000",
+                {"origin": "https://attacker.example"},
+                {main.CANVAS_SESSION_NAME: session}, "http")
+            self.assertEqual(status, 403)
+
     def test_token_route_only_reports_presence(self):
         with patch.object(main, "modelscope_api_key", return_value="fake-unit-test-secret"):
             with TestClient(main.app) as client:
