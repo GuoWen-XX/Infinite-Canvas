@@ -264,7 +264,9 @@ class AccessBoundaryTests(unittest.TestCase):
              patch.dict(os.environ, {"INFINITE_CANVAS_LAN_PASSWORD": "test-s02-password-long"}):
             with TestClient(main.app, base_url="http://192.168.1.10:3000") as client:
                 with self.assertRaises(WebSocketDisconnect) as caught:
-                    with client.websocket_connect("/ws/stats"):
+                    # Starlette's websocket_connect defaults to testserver even
+                    # when the HTTP TestClient has a LAN base_url.
+                    with client.websocket_connect("/ws/stats", headers={"Host": "192.168.1.10:3000"}):
                         pass
                 self.assertEqual(caught.exception.code, 1008)
 
