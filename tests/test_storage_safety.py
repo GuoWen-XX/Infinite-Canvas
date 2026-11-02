@@ -74,6 +74,16 @@ class StorageRealpathBoundaryTests(unittest.TestCase):
         result = asyncio.run(main.list_storage_files(kind="generated", offset=0, limit=80))
         self.assertFalse(any(item["name"] == "leak.png" for item in result["items"]))
 
+    def test_deleting_internal_alias_preserves_original_file(self):
+        original = self.root / "original.png"
+        original.write_bytes(b"original-should-survive")
+        alias = self.root / "alias.png"
+        self._symlink(alias, original)
+        result = asyncio.run(main.delete_storage_files({"kind": "generated", "items": ["alias.png"]}))
+        self.assertEqual(result["removed"], 1)
+        self.assertFalse(os.path.lexists(alias))
+        self.assertEqual(original.read_bytes(), b"original-should-survive")
+
     def test_storage_delete_cannot_remove_external_symlink_target(self):
         self._symlink(self.root / "leak.png", self.secret)
         with self.assertRaises(HTTPException) as caught:
