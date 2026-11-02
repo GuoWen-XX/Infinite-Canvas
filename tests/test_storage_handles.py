@@ -123,13 +123,13 @@ class StorageGuardHandleTests(unittest.TestCase):
         os.mkfifo(pipe)
         # A regression must fail with a timeout rather than hang the suite.
         script = (
-            "import storage_guard, sys\\n"
-            "try:\\n"
-            "    storage_guard.open_scoped_file(sys.argv[1], sys.argv[2])\\n"
-            "except storage_guard.UnsafeStoragePath:\\n"
-            "    sys.exit(0)\\n"
-            "sys.exit(3)\\n"
-        ).replace("\\\\n", "\\n")
+            "import storage_guard, sys\n"
+            "try:\n"
+            "    storage_guard.open_scoped_file(sys.argv[1], sys.argv[2])\n"
+            "except storage_guard.UnsafeStoragePath:\n"
+            "    sys.exit(0)\n"
+            "sys.exit(3)\n"
+        )
         run = subprocess.run(
             [sys.executable, "-c", script, str(self.root), str(pipe)],
             capture_output=True, text=True, timeout=5,
