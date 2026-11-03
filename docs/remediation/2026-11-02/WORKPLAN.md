@@ -328,3 +328,12 @@ Final merge SHA:
 - 已在 classic patchCanvasMeta 与列表 persistMeta 修复：按字段合并既有失败草稿，同字段最新编辑优先；localStorage 不可写时恢复面板明确警告，并提供属性 JSON 导出；更新 HTML 资源版本避免旧缓存。
 - 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
 - S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。
+
+### 2026-11-03 S08 下一步执行记录
+
+- [x] 核对 PR #11：仍 open，review submissions = 0，review threads = 0；审查缺席不等于通过。
+- [x] 新增离线 Windows CPython 3.10 wheelhouse 准备工具及 5 个 no-network 单测，隔离执行 5/5 PASS。命令不修改正式 `packages/`，包括传递依赖。
+- [ ] 运行真实 pip 下载、核验 wheel、Windows Python 3.10 干净安装及 `pip check`；工具提交不代表依赖修复完成。
+- [ ] 自动更新源切换/安全禁用仍需正式发布决策和旧客户端升级验证；当前保持原常量，不默许旧源覆盖已合并修复。
+- [ ] 原 S08 Windows/LAN/Chrome/Photoshop/ModelScope、全量 Python/Node、S02/S03 延期验证未完成。
+- [ ] 取得独立审查结论并处理必要阻断后再评估 PR #11 merge 和最终发布。GitHub Actions 本次 0 次主动运行。
