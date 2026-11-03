@@ -20759,15 +20759,19 @@ def compose_skill_updated_markdown(current_text, content, variants=None, content
     if _skill_yaml is None:
         raise HTTPException(status_code=503, detail="缺少 PyYAML，不能安全编辑 Skill frontmatter")
     pattern = r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n?"
-    current_match = re.match(pattern, current_text, flags=re.S)
+    # Some imported Markdown files begin with a UTF-8 BOM. Preserve it rather
+    # than misclassifying the entire frontmatter as body and deleting metadata.
+    bom = "\ufeff" if current_text.startswith("\ufeff") else ""
+    without_bom = current_text[len(bom):]
+    current_match = re.match(pattern, without_bom, flags=re.S)
     original_meta = {}
-    original_header = ""
+    original_header = bom
     if current_match:
         loaded = _guarded_yaml_load(current_match.group(1))
         if not isinstance(loaded, dict):
             raise HTTPException(status_code=422, detail="原 Skill frontmatter 无法解析，已拒绝覆盖")
         original_meta = loaded
-        original_header = current_text[:current_match.end()]
+        original_header = bom + without_bom[:current_match.end()]
     clean_content = str(content).replace("\r\n", "\n")
     if content_format == "markdown":
         if variants is not None:
