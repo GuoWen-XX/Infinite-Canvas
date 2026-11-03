@@ -167,6 +167,11 @@
 - [x] 新增 `tests/test_canvas_two_tab_conflict.cjs` 3 项：从正确 HEAD `0c66b8f4b2f04530cee48b686a3ba8ab22ccc105` 读取实际 `canvas.js` 保存和 `canvas-conflict-recovery.js` 副本恢复源码，以离线 CAS 服务器模拟两个独立标签页，验证双方交错保存、409 不覆盖新节点、失败侧草稿保留、另存独立副本不修改原画布；隔离 V8 中 **3/3 PASS**。
 - [ ] 以上均为 **隔离 V8 测试**，不是原生 `node --test`、双标签真实浏览器、Windows 或完整 Python 项目测试。真实 checkout 仍遭 `github.com` DNS 失败；**TEST_GATE BLOCKED**。PR #7 仍无独立 Review（Codex bot 要求仓库 environment）；**REVIEW_GATE BLOCKED**。不得将这些 PASS 代替发布验收，不运行 Actions、不手动请求 Codex 审查，S05 不启动。
 
+**2026-11-03 S04 当前 HEAD 跨用例隔离回归复验：**
+
+- [x] 从 `0b4c74b740917b79e15f849d551146138fc9cc62` 经 GitHub 连接器读取 **11 份已提交 CJS 测试文件**和 `canvas.js`、`canvas-list.js`、`smart-canvas.js`、`canvas-conflict-recovery.js` 的真实内容，以隔离 V8 执行测试函数，通过仅用于 Node 内置 `node:test/assert/fs/path/vm` 的受控 shim 和内存文件映射。首轮 10 份 64/64 PASS，单独修正测试运行器 shim 对 `require('node:test')` 函数式 API 的支持后，余下 `test_canvas_navigation_failure.cjs` 4/4 PASS；**合计 11 份 CJS / 68/68 用例隔离 PASS**，4 份应用 JS 文件 V8 语法解析 4/4 PASS。
+- [ ] **不得将隔离 V8 / Node 内置 API shim 冒充本机原生 Node 命令、真实浏览器或 `main.py` Python 全量测试。** 完整 checkout 仍无法解析 `github.com`；Python S04 24 项仅已编写。S04 PR #7 保留 Draft，自动 Codex 审查缺少 environment，无独立 Review，仍不得合并或开始 S05；不执行 Actions，不使用真实数据/Key/付费模型。
+
 ### S05 — Skill 内容稳定（R2/R7）
 
 - [ ] 复现/测试打开即保存、frontmatter 未知字段、variant 自定义 ID。
