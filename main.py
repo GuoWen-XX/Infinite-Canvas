@@ -402,11 +402,11 @@ APP_VERSION = "2026.06.03"
 # 而更新器不是增量安装：static/ 会被整目录删除后重新拷贝，main.py 也会被整文件替换。
 # 若更新源仍指向原上游仓库，点一次更新就会把 fork 的功能覆盖回上游版本，且不可逆。
 # 因此更新源必须指向本 fork 自己的仓库。
-GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"
+GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"
 GITHUB_BRANCH = "zcode/iteration-01"
-GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/benkwok1983-cmd/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"
-GITHUB_TREE_URL = f"https://api.github.com/repos/benkwok1983-cmd/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"
-GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/benkwok1983-cmd/Infinite-Canvas/{GITHUB_BRANCH}"
+GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"
+GITHUB_TREE_URL = f"https://api.github.com/repos/GuoWen-XX/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"
+GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}"
 GITHUB_UPDATE_NOTES_URL = GITHUB_RAW_ROOT + "/static/update-notes.json"
 
 # ModelScope 更新源同理需要指向本 fork 的发布位置；本 fork 尚未在该站发布时，探测会
