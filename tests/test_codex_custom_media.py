@@ -70,7 +70,7 @@ class CodexCustomMediaTests(unittest.TestCase):
 
     def test_parent_escape_storage_url_rejected(self):
         with self.assertRaises(HTTPException) as caught:
-            self._prepared("/api/storage-files/generated/../private.png")
+            self._prepared("/api/storage-files/generated/../../private.png")
         self.assertEqual(caught.exception.status_code, 400)
 
     def test_symlink_outside_root_cannot_be_used_as_reference(self):
@@ -81,6 +81,23 @@ class CodexCustomMediaTests(unittest.TestCase):
             self.skipTest("symlink unavailable")
         with self.assertRaises(HTTPException) as caught:
             self._prepared(link)
+        self.assertEqual(caught.exception.status_code, 400)
+
+    def test_public_remote_media_uses_existing_safe_bounded_fetch(self):
+        from unittest.mock import Mock
+        payload = b"fixture bytes only"
+        with patch.object(main, "fetch_remote_media_bytes", return_value=(payload, "image/png")) as fetch:
+            file_path, temp_paths = self._prepared("https://example.com/fixture.png")
+        self.addCleanup(lambda: [os.path.exists(p) and os.unlink(p) for p in temp_paths])
+        fetch.assert_called_once_with("https://example.com/fixture.png", 30.0, 20 * 1024 * 1024)
+        self.assertEqual(temp_paths, [file_path])
+        self.assertEqual(Path(file_path).read_bytes(), payload)
+
+    def test_rejected_remote_media_cannot_create_a_temporary_reference(self):
+        with patch.object(main, "fetch_remote_media_bytes",
+                          side_effect=HTTPException(status_code=400, detail="private address")):
+            with self.assertRaises(HTTPException) as caught:
+                self._prepared("http://127.0.0.1/metadata")
         self.assertEqual(caught.exception.status_code, 400)
 
     def test_file_url_query_rejected(self):
