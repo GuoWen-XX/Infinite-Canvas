@@ -85,10 +85,12 @@ def audit(requirements: Path, packages: Path, python_dir: Path,
             problems.append({"name": name, "pinned_version": version,
                              "reason": reason,
                              "found": [w["filename"] for w in available]})
+    incompatible = [w["filename"] for w in wheels if not wheel_compatible(w, target)]
     return {
         "passed": not problems, "target_python": target,
         "wheel_count": len(wheels), "pinned_count": len(pinned),
         "matched": matched, "problems": problems,
+        "incompatible_wheels": incompatible,
         "note": "Static wheelhouse check; runtime installation and transitive dependencies must still be tested",
     }
 
