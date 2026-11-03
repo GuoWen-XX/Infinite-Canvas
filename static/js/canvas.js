@@ -2451,9 +2451,20 @@ async function deleteCanvas(id, event){
 async function restoreCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = deletedCanvases.find(item => item.id === id);
+    if(record?.revision == null){
+        setStatus('Trash revision unavailable — refresh before restoring');
+        await loadTrashList();
+        return;
+    }
     setStatus('Restoring...');
     try {
-        const res = await fetch(`/api/canvases/${id}/restore`, {method:'POST'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore?base_revision=${encodeURIComponent(record.revision)}`, {method:'POST'});
+        if(res.status === 409){
+            setStatus('Trash entry changed in another tab — restore cancelled');
+            await loadTrashList();
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.restoreFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
