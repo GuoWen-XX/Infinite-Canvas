@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -27,8 +27,8 @@
 | S03 | MERGED / DEFERRED VALIDATION | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | MERGED / DEFERRED VALIDATION | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | MERGED / DEFERRED VALIDATION | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
-| S06 | IN_PROGRESS | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
-| S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
+| S06 | MERGED / DEFERRED VALIDATION | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
+| S07 | IN_PROGRESS | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
 | S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
 
 优先级解释：安全 P0 首先修；画布数据丢失 R1 在 S04 专项完整解决；每阶段风险以隔离环境复现结果重新评定，不能仅靠既往静态结论。
@@ -206,11 +206,22 @@
 - [x] 在本地 Python 3.13 以**从目标函数手工摘录的隔离镜像**（不是仓库原文 import）执行备份保留、失败回滚、符号链接三项 **3/3 PASS**，并观察到仅测试 fixture 未使用 context manager 导致的 ResourceWarning；不能冒充本仓库真实 `python -m unittest` 验收。
 - [ ] 完整项目 Python unittest、Windows/真实 GitHub 下载和升级、独立审查仍须 S08 发布前完成；本次没有 Actions、手动 Codex、真实 Key、付费额度或用户 Skill 文件。
 
+**2026-11-03 S06 合并、S07 启动：** S06 PR #9 基于有限风险放行合并至 `main@ff0deb14e2b13049fcdf945366a55d4f8effa145`；Stage S06 PyYAML/tracking_ref 和备份保护已合并，但完整 Python/Windows/ZIP/GitHub 安装集成及独立审查均留待 S08 发布前阻断验证。新建 `fix/S07-codex-custom-media`，以该 merge SHA 为基线。
+
 ### S07 — Codex 自定义存储媒体（R5）
+
+- [x] 源码定位 `codex_prepare_local_media` 以前允许任何本地 `file://` 与绝对路径传入 Codex 子进程，且对远程 URL 使用不受 S03 安全校验的 `httpx` 直接下载。
+- [x] 新增 `codex_scoped_local_reference_path`：本地文件仅限 `OUTPUT_OUTPUT_DIR`、`OUTPUT_INPUT_DIR`、`LOCAL_UPLOAD_DIR`、`ASSETS_DIR`、`OUTPUT_DIR` 五个已配置根；支持 `/api/storage-files/{kind}/{rel}`、`/output/`、`/assets/`、许可范围内的 `file://` 或绝对路径；非法/越权文件路径拒绝，并拒绝超根软链接。
+- [x] 远程参考图复用 `fetch_remote_media_bytes` 的 DNS/redirect/connected-peer SSRF 校验、20MiB 字节上限，运行于 `asyncio.to_thread`；`data:image/*;base64` 引用严格校验格式/字节上限并清理写入失败的临时文件。
+- [x] `tests/test_codex_custom_media.py` 已编写 14 项：默认/自定义根、合法 file URL、非法绝对路径/软链接/穿越、Mock 安全远端、data URL 格式和大小。**尚未在完整 main.py checkout 中运行，不宣称 PASS**。无真实 Codex / 真实用户图片 / 付费额度 / Actions。
+- [ ] 当前阶段 PR、当前 HEAD 可靠回归、独立 review 与真实 Windows/UNC/浏览器验证需完成；完整系统级验证在 S08 发布前必须补齐。
+
 
 - [ ] 默认目录/自定义目录各准备独立 fixture。
 - [ ] 统一安全本地路径解析；非法 URL 拒绝、合法 URL 成功。
 - [ ] 使用 Mock Codex，禁止自动实际消耗额度；PR 审查合并后解锁 S08。
+
+**2026-11-03 S07 有限隔离执行记录：** 本机 Python 3.13 使用从 PR #10 目标函数摘录的实现和模拟存储根/远程下载器运行 12 项临时 fixture，**12/12 PASS**（默认根、自定义存储 URL、file URI、越权路径、外链软链接、私有/公共远端 mock、data URL、非法 base64、路径穿越）。此测试仅验证被摘录函数和模拟依赖，**不是 `main.py` 完整导入、14 项仓库测试实际执行或 Windows UNC 实测**。准确 S07 变更、完整仓库测试和独立审查仍须分阶段风险记录及 S08 发布前补验；未触发 Actions，未调用真实 Codex/计费服务。
 
 ### S08 — 完成验收
 
