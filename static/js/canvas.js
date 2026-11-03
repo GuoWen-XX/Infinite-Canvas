@@ -1507,7 +1507,11 @@ function captureCanvasConflictDraft(){
         logs:canvas.logs || [], settings:canvas.settings || {}
     };
     try { localStorage.setItem('canvas_conflict_draft_' + canvas.id, JSON.stringify(record)); }
-    catch(err) { console.error('Unable to preserve conflicting canvas draft; export it now',err); }
+    catch(err) {
+        // The draft exists only in memory now; it will vanish on reload.
+        record.persistence_error = true;
+        console.error('Unable to preserve conflicting canvas draft; export it now',err);
+    }
     return record;
 }
 async function saveCanvas(){
