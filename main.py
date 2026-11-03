@@ -6131,7 +6131,7 @@ def codex_scoped_local_reference_path(ref_url):
         if os.name == "nt":
             path = urllib.request.url2pathname(parsed.path)
             if parsed.netloc and parsed.netloc.lower() != "localhost":
-                path = "\\\\" + parsed.netloc + path.replace("/", "\\\\")
+                path = "\\\\" + parsed.netloc + path.replace("/", "\\")
         else:
             if parsed.netloc and parsed.netloc.lower() != "localhost":
                 return None
