@@ -20563,7 +20563,7 @@ def skill_entry_from_dir(dir_path, source, readonly=False, include_body=False):
     content_sha256 = ""
     if has_skill_md:
         try:
-            with open(skill_md, "r", encoding="utf-8", errors="replace") as f:
+            with open(skill_md, "r", encoding="utf-8", errors="replace", newline="") as f:
                 original_markdown = f.read()
             # Hash and body MUST describe the same read snapshot.
             content_sha256 = hashlib.sha256(original_markdown.encode("utf-8")).hexdigest()
@@ -20828,7 +20828,7 @@ async def api_skill_update(skill_id: str, payload: SkillUpdateRequest):
         raise HTTPException(status_code=409, detail="缺少 Skill 内容版本，请重新打开编辑器后再保存")
     try:
         with SKILL_UPDATE_LOCK:
-            with open(skill_md, "r", encoding="utf-8") as stream:
+            with open(skill_md, "r", encoding="utf-8", newline="") as stream:
                 old_text = stream.read(SKILLS_MAX_SKILL_MD_BYTES + 1)
             if len(old_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
                 raise HTTPException(status_code=413, detail="原 Skill 文档过大")
