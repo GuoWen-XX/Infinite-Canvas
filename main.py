@@ -20771,6 +20771,10 @@ def compose_skill_updated_markdown(current_text, content, variants=None, content
         raise HTTPException(status_code=422, detail="原 Skill variants 结构不合法")
     known_ids = {str(v.get("id")) for v in raw_variants if isinstance(v, dict) and v.get("id")}
     updated_variants = normalize_skill_variant_items(variants, allowed_ids=known_ids)
+    # Preserve custom per-variant fields too (e.g. style metadata owned by
+    # external SKILL.md authors), not only unknown top-level YAML fields.
+    existing_by_id = {str(v.get("id")): v for v in raw_variants if isinstance(v, dict) and v.get("id")}
+    updated_variants = [{**existing_by_id.get(item["id"], {}), **item} for item in updated_variants]
     if raw_variants == updated_variants:
         # Do not re-serialize unchanged YAML: retain unknown fields and comments.
         return original_header + clean_content
