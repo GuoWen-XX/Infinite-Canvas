@@ -140,6 +140,27 @@ class SkillContentIdentityTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 503)
         self.assertEqual(self.source(), original)
 
+    def test_opaque_custom_variant_id_survives_label_edit(self):
+        original = self.source().replace("sumi-custom-17", "Ink@Version2")
+        with open(self.skill_md, "w", encoding="utf-8") as file:
+            file.write(original)
+        self.update("Body edited", [main.SkillVariantItem(
+            id="Ink@Version2", label="Renamed display", prompt="new directive")])
+        meta, _ = main.parse_skill_markdown_text(self.source())
+        self.assertEqual(meta["variants"][0]["id"], "Ink@Version2")
+        entry = main.skill_entry_from_dir(self.target, "custom", include_body=True)
+        self.assertEqual(entry["variants"][0]["id"], "Ink@Version2")
+
+    def test_preexisting_normalized_canvas_variant_id_remains_resolvable(self):
+        original = self.source().replace("sumi-custom-17", "Ink@Version2")
+        with open(self.skill_md, "w", encoding="utf-8") as file:
+            file.write(original)
+        # Previous UI emitted a normalized slug even for an opaque author ID.
+        selection = main.SkillSelection(
+            source="custom", id="ink-skill", mode="fast", variant="ink-version2")
+        selected = main.skill_diff_for_preview(selection, "user prompt")
+        self.assertIn("old prompt", selected["compiled_prompt"])
+
     def test_preview_rejects_missing_variant_id(self):
         selection = main.SkillSelection(
             source="custom", id="ink-skill", mode="fast", variant="deleted-variant")
