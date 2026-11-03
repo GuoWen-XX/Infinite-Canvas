@@ -4,6 +4,7 @@ No Codex executable, outbound requests, API keys or user media involved.
 Run with full checkout: python -m unittest tests.test_codex_custom_media -v
 """
 import asyncio
+import base64
 import os
 import tempfile
 import unittest
@@ -84,7 +85,6 @@ class CodexCustomMediaTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 400)
 
     def test_public_remote_media_uses_existing_safe_bounded_fetch(self):
-        from unittest.mock import Mock
         payload = b"fixture bytes only"
         with patch.object(main, "fetch_remote_media_bytes", return_value=(payload, "image/png")) as fetch:
             file_path, temp_paths = self._prepared("https://example.com/fixture.png")
@@ -99,6 +99,25 @@ class CodexCustomMediaTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as caught:
                 self._prepared("http://127.0.0.1/metadata")
         self.assertEqual(caught.exception.status_code, 400)
+
+    def test_data_image_url_creates_small_temporary_image(self):
+        encoded = base64.b64encode(b"fixture only").decode("ascii")
+        path, created = self._prepared("data:image/png;base64," + encoded)
+        self.addCleanup(lambda: [os.path.exists(p) and os.unlink(p) for p in created])
+        self.assertEqual(created, [path])
+        self.assertEqual(Path(path).read_bytes(), b"fixture only")
+
+    def test_data_url_rejects_nonimage_and_invalid_base64(self):
+        for url in ("data:text/plain;base64,YWJj", "data:image/png;base64,%%%%"):
+            with self.subTest(url=url), self.assertRaises(HTTPException) as caught:
+                self._prepared(url)
+            self.assertEqual(caught.exception.status_code, 400)
+
+    def test_data_url_rejects_oversized_encoded_payload(self):
+        url = "data:image/png;base64," + ("A" * (28 * 1024 * 1024 + 1))
+        with self.assertRaises(HTTPException) as caught:
+            self._prepared(url)
+        self.assertEqual(caught.exception.status_code, 413)
 
     def test_file_url_query_rejected(self):
         path = self._make("ASSETS_DIR")
