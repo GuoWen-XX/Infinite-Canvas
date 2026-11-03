@@ -44,6 +44,22 @@ python -m pip check
 - [ ] 核对 `main.py` 自动更新源与仓库目标分支；当前已知旧更新渠道指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，不能因本仓库 `main` 合并就宣称旧版用户已经收到修复。**禁止在没有单独发布决策时擅改来源/default branch。**
 - [ ] 必须有发布前残余风险报告；未消除的高风险失败或缺失的必要测试阻止发布。
 
-## 3. 状态结论
+## 3. 自动更新源一致性 **FAIL（发布阻断）**
+
+已从 S08 基线的 `main.py` 实际源码读取：
+- `GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"`
+- `GITHUB_BRANCH = "zcode/iteration-01"`
+
+修复工程实际合入 `GuoWen-XX/Infinite-Canvas@main`。当前 updater 并非指向本修复来源；若用户更新，它可能用其他仓库/分支的文件覆盖此次合入的安全修复。**未经独立发布方案批准，不擅自修改默认分支、更新来源或上线设置。**
+
+- [x] 新增 `tools/check_s08_release_source.py`：使用 `ast.parse` 静态读取更新器常量（绝不 import/启动 `main.py`），将 repo/branch 与明确期待的发布目标进行比对；不符返回失败退出码。
+- [x] `tests/test_s08_release_source.py` 4 项模拟测试：正确源通过，错误仓库、错误分支、动态未审计常量都必须拒绝。Python 3.13 在本地等价实现执行 **4/4 PASS**，仅模拟/静态检查；不代表真实旧客户端升级成功。
+- [x] 将仓库当前已确认的常量在本地镜像执行，结果 **FAIL**。这不是一个可以仅标“延期测试”就允许发布的问题；必须先制定/执行实际更新渠道切换或安全禁用策略，并从真实旧客户端到目标包完整验证后方可解除阻断。
+
+```bash
+python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canvas --expected-branch main --json
+```
+
+## 4. 状态结论
 
 当前：`S08 IN_PROGRESS / RELEASE_BLOCKED`。**S00–S07 阶段已合并，不等于最终验收。** 本仓库缺少能运行完整 checkout 的环境；GitHub Actions 不自动运行也不手动触发。必须保留未执行项目的真实状态，禁止填写“全绿”。
