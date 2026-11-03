@@ -6175,16 +6175,24 @@ async def codex_prepare_local_media(ref_url):
         temp_paths.append(path)
         return path, temp_paths
     if text.startswith(("http://", "https://")):
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=20.0), follow_redirects=True) as client:
-            response = await client.get(text)
-            response.raise_for_status()
-            clean_path = urllib.parse.urlparse(text).path
-            suffix = os.path.splitext(clean_path)[1] or mimetypes.guess_extension(response.headers.get("content-type", "")) or suffix
-            fd, path = tempfile.mkstemp(prefix="codex_ref_", suffix=suffix)
-            with os.fdopen(fd, "wb") as f:
-                f.write(response.content)
-            temp_paths.append(path)
-            return path, temp_paths
+        # Use the same public-IP/redirect/connected-peer guard as the rest of
+        # the media pipeline; do not use an unrestricted httpx.get here.
+        content, media_type = await asyncio.to_thread(
+            fetch_remote_media_bytes, text, 30.0, 20 * 1024 * 1024
+        )
+        suffix = mimetypes.guess_extension(str(media_type).split(";", 1)[0].strip()) or ".png"
+        fd, path = tempfile.mkstemp(prefix="codex_ref_", suffix=suffix)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(content)
+        except Exception:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            raise
+        temp_paths.append(path)
+        return path, temp_paths
     raise HTTPException(status_code=400, detail=f"OpenAI CLI 无法读取参考素材：{text[:120]}")
 
 async def codex_reference_paths(reference_images=None):
