@@ -20560,10 +20560,14 @@ def skill_entry_from_dir(dir_path, source, readonly=False, include_body=False):
     skill_variants = []
     extra_metadata = {}
     body = ""
+    content_sha256 = ""
     if has_skill_md:
         try:
             with open(skill_md, "r", encoding="utf-8", errors="replace") as f:
-                fm, body = parse_skill_markdown_text(f.read())
+                original_markdown = f.read()
+            # Hash and body MUST describe the same read snapshot.
+            content_sha256 = hashlib.sha256(original_markdown.encode("utf-8")).hexdigest()
+            fm, body = parse_skill_markdown_text(original_markdown)
             name = str(fm.get("name") or skill_id)[:200]
             description = str(fm.get("description") or "").strip()[:300]
             version = str(fm.get("version") or "").strip()[:60]
@@ -20666,6 +20670,7 @@ def skill_entry_from_dir(dir_path, source, readonly=False, include_body=False):
     if include_body:
         entry["body"] = body[:200_000]
         entry["metadata"] = extra_metadata
+        entry["content_sha256"] = content_sha256
     return entry
 
 def skill_scan_all(include_body=False):
@@ -20709,11 +20714,6 @@ async def api_skill_detail(source: str, skill_id: str):
                 continue
             rel_files.append(os.path.relpath(os.path.join(root, fname), dir_path).replace("\\", "/"))
     entry["file_list"] = sorted(rel_files)[:SKILLS_MAX_FILES]
-    if entry["has_skill_md"]:
-        # A content ETag prevents another editor tab from silently overwriting
-        # a newer SKILL.md; it covers the exact bytes including unknown YAML.
-        with open(os.path.join(dir_path, "SKILL.md"), "rb") as content_file:
-            entry["content_sha256"] = hashlib.sha256(content_file.read()).hexdigest()
     return entry
 
 @app.post("/api/skills/custom")
