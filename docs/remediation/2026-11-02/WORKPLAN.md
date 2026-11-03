@@ -233,7 +233,7 @@
 - [ ] 没有 Windows 隔离副本/完整可执行 repo checkout；全量 Python/Node、安装、浏览器和插件联调均 **NOT_RUN**。在补齐之前 S08 **RELEASE_BLOCKED**；不得借阶段合并豁免宣布最终验收或发布。GitHub Actions 按维护者约束未触发。
 
 
-- [x] S08 已发现并修复新版 updater 源错配：PR #12 已合并 `main@94295d06bcd9f67da621ce579e3f58c3d9359b97`，`main.py` GitHub URL 与分支统一指向 `GuoWen-XX/Infinite-Canvas@main`，旧版已安装客户端不会因本次提交自动更改其来源；真实旧客户端升级仍未经测试。`tools/check_s08_release_source.py` 与源码静态回归测试已提交，原基线静态 FAIL 为修复前记录。
+- [x] S08 已发现并修复新版 updater 源错配：PR #12 已合并 `main@94295d06bcd9f67da621ce579e3f58c3d9359b97` 修复 GitHub URL；后续复核发现 `GITHUB_BRANCH` 尚为旧分支，已在本阶段收尾 PR 补充改为 `main`，共同确保新版更新源指向 `GuoWen-XX/Infinite-Canvas@main`，旧版已安装客户端不会因本次提交自动更改其来源；真实旧客户端升级仍未经测试。`tools/check_s08_release_source.py` 与源码静态回归测试已提交，原基线静态 FAIL 为修复前记录。
 - [ ] 完整 Python unittest discover、JS 语法与浏览器用例、Windows 启动器实际运行。
 - [ ] LAN/Chrome/Photoshop/ModelScope 与纯本机模式回归。
 - [ ] 版本、自动更新源、安装流程和权限说明核对。
@@ -336,14 +336,16 @@ Final merge SHA:
 - [x] 撤销误加的 wheelhouse 下载工具及测试，不给用户增加安装负担。
 - [ ] 聚焦原本范围：无需安装的 Windows 启动验证、S00–S07 必要安全与功能回归，以及自动更新渠道覆盖安全修复的实际风险。
 - [x] PR #11 阶段成果已合并 `main@d6858396e2376b581c02afda1686097402a44e20`；未执行的设备/集成测试仍标记 NOT_RUN，不冒充 PASS。
-- [x] PR #12 已修复本仓库新版 GitHub 自动更新源并合并；旧客户端仍可保留旧配置，尚未做真实迁移验证，该限制属于发布残余风险。
+- [x] PR #12 已修改 GitHub 更新仓库 URL，后续源分支常量修正在本轮收尾 PR 提交；旧客户端仍可保留旧配置，尚未做真实迁移验证，该限制属于发布残余风险。
 
 
 ### 2026-11-04 S08 阶段代码收尾（与正式发布验证严格区分）
 
 - [x] PR #11（S08 静态检查工具、测试及证据台账）已合并，`main@d6858396e2376b581c02afda1686097402a44e20`。
-- [x] PR #12（修复新版 GitHub 自动更新源）已合并，`main@94295d06bcd9f67da621ce579e3f58c3d9359b97`。原上游 ModelScope 更新回退保持禁用。
+- [x] PR #12（修复新版 GitHub 更新仓库 URL）已合并，`main@94295d06bcd9f67da621ce579e3f58c3d9359b97`。源分支常量 `GITHUB_BRANCH` 遗留旧值，已在本轮收尾 PR 补改为 `main`；ModelScope 上游更新回退保持禁用。
 - [x] 免安装交付路径确认：`run.bat` 直接运行随包 Python，不自动 pip install；可选 `安装依赖.bat` 缓存版本问题不构成项目启动/阶段合并失败证据。
 - [x] S00–S08 **计划内代码修复与阶段 PR 已合并到 main**；此项指代码阶段完结，而非声称发布前设备验收通过。
 - [ ] **正式发布验收状态：NOT_VERIFIED**。本会话无 Windows 原生设备/完整仓库 checkout，未运行真实 Windows 启动、全量 Python/Node、双浏览器/LAN/Photoshop/Chrome/ModelScope 端到端测试；旧客户端升级来源迁移亦未验证。保留缺失证据，不填 PASS，不追加安装任务，不触发 GitHub Actions。
 - [ ] 后续若准备正式公开发布，必须先在实际运行环境验证上述必要项目；本次阶段性合并无需将未运行测试编造成通过。
+
+- [x] S08 收尾复核捕获并修正 PR #12 遗漏的 `GITHUB_BRANCH = "zcode/iteration-01"`：已改为 `main`。源码静态门禁需以包含此修正的最终 main HEAD 核查，不能把 PR #12 合并视为整条更新链已独立验收。
