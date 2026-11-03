@@ -20381,6 +20381,12 @@ except Exception:
     _skill_yaml = None
 
 
+def require_skill_yaml():
+    """Fail before staging or replacing user Skills if runtime lacks PyYAML."""
+    if _skill_yaml is None:
+        raise HTTPException(status_code=503, detail="缺少 PyYAML，请先安装 requirements.txt 后重试；现有 Skill 未修改")
+
+
 class SkillVariantItem(BaseModel):
     label: str = Field(min_length=1, max_length=80)
     prompt: str = Field(default="", max_length=2000)
@@ -20665,6 +20671,7 @@ def skill_entry_from_dir(dir_path, source, readonly=False, include_body=False):
             "source": str(meta.get("source") or "local"),
             "repo_url": str(meta.get("repo_url") or ""),
             "commit_sha": str(meta.get("commit_sha") or ""),
+            "tracking_ref": skill_github_tracking_ref(meta) if meta.get("source") == "github" else "",
             "installed_at": int(meta.get("installed_at") or 0),
         }
     if include_body:
@@ -20718,6 +20725,7 @@ async def api_skill_detail(source: str, skill_id: str):
 
 @app.post("/api/skills/custom")
 async def api_skill_create(payload: SkillCreateRequest):
+    require_skill_yaml()
     skill_id = normalize_skill_id(payload.name)
     if not SKILL_ID_RE.match(skill_id):
         raise HTTPException(status_code=400, detail="Skill 名称只能包含小写字母/数字/._-，且以字母或数字开头")
@@ -20865,6 +20873,7 @@ class SkillGithubInstallRequest(BaseModel):
     name: str = Field(default="", max_length=64)
     overwrite: bool = False
     subdir: str = Field(default="", max_length=300)
+    tracking_ref: str = Field(default="", max_length=200)
 
 class SkillUpgradeRequest(BaseModel):
     sha: str = Field(default="", max_length=64)
@@ -20884,6 +20893,30 @@ def github_api_headers():
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+def skill_github_tracking_ref(meta):
+    """Return the moving branch/tag rather than a previously installed SHA.
+
+    Older installs saved their resolved commit under "ref". If that is an
+    immutable SHA, use GitHub's default branch instead of pinning updates.
+    """
+    ref = str(meta.get("tracking_ref") or meta.get("ref") or "").strip()
+    return "" if re.fullmatch(r"[0-9a-fA-F]{7,64}", ref) else ref
+
+
+def skill_github_version_meta(existing, sha, tracking_ref, skill_root):
+    """Keep a moving ref distinct from the installed immutable commit."""
+    ref = str(tracking_ref or "").strip()
+    if re.fullmatch(r"[0-9a-fA-F]{7,64}", ref):
+        raise HTTPException(status_code=422, detail="跟踪版本必须使用分支或标签，不可使用提交 SHA")
+    return {
+        **existing,
+        "commit_sha": str(sha or "").strip().lower(),
+        "tracking_ref": ref,
+        "ref": ref,  # Backward-compatible metadata field; never write resolved SHA.
+        "skill_root": skill_root,
+    }
+
 
 async def github_resolve_commit(url, ref=""):
     """只调 commits API 解析可执行的完整 SHA（check-update 用，避免白拉整个 zipball）。"""
@@ -21093,6 +21126,7 @@ def append_skip_warning(entry, skipped):
 
 def validate_and_stage_skill(skill_root, staged_root):
     """校验 skill_root 并复制到 staged_root（临时暂存），返回 (entry, warnings)。"""
+    require_skill_yaml()
     shutil.copytree(skill_root, staged_root, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git*", "__pycache__*"))
     entry = skill_entry_from_dir(staged_root, "custom", include_body=False)
     if not entry["has_skill_md"]:
@@ -21104,6 +21138,7 @@ def validate_and_stage_skill(skill_root, staged_root):
 
 @app.post("/api/skills/github/preview")
 async def api_skill_github_preview(payload: SkillGithubPreviewRequest):
+    require_skill_yaml()
     temp_zip, info = await github_download_repo_zip(payload.url, payload.ref)
     try:
         with tempfile.TemporaryDirectory(prefix="skill_preview_") as temp_dir:
@@ -21134,6 +21169,7 @@ async def api_skill_github_preview(payload: SkillGithubPreviewRequest):
 
 @app.post("/api/skills/github/install")
 async def api_skill_github_install(payload: SkillGithubInstallRequest):
+    require_skill_yaml()
     if not re.fullmatch(r"[0-9a-f]{7,64}", str(payload.sha or "").lower()):
         raise HTTPException(status_code=400, detail="SHA 格式不合法")
     skill_id = normalize_skill_id(payload.name)
@@ -21156,14 +21192,17 @@ async def api_skill_github_install(payload: SkillGithubInstallRequest):
             if os.path.exists(target) and not payload.overwrite:
                 raise HTTPException(status_code=409, detail=f"Skill 已存在：{skill_id}（可勾选覆盖安装）")
             # 事务性覆盖（校审 P1-6/P2 + 二次校审）：元数据写入纳入事务，失败整体回滚
-            backup_left, replaced = swap_staged_into_target(staged, target, meta_writer=lambda: skill_write_meta(target, {
+            tracking_ref = str(payload.tracking_ref or "").strip()
+            if not tracking_ref:
+                # /tree/<branch> URL can supply the ref; otherwise default branch.
+                tracking_ref = github_repo_slug(payload.url)[2]
+            version_meta = skill_github_version_meta({
                 "source": "github",
                 "repo_url": f"https://github.com/{info['owner']}/{info['repo']}",
-                "commit_sha": info["sha"],
-                "ref": info["ref"],
-                "skill_root": skill_rel,
                 "installed_at": now_ms(),
-            }))
+            }, info["sha"], tracking_ref, skill_rel)
+            backup_left, replaced = swap_staged_into_target(
+                staged, target, meta_writer=lambda: skill_write_meta(target, version_meta))
             result = {"ok": True, "id": skill_id, "sha": info["sha"], "skill": skill_entry_from_dir(target, "custom")}
             warnings = []
             if skipped:
@@ -21181,6 +21220,7 @@ async def api_skill_github_install(payload: SkillGithubInstallRequest):
 
 @app.post("/api/skills/zip/install")
 async def api_skill_zip_install(file: UploadFile = File(...), overwrite: bool = Form(False)):
+    require_skill_yaml()
     fd, temp_zip = tempfile.mkstemp(prefix="skill_zip_", suffix=".zip")
     total_uploaded = 0
     over_limit = False
@@ -21237,7 +21277,7 @@ async def api_skill_check_update(skill_id: str):
     if meta.get("source") != "github" or not repo_url:
         raise HTTPException(status_code=400, detail="该 Skill 不是 GitHub 来源，无法检查更新")
     current_sha = str(meta.get("commit_sha") or "")
-    info = await github_resolve_commit(repo_url, str(meta.get("ref") or ""))
+    info = await github_resolve_commit(repo_url, skill_github_tracking_ref(meta))
     latest_sha = info.get("sha") or ""
     return {
         "ok": True,
@@ -21250,12 +21290,14 @@ async def api_skill_check_update(skill_id: str):
 
 @app.post("/api/skills/custom/{skill_id}/upgrade")
 async def api_skill_upgrade(skill_id: str, payload: SkillUpgradeRequest):
+    require_skill_yaml()
     dir_path = skill_dir_for("custom", skill_id)
     meta = skill_read_meta(dir_path)
     repo_url = str(meta.get("repo_url") or "")
     if meta.get("source") != "github" or not repo_url:
         raise HTTPException(status_code=400, detail="该 Skill 不是 GitHub 来源，无法升级")
-    temp_zip, info = await github_download_repo_zip(repo_url, str(payload.sha or meta.get("ref") or "").lower())
+    tracking_ref = skill_github_tracking_ref(meta)
+    temp_zip, info = await github_download_repo_zip(repo_url, str(payload.sha or tracking_ref).strip())
     try:
         with tempfile.TemporaryDirectory(prefix="skill_upgrade_") as temp_dir:
             extracted = os.path.join(temp_dir, "x")
@@ -21277,10 +21319,7 @@ async def api_skill_upgrade(skill_id: str, payload: SkillUpgradeRequest):
                 shutil.move(staged, dir_path)
                 # 元数据写入纳入事务：失败则回滚到旧版本（二次校审 P2）
                 meta_written = skill_write_meta(dir_path, {
-                    **meta,
-                    "commit_sha": info["sha"],
-                    "ref": info["ref"],
-                    "skill_root": skill_rel,
+                    **skill_github_version_meta(meta, info["sha"], tracking_ref, skill_rel),
                     "updated_at": now_ms(),
                 })
                 if not meta_written:
