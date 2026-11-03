@@ -172,6 +172,12 @@
 - [x] 从 `0b4c74b740917b79e15f849d551146138fc9cc62` 经 GitHub 连接器读取 **11 份已提交 CJS 测试文件**和 `canvas.js`、`canvas-list.js`、`smart-canvas.js`、`canvas-conflict-recovery.js` 的真实内容，以隔离 V8 执行测试函数，通过仅用于 Node 内置 `node:test/assert/fs/path/vm` 的受控 shim 和内存文件映射。首轮 10 份 64/64 PASS，单独修正测试运行器 shim 对 `require('node:test')` 函数式 API 的支持后，余下 `test_canvas_navigation_failure.cjs` 4/4 PASS；**合计 11 份 CJS / 68/68 用例隔离 PASS**，4 份应用 JS 文件 V8 语法解析 4/4 PASS。
 - [ ] **不得将隔离 V8 / Node 内置 API shim 冒充本机原生 Node 命令、真实浏览器或 `main.py` Python 全量测试。** 完整 checkout 仍无法解析 `github.com`；Python S04 24 项仅已编写。S04 PR #7 保留 Draft，自动 Codex 审查缺少 environment，无独立 Review，仍不得合并或开始 S05；不执行 Actions，不使用真实数据/Key/付费模型。
 
+**2026-11-03 S04 备份失败可见性及最终本轮回归（PR #7）：**
+
+- [x] 经典/智能画布的冲突草稿写入 `localStorage` 若遇禁用存储、QuotaExceededError，过去仅打印 console，但恢复面板仍按已持久保存的语气提示，刷新页面会丢失。现在分别标记 `record.persistence_error=true`，恢复 UI 明确高优先级警告“草稿仅在内存、刷新/关闭会丢失”，提示立即导出 JSON 或保存独立副本。正常写入的提示不变。
+- [x] 新增 `tests/test_canvas_draft_storage_failure.cjs` 4 项，对真实 classic/smart 草稿保存函数及恢复面板执行失败/成功对照，**4/4 限定 V8 执行 PASS**。
+- [x] 从正确 HEAD `c01d4fdec4190a8ff57ae222d53a8c6ec7ac3c20` 读取实际 12 份 CJS 回归测试以及四份应用 JS 源文件，以隔离 V8、受控 `node:test/assert/fs/path/vm` API shim 完整重跑：**12 份用例集 72/72 PASS；4/4 JS 应用源码语法解析 PASS**。该结论不是 `node --test`、浏览器双标签或完整 Python `main.py` 验收；S04 的 24 项 Python 测试尚未实际运行，环境仍无法 DNS 解析 `github.com`。PR 无独立审查且仍为 DRAFT / TEST_GATE_BLOCKED / REVIEW_BLOCKED。禁止直接合并、禁止启动 S05、禁止自动跑 Actions。
+
 ### S05 — Skill 内容稳定（R2/R7）
 
 - [ ] 复现/测试打开即保存、frontmatter 未知字段、variant 自定义 ID。
