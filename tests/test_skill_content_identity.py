@@ -53,7 +53,8 @@ class SkillContentIdentityTests(unittest.TestCase):
     def update(self, body, variants=None, content_format="body", base_sha256=None):
         # Each editor starts from the exact document hash served by GET detail.
         if base_sha256 is None:
-            base_sha256 = hashlib.sha256(self.source().encode("utf-8")).hexdigest()
+            with open(self.skill_md, "rb") as existing:
+                base_sha256 = hashlib.sha256(existing.read()).hexdigest()
         payload = main.SkillUpdateRequest(
             content=body, variants=variants, content_format=content_format,
             base_sha256=base_sha256)
@@ -193,6 +194,17 @@ class SkillContentIdentityTests(unittest.TestCase):
             self.update("Unsafe overwrite", base_sha256="")
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(self.source(), original)
+
+    def test_crlf_skill_hash_matches_exact_bytes_and_body_update(self):
+        crlf = FIXTURE.replace("\n", "\r\n").encode("utf-8")
+        with open(self.skill_md, "wb") as file:
+            file.write(crlf)
+        detail = asyncio.run(main.api_skill_detail("custom", "ink-skill"))
+        self.assertEqual(detail["content_sha256"], hashlib.sha256(crlf).hexdigest())
+        self.update("Fresh body")
+        metadata, body = main.parse_skill_markdown_text(self.source())
+        self.assertEqual(metadata["x-artist"]["school"], "sumi-e")
+        self.assertEqual(body, "Fresh body")
 
     def test_skill_detail_returns_content_digest(self):
         detail = asyncio.run(main.api_skill_detail("custom", "ink-skill"))
