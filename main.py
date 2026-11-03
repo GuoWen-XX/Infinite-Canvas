@@ -20395,12 +20395,15 @@ class SkillCreateRequest(BaseModel):
 
 
 class SkillUpdateRequest(BaseModel):
-    content: str = Field(min_length=1, max_length=200_000)
+    # The manager editor sends only the Markdown BODY. To replace the entire
+    # SKILL.md, clients must explicitly select content_format="markdown".
+    content: str = Field(default="", max_length=200_000)
     variants: Optional[List[SkillVariantItem]] = None
+    content_format: str = "body"
 
 
-def normalize_skill_variant_items(items):
-    """表单变体 → frontmatter 结构（id 从 label 推导，去重）。"""
+def normalize_skill_variant_items(items, *, allowed_ids=None):
+    """Keep stable variant IDs across label edits; never silently rename duplicates."""
     out = []
     seen = set()
     for item in items or []:
@@ -20408,9 +20411,17 @@ def normalize_skill_variant_items(items):
         prompt = str(item.prompt or "").strip()[:2000]
         if not label:
             continue
-        vid = normalize_skill_id(str(item.id or "") or label) or normalize_skill_id(label)
+        supplied_id = str(item.id or "").strip()
+        if supplied_id:
+            if not SKILL_ID_RE.fullmatch(supplied_id):
+                raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不合法：{supplied_id[:80]}")
+            vid = supplied_id
+            if allowed_ids is not None and vid not in allowed_ids:
+                raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在，无法修改：{vid}")
+        else:
+            vid = normalize_skill_id(label)
         if not vid or vid in seen:
-            vid = f"{vid or 'variant'}-{len(out) + 1}"
+            raise HTTPException(status_code=422, detail=f"Skill 变体 ID 无效或重复：{vid or label}")
         seen.add(vid)
         out.append({"id": vid, "label": label, "prompt": prompt})
     return out
@@ -20722,17 +20733,82 @@ async def api_skill_create(payload: SkillCreateRequest):
         raise HTTPException(status_code=500, detail=f"创建 Skill 失败：{exc}") from exc
     return {"ok": True, "id": skill_id}
 
+def compose_skill_updated_markdown(current_text, content, variants=None, content_format="body"):
+    """Build the *complete* document in memory before touching SKILL.md.
+
+    'body' preserves existing frontmatter, including unknown metadata; the
+    explicit 'markdown' format replaces the complete document. Invalid YAML
+    never falls back to a lossy flat-key rewrite on an edit.
+    """
+    if content_format not in ("body", "markdown"):
+        raise HTTPException(status_code=422, detail="content_format 仅支持 body 或 markdown")
+    if _skill_yaml is None:
+        raise HTTPException(status_code=503, detail="缺少 PyYAML，不能安全编辑 Skill frontmatter")
+    pattern = r"^---[ \\t]*\\r?\\n(.*?)\\r?\\n---[ \\t]*\\r?\\n?"
+    current_match = re.match(pattern, current_text, flags=re.S)
+    original_meta = {}
+    original_header = ""
+    if current_match:
+        loaded = _guarded_yaml_load(current_match.group(1))
+        if not isinstance(loaded, dict):
+            raise HTTPException(status_code=422, detail="原 Skill frontmatter 无法解析，已拒绝覆盖")
+        original_meta = loaded
+        original_header = current_text[:current_match.end()]
+    clean_content = str(content).replace("\r\n", "\n")
+    if content_format == "markdown":
+        if variants is not None:
+            raise HTTPException(status_code=422, detail="完整 Markdown 模式不得同时提交 variants；请直接编辑 frontmatter")
+        full_match = re.match(pattern, clean_content, flags=re.S)
+        if not full_match or not isinstance(_guarded_yaml_load(full_match.group(1)), dict):
+            raise HTTPException(status_code=422, detail="完整 Markdown 必须包含有效 YAML frontmatter")
+        return clean_content
+    # The Skill Manager editor displays only entry.body. Never write its
+    # textarea value as the whole SKILL.md, or every other YAML key disappears.
+    if variants is None:
+        return original_header + clean_content
+    raw_variants = original_meta.get("variants") or []
+    if not isinstance(raw_variants, list):
+        raise HTTPException(status_code=422, detail="原 Skill variants 结构不合法")
+    known_ids = {str(v.get("id")) for v in raw_variants if isinstance(v, dict) and v.get("id")}
+    updated_variants = normalize_skill_variant_items(variants, allowed_ids=known_ids)
+    if raw_variants == updated_variants:
+        # Do not re-serialize unchanged YAML: retain unknown fields and comments.
+        return original_header + clean_content
+    updated_meta = dict(original_meta)
+    updated_meta["variants"] = updated_variants
+    return "---\\n" + _skill_yaml.safe_dump(updated_meta, allow_unicode=True, sort_keys=False, width=120) + "---\\n" + clean_content
+
+
+def atomic_write_skill_markdown(path, text):
+    """Same-directory tempfile + fsync + atomic replace, never truncate original."""
+    parent = os.path.dirname(os.path.abspath(path))
+    fd, temporary_path = tempfile.mkstemp(prefix=".skill-", suffix=".md", dir=parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\\n") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        replace_with_retry(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
 @app.put("/api/skills/custom/{skill_id}")
 async def api_skill_update(skill_id: str, payload: SkillUpdateRequest):
     dir_path = skill_dir_for("custom", skill_id)
     skill_md = os.path.join(dir_path, "SKILL.md")
-    if not os.path.isfile(skill_md):
-        raise HTTPException(status_code=400, detail="该目录缺少 SKILL.md，不能作为 Skill 编辑")
+    if not os.path.isfile(skill_md) or os.path.islink(skill_md):
+        raise HTTPException(status_code=400, detail="该目录缺少安全的 SKILL.md，不能作为 Skill 编辑")
     try:
-        with open(skill_md, "w", encoding="utf-8") as f:
-            f.write(payload.content.replace("\r\n", "\n"))
-        if payload.variants is not None:
-            rewrite_skill_frontmatter(dir_path, {"variants": normalize_skill_variant_items(payload.variants)})
+        with open(skill_md, "r", encoding="utf-8") as stream:
+            old_text = stream.read(SKILLS_MAX_SKILL_MD_BYTES + 1)
+        if len(old_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
+            raise HTTPException(status_code=413, detail="原 Skill 文档过大")
+        new_text = compose_skill_updated_markdown(old_text, payload.content, payload.variants, payload.content_format)
+        if len(new_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
+            raise HTTPException(status_code=413, detail="保存后的 Skill 文档过大")
+        atomic_write_skill_markdown(skill_md, new_text)
         meta = skill_read_meta(dir_path)
         meta["updated_at"] = now_ms()
         skill_write_meta(dir_path, meta)
@@ -21314,6 +21390,8 @@ async def compile_skill_prompt(selection, user_prompt):
     entry = skill_entry_from_dir(dir_path, source, include_body=True)
     variants = entry.get("variants") or []
     variant = next((v for v in variants if str(v.get("id") or "") == str(selection.variant or "").strip()), None)
+    if str(selection.variant or "").strip() and variant is None:
+        raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在：{str(selection.variant)[:80]}")
     snapshot = skill_content_snapshot(dir_path)
     skill_used = {
         "id": entry["id"],
@@ -21370,9 +21448,13 @@ def skill_diff_for_preview(selection, user_prompt):
     if not os.path.isfile(os.path.join(dir_path, "SKILL.md")):
         raise HTTPException(status_code=400, detail=f"Skill 缺少 SKILL.md，无法预览：{selection.id}")
     entry = skill_entry_from_dir(dir_path, source, include_body=True)
+    variants = entry.get("variants") or []
+    variant = next((v for v in variants if str(v.get("id") or "") == str(selection.variant or "").strip()), None)
+    if str(selection.variant or "").strip() and variant is None:
+        raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在：{str(selection.variant)[:80]}")
     mode = str(selection.mode or "fast").strip().lower()
     if mode == "fast":
-        return {"mode": "fast", "compiled_prompt": compose_skill_prompt_fast(entry.get("body") or "", user_prompt)}
+        return {"mode": "fast", "compiled_prompt": compose_skill_prompt_fast(entry.get("body") or "", user_prompt, variant)}
     return {"mode": "llm", "compiled_prompt": "", "note": "智能模式将在生成时由 LLM 改写（结果会缓存）"}
 
 class SkillPreviewRequest(BaseModel):
