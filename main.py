@@ -21095,8 +21095,10 @@ def swap_staged_into_target(staged, target, meta_writer=None):
     任一步失败：删除不完整新目录、恢复旧目录，异常向上抛出。
     返回 (backup_left, replaced)。"""
     backup = os.path.join(os.path.dirname(target), "." + os.path.basename(target) + ".install-bak")
-    if os.path.exists(backup):
-        shutil.rmtree(backup, ignore_errors=True)
+    if os.path.lexists(backup):
+        # A leftover backup may be the only recoverable previous version.
+        # Never silently delete it at the start of another install.
+        raise HTTPException(status_code=409, detail="发现未清理的 Skill 安装备份，请先人工检查并处理备份后重试")
     replaced = os.path.exists(target)
     if replaced:
         os.rename(target, backup)
@@ -21311,8 +21313,9 @@ async def api_skill_upgrade(skill_id: str, payload: SkillUpgradeRequest):
             # 备份目录用点前缀：skill_scan_all 跳过隐藏目录，不会出现幽灵条目；
             # 也避免与用户合法 skill（ID 不能以点开头）撞名。
             backup = os.path.join(skill_source_root("custom"), f".{skill_id}.upgrade-bak")
-            if os.path.exists(backup):
-                shutil.rmtree(backup, ignore_errors=True)
+            if os.path.lexists(backup):
+                # An unfinished upgrade's backup must never be discarded.
+                raise HTTPException(status_code=409, detail="发现未清理的 Skill 升级备份，请先人工检查并处理备份后重试")
             try:
                 os.rename(dir_path, backup)
             except OSError as exc:
