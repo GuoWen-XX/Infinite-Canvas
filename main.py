@@ -20959,6 +20959,7 @@ async def github_download_repo_zip(url, sha_or_ref=""):
     fd, temp_zip = tempfile.mkstemp(prefix="skill_repo_", suffix=".zip")
     downloaded = 0
     over_limit = False
+    completed = False
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=20.0), follow_redirects=True) as client:
             try:
@@ -20980,13 +20981,16 @@ async def github_download_repo_zip(url, sha_or_ref=""):
                 raise HTTPException(status_code=502, detail=f"GitHub 网络请求失败：{exc}") from exc
         if over_limit:
             raise HTTPException(status_code=400, detail=f"仓库压缩包超过 {SKILLS_ZIP_STREAM_MAX_BYTES // (1024*1024)}MB 上限")
+        completed = True
     finally:
         if fd is not None:
             try:
                 os.close(fd)
             except OSError:
                 pass
-        if over_limit:
+        # HTTP errors, cancelled downloads, client startup failures and size
+        # rejection must all remove partial archives, not only over-limit data.
+        if not completed:
             try:
                 os.remove(temp_zip)
             except OSError:
