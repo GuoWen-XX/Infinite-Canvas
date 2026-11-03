@@ -54,8 +54,13 @@ def wheel_compatible(wheel: dict, target_python: str, platform="win_amd64") -> b
     tags = wheel["python_tag"].split(".")
     abis = wheel["abi_tag"].split(".")
     platforms = wheel["platform_tag"].split(".")
+    # Generic py3N-none-any wheels remain compatible with newer Python 3.x.
+    generic_minor = any(
+        re.fullmatch(r"py3(\\d+)", tag) and int(tag[3:]) <= int(minor)
+        for tag in tags
+    ) if major == "3" and "none" in abis else False
     python_ok = (f"py{major}" in tags or f"py{major}{minor}" in tags
-                 or f"cp{major}{minor}" in tags)
+                 or f"cp{major}{minor}" in tags or generic_minor)
     if not python_ok and "abi3" in abis:
         python_ok = any(re.fullmatch(r"cp3(\d+)", tag)
                         and int(tag[3:]) <= int(minor) for tag in tags)
