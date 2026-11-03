@@ -1,5 +1,19 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
+## 2026-11-03 S08 当前状态（本节优先于历史快照）
+
+- S00–S07 均已 **合并到 main**，S07 PR #10 merge SHA `a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`。历史 S04/S05/S06 的 DRAFT 字样均是过时快照，不要阻止 S08 工作。
+- 当前分支 `fix/S08-release-validation`，Draft [PR #11](https://github.com/GuoWen-XX/Infinite-Canvas/pull/11)，base main=S07 merge。必须先取 PR 实时 HEAD，再继续。
+- S08 已新增静态发布门禁工具 `tools/check_s08_wheelhouse.py`、`tools/check_s08_release_source.py`，及各自的合成回归、[S08_RELEASE_GATE.md](S08_RELEASE_GATE.md)。
+- **已确认发布阻断 A**：仓库内 `python310.dll` 对应 Python 3.10，但 packages 含 cp314 Windows 二进制 wheel；8 项 requirements 锁定依赖仅 2 项有匹配 wheel，缺 PyYAML 6.0.3 且有五项版本不符。基于真实 GitHub 文件名的离线清单镜像检查 FAIL，不是真实 pip 安装。
+- **已确认发布阻断 B**：`main.py` 实际 `GITHUB_REPO_URL` 指向 `benkwok1983-cmd/Infinite-Canvas`，`GITHUB_BRANCH` 指向 `zcode/iteration-01`；修复工程目标是 `GuoWen-XX/Infinite-Canvas@main`。静态检查 FAIL；不擅自调整线上更新源或默认分支。
+- Python 3.13 本机隔离模拟：wheelhouse 6/6 PASS，updater checker 4/4 PASS；这些都是工具合成单测，不是全仓/Windows 测试。正确 repo HEAD 的完整 Python unittest、Node、Windows、Chrome 双标签、LAN、Photoshop、ModelScope、Skill A→B→C、Codex 自定义目录联调均 NOT_RUN。禁止将 S00–S07 有限风险合并误称为 S08 发布验收通过。
+- 约束：不主动运行 GitHub Actions、不手动请求 Codex Review、不触碰真实用户文件/密钥/付费模型。Codex Review bot 曾要求仓库环境设置，因此独立 review 仍可能无结果。
+- **下一步**：在真实隔离 Windows 环境重构匹配 CPython 3.10 的完整 wheelhouse，做 pip install/pip check；另行审议更新来源安全迁移；全仓本机/Windows/浏览器/插件验收留完整退出码和日志。发布前门禁不满足，PR #11 不应作为最终验收合并。
+
+---
+
+
 ## S04 增量：离线/5xx 元数据编辑恢复（2026-11-02，最新代码以 PR 实时 HEAD 为准）
 
 - 本轮 GitHub 实时核查：S03 PR #6 已合并至 main@081edae；S04 PR #7 仍 Draft，正式 reviews 0、review threads 0。Codex connector 仍要求先配置仓库 environment。
