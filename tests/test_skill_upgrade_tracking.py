@@ -104,6 +104,39 @@ class SkillUpgradeTrackingTests(unittest.TestCase):
             with open(os.path.join(target, "SKILL.md"), encoding="utf-8") as f:
                 self.assertEqual(f.read(), "original A")
 
+    def test_install_refuses_leftover_backup_without_mutating_either_copy(self):
+        with tempfile.TemporaryDirectory(prefix="s06_backup_") as root:
+            target = os.path.join(root, "ink")
+            staged = os.path.join(root, "staged")
+            backup = os.path.join(root, ".ink.install-bak")
+            for folder, content in ((target, "current"), (staged, "candidate"), (backup, "recoverable")):
+                os.makedirs(folder)
+                with open(os.path.join(folder, "SKILL.md"), "w", encoding="utf-8") as out:
+                    out.write(content)
+            with self.assertRaises(HTTPException) as ctx:
+                main.swap_staged_into_target(staged, target, meta_writer=lambda: True)
+            self.assertEqual(ctx.exception.status_code, 409)
+            for folder, expected in ((target, "current"), (staged, "candidate"), (backup, "recoverable")):
+                with open(os.path.join(folder, "SKILL.md"), encoding="utf-8") as source:
+                    self.assertEqual(source.read(), expected)
+
+    def test_install_refuses_symlink_backup_without_following_it(self):
+        with tempfile.TemporaryDirectory(prefix="s06_backup_link_") as root:
+            target = os.path.join(root, "ink")
+            staged = os.path.join(root, "staged")
+            backup = os.path.join(root, ".ink.install-bak")
+            os.makedirs(target)
+            os.makedirs(staged)
+            try:
+                os.symlink(target, backup)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink unavailable")
+            with self.assertRaises(HTTPException) as ctx:
+                main.swap_staged_into_target(staged, target)
+            self.assertEqual(ctx.exception.status_code, 409)
+            self.assertTrue(os.path.islink(backup))
+            self.assertTrue(os.path.isdir(target))
+
     def test_require_pyyaml_missing_does_not_touch_files(self):
         with patch.object(main, "_skill_yaml", None):
             with self.assertRaises(HTTPException) as ctx:
