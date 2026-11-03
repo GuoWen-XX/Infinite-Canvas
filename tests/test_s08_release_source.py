@@ -18,10 +18,30 @@ class ReleaseSourceGateTests(unittest.TestCase):
             path.write_text(content, encoding="utf-8")
             return checker.audit(path, "GuoWen-XX/Infinite-Canvas", "main")
 
+    @staticmethod
+    def valid_source():
+        return (
+            'GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\\n'
+            'GITHUB_BRANCH = "main"\\n'
+            'GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"\\n'
+            'GITHUB_TREE_URL = f"https://api.github.com/repos/GuoWen-XX/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"\\n'
+            'GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}"\n'
+        )
+
     def test_matching_fork_source_passes(self):
-        result = self.audit('GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\n'
-                            'GITHUB_BRANCH = "main"\n')
-        self.assertTrue(result["passed"])
+        self.assertTrue(self.audit(self.valid_source())["passed"])
+
+    def test_stale_download_endpoints_fail_even_with_correct_repo_branch(self):
+        for key in ("GITHUB_VERSION_URL", "GITHUB_TREE_URL", "GITHUB_RAW_ROOT"):
+            with self.subTest(key=key):
+                lines = self.valid_source().splitlines(keepends=True)
+                lines = [
+                    line.replace("GuoWen-XX/Infinite-Canvas", "benkwok1983-cmd/Infinite-Canvas")
+                    if line.startswith(key + " = ") else line for line in lines
+                ]
+                result = self.audit("".join(lines))
+                self.assertFalse(result["passed"])
+                self.assertIn(key, result["mismatches"])
 
     def test_upstream_repo_source_fails_even_if_branch_matches(self):
         result = self.audit('GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"\n'
