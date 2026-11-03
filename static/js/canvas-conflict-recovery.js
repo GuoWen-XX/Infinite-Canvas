@@ -76,7 +76,9 @@ function show({id,kind='classic',record,storageKey}){
     const title = document.createElement('strong');
     title.textContent = '画布保存冲突：未覆盖服务器内容';
     const description = document.createElement('p');
-    description.textContent = '可导出本地草稿，或保存为新的独立画布；原画布不会被自动覆盖。请核对两份内容后再整理。';
+    description.textContent = record.persistence_error
+        ? '警告：浏览器本地存储失败！当前草稿仅保存在此页面内存中，刷新或关闭将丢失。请立即点击“导出本地草稿 JSON”或“保存为独立副本”，确认成功后再离开。'
+        : '可导出本地草稿，或保存为新的独立画布；原画布不会被自动覆盖。请核对两份内容后再整理。';
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
     const status = document.createElement('p');
