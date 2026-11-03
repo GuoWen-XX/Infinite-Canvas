@@ -42,6 +42,8 @@ class WheelhouseGateTests(unittest.TestCase):
         result = self.audit("pillow==12.3.0\n")
         self.assertFalse(result["passed"])
         self.assertEqual(result["problems"][0]["reason"], "incompatible_wheel_tags")
+        self.assertIn("pillow-12.3.0-cp314-cp314-win_amd64.whl",
+                      result["incompatible_wheels"])
 
     def test_exact_pure_and_cp310_wheels_satisfy_static_gate(self):
         self.wheel("fastapi-0.141.1-py3-none-any.whl")
