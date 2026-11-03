@@ -18635,10 +18635,16 @@ async def delete_canvas(canvas_id: str, base_revision: Optional[int] = None,
     return {"ok": True}
 
 @app.post("/api/canvases/{canvas_id}/restore")
-async def restore_canvas(canvas_id: str):
+async def restore_canvas(canvas_id: str, base_revision: Optional[int] = None):
+    """Restore only the trash revision the user selected.
+
+    Restoring from an outdated tab without a CAS check could resurrect a canvas
+    that another client deleted or modified after this trash view loaded.
+    """
     def apply(canvas):
+        check_canvas_base_revision(canvas, base_revision)
         if not canvas.get("deleted_at"):
-            return False
+            raise HTTPException(status_code=409, detail="画布已恢复，请刷新回收站")
         canvas.pop("deleted_at", None)
 
     canvas = mutate_canvas(canvas_id, apply, allow_deleted=True)
