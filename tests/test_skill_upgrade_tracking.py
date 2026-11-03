@@ -137,6 +137,21 @@ class SkillUpgradeTrackingTests(unittest.TestCase):
             self.assertTrue(os.path.islink(backup))
             self.assertTrue(os.path.isdir(target))
 
+    def test_download_failure_cleans_partial_zip(self):
+        # Exact downloader path: client creation fails after mkstemp and must
+        # close its descriptor and delete the partial archive.
+        with tempfile.TemporaryDirectory(prefix="s06_download_") as temp:
+            path = os.path.join(temp, "partial.zip")
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+            with patch.object(main, "github_resolve_commit", new_callable=AsyncMock,
+                              return_value={"sha": A}), patch.object(
+                    main.tempfile, "mkstemp", return_value=(fd, path)), patch.object(
+                    main.httpx, "AsyncClient", side_effect=RuntimeError("client failed")):
+                with self.assertRaisesRegex(RuntimeError, "client failed"):
+                    asyncio.run(main.github_download_repo_zip(
+                        "https://github.com/example/styles", A))
+            self.assertFalse(os.path.exists(path))
+
     def test_require_pyyaml_missing_does_not_touch_files(self):
         with patch.object(main, "_skill_yaml", None):
             with self.assertRaises(HTTPException) as ctx:
