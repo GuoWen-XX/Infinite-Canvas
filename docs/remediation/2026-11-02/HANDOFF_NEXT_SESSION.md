@@ -192,3 +192,12 @@ S00–S02 已合并；S02 以明确延期完整测试/Windows/LAN/Chrome/Photosh
 - 已在 classic patchCanvasMeta 与列表 persistMeta 修复：按字段合并既有失败草稿，同字段最新编辑优先；localStorage 不可写时恢复面板明确警告，并提供属性 JSON 导出；更新 HTML 资源版本避免旧缓存。
 - 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
 - S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。
+
+
+## S04 回收站恢复 CAS 增量与有限验证（2026-11-03 UTC，后续以实时 HEAD 为准）
+
+- PR #7 代码 HEAD `87ae3378b96c6e45cd956e43940430dc47a9790a`；`main@081edae763ec73505bed9f82e4274bfeaabc16c3`，PR Draft、正式 reviews 0、inline review threads 0。前文把 S03 称为 Draft 的内容为历史快照：S03 PR #6 已合并，延期验证未完成。
+- 自前一记录的 `c9dc5fae33132cc7a875f089c9e62c7310813532` 起，S04 又有 5 次提交，变更 `main.py`、`static/js/canvas.js`、`static/js/canvas-list.js`、`tests/test_canvas_revision.py`，新增 `tests/test_canvas_restore_cas.cjs`。本阶段新增了回收站恢复的 revision CAS：后端在画布锁内检查所选回收站条目版本；经典编辑器与画布列表均携带所观察到的 revision，缺失 token 拒绝请求，409 时刷新回收站，不静默恢复过期条目。永久删除/软删除 CAS 仍按先前实现。
+- 本轮通过 GitHub 连接器读取**准确代码 HEAD** 的两份实际 JS，抽取原文 `restoreCanvas` 函数在隔离 V8 + mock fetch 中运行成功、缺少 revision、HTTP 409、HTTP 503 四种情形 × 经典/画布列表，共 **8/8 PASS**；两份完整 JS 原文经 V8 `new Function` **2/2 语法解析 PASS**。**这是提取函数行为与语法检查，不是仓库原生 `node --test`、浏览器双标签或完整 Python 主程序集成 PASS**。
+- `tests/test_canvas_revision.py` 当前有 **24 个已编写的 `test_` 方法，未在完整 `main.py` 运行**；新增 CJS 文件的 6 个用例亦未执行原生 Node CLI。完整 Python unittest discover、原生 Node、浏览器双标签、Windows/LAN/插件联调仍缺正确 HEAD 的可信执行证据。GitHub Actions workflow 保持 `workflow_dispatch` only，未触发。
+- **REVIEW_BLOCKED / TEST_GATE_BLOCKED**：没有独立审查结论，Codex environment 配置仍需处理；PR #7 保持 Draft，**不得合并或启动 S05**。S02 28 项、S03 45 项及对应平台验证仍为 S08 发布前阻断。未使用真实用户画布、密钥或计费 AI。
