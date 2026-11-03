@@ -6100,7 +6100,11 @@ function persistSmartConflictDraft(snapshot=null){
         saved_at:Date.now(), canvas:snapshot || canvasForStorage()
     };
     try { localStorage.setItem('smart_canvas_conflict_draft_' + canvasId, JSON.stringify(record)); }
-    catch(err) { console.error('Smart canvas recovery backup failed; export the draft now',err); }
+    catch(err) {
+        // Never imply a persistent backup when quota/private-mode storage failed.
+        record.persistence_error = true;
+        console.error('Smart canvas recovery backup failed; export the draft now',err);
+    }
     return record;
 }
 function scheduleSave(){
