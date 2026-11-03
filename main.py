@@ -20400,6 +20400,10 @@ class SkillUpdateRequest(BaseModel):
     content: str = Field(default="", max_length=200_000)
     variants: Optional[List[SkillVariantItem]] = None
     content_format: str = "body"
+    base_sha256: str = ""
+
+
+SKILL_UPDATE_LOCK = Lock()
 
 
 def normalize_skill_variant_items(items, *, allowed_ids=None):
@@ -20705,6 +20709,11 @@ async def api_skill_detail(source: str, skill_id: str):
                 continue
             rel_files.append(os.path.relpath(os.path.join(root, fname), dir_path).replace("\\", "/"))
     entry["file_list"] = sorted(rel_files)[:SKILLS_MAX_FILES]
+    if entry["has_skill_md"]:
+        # A content ETag prevents another editor tab from silently overwriting
+        # a newer SKILL.md; it covers the exact bytes including unknown YAML.
+        with open(os.path.join(dir_path, "SKILL.md"), "rb") as content_file:
+            entry["content_sha256"] = hashlib.sha256(content_file.read()).hexdigest()
     return entry
 
 @app.post("/api/skills/custom")
@@ -20809,18 +20818,25 @@ async def api_skill_update(skill_id: str, payload: SkillUpdateRequest):
     skill_md = os.path.join(dir_path, "SKILL.md")
     if not os.path.isfile(skill_md) or os.path.islink(skill_md):
         raise HTTPException(status_code=400, detail="该目录缺少安全的 SKILL.md，不能作为 Skill 编辑")
+    # All user-visible editors must provide a revision from GET detail.
+    # Missing/stale hashes must fail before any data on disk is modified.
+    if not re.fullmatch(r"[0-9a-f]{64}", str(payload.base_sha256 or "")):
+        raise HTTPException(status_code=409, detail="缺少 Skill 内容版本，请重新打开编辑器后再保存")
     try:
-        with open(skill_md, "r", encoding="utf-8") as stream:
-            old_text = stream.read(SKILLS_MAX_SKILL_MD_BYTES + 1)
-        if len(old_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
-            raise HTTPException(status_code=413, detail="原 Skill 文档过大")
-        new_text = compose_skill_updated_markdown(old_text, payload.content, payload.variants, payload.content_format)
-        if len(new_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
-            raise HTTPException(status_code=413, detail="保存后的 Skill 文档过大")
-        atomic_write_skill_markdown(skill_md, new_text)
-        meta = skill_read_meta(dir_path)
-        meta["updated_at"] = now_ms()
-        skill_write_meta(dir_path, meta)
+        with SKILL_UPDATE_LOCK:
+            with open(skill_md, "r", encoding="utf-8") as stream:
+                old_text = stream.read(SKILLS_MAX_SKILL_MD_BYTES + 1)
+            if len(old_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
+                raise HTTPException(status_code=413, detail="原 Skill 文档过大")
+            if hashlib.sha256(old_text.encode("utf-8")).hexdigest() != payload.base_sha256:
+                raise HTTPException(status_code=409, detail="Skill 已在其他页面修改，当前草稿未覆盖服务器文件")
+            new_text = compose_skill_updated_markdown(old_text, payload.content, payload.variants, payload.content_format)
+            if len(new_text.encode("utf-8")) > SKILLS_MAX_SKILL_MD_BYTES:
+                raise HTTPException(status_code=413, detail="保存后的 Skill 文档过大")
+            atomic_write_skill_markdown(skill_md, new_text)
+            meta = skill_read_meta(dir_path)
+            meta["updated_at"] = now_ms()
+            skill_write_meta(dir_path, meta)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"保存 Skill 失败：{exc}") from exc
     return {"ok": True}
