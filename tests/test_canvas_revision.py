@@ -209,11 +209,42 @@ class CanvasRevisionTests(unittest.TestCase):
         latest = main.load_canvas(self.canvas["id"])
         asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=latest["revision"]))
         trash = main.load_canvas_any(self.canvas["id"])
-        asyncio.run(main.restore_canvas(self.canvas["id"]))
+        asyncio.run(main.restore_canvas(self.canvas["id"], base_revision=trash["revision"]))
         with self.assertRaises(HTTPException) as ctx:
             asyncio.run(main.purge_canvas(self.canvas["id"], base_revision=trash["revision"]))
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(main.load_canvas(self.canvas["id"])["id"], self.canvas["id"])
+
+    def test_restore_without_revision_rejected_and_canvas_stays_in_trash(self):
+        latest = main.load_canvas(self.canvas["id"])
+        asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=latest["revision"]))
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.restore_canvas(self.canvas["id"]))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertTrue(main.load_canvas_any(self.canvas["id"]).get("deleted_at"))
+
+    def test_restore_with_current_revision_succeeds_and_advances_revision(self):
+        latest = main.load_canvas(self.canvas["id"])
+        asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=latest["revision"]))
+        trash = main.load_canvas_any(self.canvas["id"])
+        restored = asyncio.run(main.restore_canvas(self.canvas["id"], base_revision=trash["revision"]))
+        self.assertFalse(restored["canvas"].get("deleted_at"))
+        self.assertEqual(restored["canvas"]["revision"], trash["revision"] + 1)
+        self.assertEqual(main.load_canvas(self.canvas["id"])["id"], self.canvas["id"])
+
+    def test_stale_restore_revision_rejected_without_replacing_newer_trash(self):
+        latest = main.load_canvas(self.canvas["id"])
+        asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=latest["revision"]))
+        first_trash = main.load_canvas_any(self.canvas["id"])
+        asyncio.run(main.restore_canvas(self.canvas["id"], base_revision=first_trash["revision"]))
+        newest = main.load_canvas(self.canvas["id"])
+        asyncio.run(main.delete_canvas(self.canvas["id"], base_revision=newest["revision"]))
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(main.restore_canvas(self.canvas["id"], base_revision=first_trash["revision"]))
+        self.assertEqual(ctx.exception.status_code, 409)
+        current_trash = main.load_canvas_any(self.canvas["id"])
+        self.assertTrue(current_trash.get("deleted_at"))
+        self.assertEqual(current_trash["revision"], newest["revision"] + 1)
 
     def test_purge_current_trash_revision_removes_file(self):
         latest = main.load_canvas(self.canvas["id"])
