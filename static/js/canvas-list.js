@@ -1006,8 +1006,19 @@ function renderTrash(){
     refreshIcons();
 }
 async function restoreCanvas(id){
+    const record = deletedCanvases.find(c => c.id === id);
+    if(record?.revision == null){
+        setStatus(L('版本未知，请刷新回收站后恢复','Unknown revision; refresh trash before restoring'));
+        await loadTrash();
+        return;
+    }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore`, { method: 'POST' });
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore?base_revision=${encodeURIComponent(record.revision)}`, {method:'POST'});
+        if(res.status === 409){
+            setStatus(L('回收站已被其他页面修改，已取消恢复','Trash changed elsewhere; restore cancelled'));
+            await loadTrash();
+            return;
+        }
         if(!res.ok) throw new Error('restore failed');
         deletedCanvases = deletedCanvases.filter(c => c.id !== id);
         await loadAll();           // restored canvas returns to its stored project
