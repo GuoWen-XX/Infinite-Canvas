@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 PR_OPEN / REVIEW_BLOCKED / TEST_GATE_BLOCKED`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 仍未达到审查/测试门禁。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 仍未达到审查/测试门禁。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -25,8 +25,8 @@
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
 | S02 | MERGED / DEFERRED VALIDATION | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | MERGED / DEFERRED VALIDATION | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
-| S04 | IN_PROGRESS | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
-| S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
+| S04 | MERGED / DEFERRED VALIDATION | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
+| S05 | IN_PROGRESS | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
 | S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
@@ -177,6 +177,8 @@
 - [x] 经典/智能画布的冲突草稿写入 `localStorage` 若遇禁用存储、QuotaExceededError，过去仅打印 console，但恢复面板仍按已持久保存的语气提示，刷新页面会丢失。现在分别标记 `record.persistence_error=true`，恢复 UI 明确高优先级警告“草稿仅在内存、刷新/关闭会丢失”，提示立即导出 JSON 或保存独立副本。正常写入的提示不变。
 - [x] 新增 `tests/test_canvas_draft_storage_failure.cjs` 4 项，对真实 classic/smart 草稿保存函数及恢复面板执行失败/成功对照，**4/4 限定 V8 执行 PASS**。
 - [x] 从正确 HEAD `c01d4fdec4190a8ff57ae222d53a8c6ec7ac3c20` 读取实际 12 份 CJS 回归测试以及四份应用 JS 源文件，以隔离 V8、受控 `node:test/assert/fs/path/vm` API shim 完整重跑：**12 份用例集 72/72 PASS；4/4 JS 应用源码语法解析 PASS**。该结论不是 `node --test`、浏览器双标签或完整 Python `main.py` 验收；S04 的 24 项 Python 测试尚未实际运行，环境仍无法 DNS 解析 `github.com`。PR 无独立审查且仍为 DRAFT / TEST_GATE_BLOCKED / REVIEW_BLOCKED。禁止直接合并、禁止启动 S05、禁止自动跑 Actions。
+
+**2026-11-03 S04 有限风险合并（阶段完成与最终验收分离）：** PR #7 已合并 `main@809024323f0741bb8cd8a02d268532b09e018457`。正确提交的 12 份 CJS 测试在隔离 V8 + Node API shim 执行 72/72 PASS、4 个应用 JS 解析 PASS；24 项 Python S04 测试已编写但未在完整 main.py 运行；原生 Node/双标签浏览器/Windows 与独立 Review 未完成。已公开[风险放行记录](https://github.com/GuoWen-XX/Infinite-Canvas/pull/7#issuecomment-6593706797)，均列为 S08 **发布前阻断验收**，不得视作 TEST_GATE_PASS 或发布许可。维护者明确要求不以最终发布验收阻止阶段开发。基于合并 SHA 创建 `fix/S05-skill-content-identity`，只处理 R2/R7；不触发 GitHub Actions、不手动请求 Codex Review。
 
 ### S05 — Skill 内容稳定（R2/R7）
 
