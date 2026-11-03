@@ -6168,10 +6168,28 @@ async def codex_prepare_local_media(ref_url):
             raise HTTPException(status_code=400, detail="OpenAI CLI 参考素材 data URL 缺少 base64 数据")
         header, encoded = text.split(";base64,", 1)
         mime = header.split(":", 1)[1].split(";", 1)[0] if ":" in header else ""
+        if not mime.startswith("image/"):
+            raise HTTPException(status_code=400, detail="OpenAI CLI 参考素材只接受图像 data URL")
+        # Bound the encoded input before decoding, and validate its alphabet.
+        if len(encoded) > 28 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="OpenAI CLI 参考素材超过 20MB 上限")
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise HTTPException(status_code=400, detail="OpenAI CLI 参考素材 base64 数据无效") from exc
+        if len(content) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="OpenAI CLI 参考素材超过 20MB 上限")
         suffix = mimetypes.guess_extension(mime) or suffix
         fd, path = tempfile.mkstemp(prefix="codex_ref_", suffix=suffix)
-        with os.fdopen(fd, "wb") as f:
-            f.write(base64.b64decode(encoded))
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(content)
+        except Exception:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            raise
         temp_paths.append(path)
         return path, temp_paths
     if text.startswith(("http://", "https://")):
