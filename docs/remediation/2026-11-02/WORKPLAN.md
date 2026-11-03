@@ -329,11 +329,11 @@ Final merge SHA:
 - 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
 - S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。
 
-### 2026-11-03 S08 下一步执行记录
+### 2026-11-04 S08 纠偏：免安装运行优先
 
-- [x] 核对 PR #11：仍 open，review submissions = 0，review threads = 0；审查缺席不等于通过。
-- [x] 新增离线 Windows CPython 3.10 wheelhouse 准备工具及 5 个 no-network 单测，隔离执行 5/5 PASS。命令不修改正式 `packages/`，包括传递依赖。
-- [ ] 运行真实 pip 下载、核验 wheel、Windows Python 3.10 干净安装及 `pip check`；工具提交不代表依赖修复完成。
-- [ ] 自动更新源切换/安全禁用仍需正式发布决策和旧客户端升级验证；当前保持原常量，不默许旧源覆盖已合并修复。
-- [ ] 原 S08 Windows/LAN/Chrome/Photoshop/ModelScope、全量 Python/Node、S02/S03 延期验证未完成。
-- [ ] 取得独立审查结论并处理必要阻断后再评估 PR #11 merge 和最终发布。GitHub Actions 本次 0 次主动运行。
+- [x] 经仓库 `run.bat` 核实：直接运行自带 `python/python.exe` 和 `main.py`，正常启动不执行 `安装依赖.bat` 或 pip。
+- [x] 取消将 `packages/` 缓存 wheel 版本不符作为 S08 阶段合并的阻断。该问题仅对用户主动使用的可选依赖修复流程有影响，留作非阻断维护事项。
+- [x] 撤销误加的 wheelhouse 下载工具及测试，不给用户增加安装负担。
+- [ ] 聚焦原本范围：无需安装的 Windows 启动验证、S00–S07 必要安全与功能回归，以及自动更新渠道覆盖安全修复的实际风险。
+- [ ] PR #11 已验证的阶段成果可独立评审和合并，不再强行绑定最终发布全部验收；尚未进行的测试必须如实注明，不能写作 PASS。
+- [ ] 自动更新渠道不一致仍为独立发布风险，但不等于可选依赖缓存文件的问题。
