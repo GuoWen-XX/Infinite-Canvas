@@ -10,6 +10,7 @@ const tabsEl = document.getElementById('skillTabs');
 let allSkills = [];
 let activeSource = 'custom';
 let editingId = '';
+let editBaseSha = '';
 let ghPreview = null;
 
 const SOURCE_LABELS = { custom: '我的', builtin: '内置', codex: 'Codex' };
@@ -146,6 +147,11 @@ async function showDetail(item) {
 
 function openEditor(item) {
     editingId = item ? item.id : '';
+    editBaseSha = '';
+    const saveBtn = document.getElementById('skillEditSave');
+    // Never allow a save while GET detail is still in flight: it could write
+    // an empty editor over an existing SKILL.md.
+    saveBtn.disabled = Boolean(item);
     document.getElementById('skillEditTitle').textContent = item ? `编辑：${item.name}` : '新建 Skill';
     document.getElementById('skillEditNameRow').style.display = item ? 'none' : '';
     document.getElementById('skillEditDescRow').style.display = item ? 'none' : '';
@@ -157,16 +163,23 @@ function openEditor(item) {
     document.getElementById('skillVariantsList').innerHTML = '';
     openOverlay('skillEditOverlay');
     if (item) {
+        const openingId = editingId;
         api(`/api/skills/custom/${encodeURIComponent(item.id)}`).then(detail => {
+            if (editingId !== openingId) return;
+            editBaseSha = detail.content_sha256 || '';
+            if (!/^[0-9a-f]{64}$/.test(editBaseSha)) throw new Error('未取得 Skill 内容版本，无法安全保存');
             document.getElementById('skillEditContent').value = detail.body || '';
-            (detail.variants || []).forEach(v => addVariantRow(v.label || '', v.prompt || ''));
+            (detail.variants || []).forEach(v => addVariantRow(v.label || '', v.prompt || '', v.id || ''));
+            saveBtn.disabled = false;
         }).catch(error => toast(error.message));
     }
 }
-function addVariantRow(label = '', prompt = '') {
+function addVariantRow(label = '', prompt = '', id = '') {
     const list = document.getElementById('skillVariantsList');
     const row = document.createElement('div');
     row.className = 'skill-variant-row';
+    // Keep the immutable ID even when the visible label changes.
+    row.dataset.variantId = String(id || '');
     row.innerHTML = `
         <input class="skill-input v-label" type="text" maxlength="80" placeholder="样板名（如：单墨 · 钴蓝）" value="${escapeHtml(label)}">
         <input class="skill-input v-prompt" type="text" maxlength="2000" placeholder="该样板的追加指令（墨色/纹理/构图约束）" value="${escapeHtml(prompt)}">
@@ -176,6 +189,7 @@ function addVariantRow(label = '', prompt = '') {
 }
 function collectVariants() {
     return [...document.querySelectorAll('#skillVariantsList .skill-variant-row')].map(row => ({
+        id: row.dataset.variantId || '',
         label: row.querySelector('.v-label').value.trim(),
         prompt: row.querySelector('.v-prompt').value.trim(),
     })).filter(v => v.label);
@@ -188,7 +202,8 @@ async function saveEditor() {
     try {
         const variants = collectVariants();
         if (editingId) {
-            await api(`/api/skills/custom/${encodeURIComponent(editingId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, variants }) });
+            if (!/^[0-9a-f]{64}$/.test(editBaseSha)) throw new Error('缺少内容版本，请重新打开编辑器');
+            await api(`/api/skills/custom/${encodeURIComponent(editingId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, variants, content_format: 'body', base_sha256: editBaseSha }) });
             toast('已保存');
         } else {
             const name = document.getElementById('skillEditName').value.trim();
