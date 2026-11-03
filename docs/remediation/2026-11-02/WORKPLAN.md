@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 仍未达到审查/测试门禁。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -182,10 +182,11 @@
 
 ### S05 — Skill 内容稳定（R2/R7）
 
-- [ ] 复现/测试打开即保存、frontmatter 未知字段、variant 自定义 ID。
-- [ ] 实施解析—合并—原子保存，前后端明确 body/完整 Markdown 契约。
-- [ ] 修改标签不变更稳定 ID；不存在 ID 必须显式提示。
-- [ ] PR 审查合并后解锁 S06。
+- [x] 已定位旧实现：前端只传正文，后端直接 `open(SKILL.md,"w")` 截断整份文档，导致未知 frontmatter、变体丢失；已有变体编辑时前端不传 id、后端按 label 重建 ID。还存在编辑器 GET 未完成即可提交空正文、并发旧稿覆盖新稿的问题。
+- [x] 编辑器显式 `content_format: body`，整份 Markdown 必须选择 `content_format: markdown` 并包含有效 YAML；后端保留原 frontmatter（含自定义字段、注释及 BOM），变体字段合并而不抹除自定义字段；损坏 YAML/缺 PyYAML 明确拒绝且不写磁盘。全部更新内存构造、临时文件 `fsync`、原子替换。
+- [x] 变体 id 原样保存，不随 label 修改；旧版归一化引用仅在唯一对应时兼容，真正不存在或歧义的 ID 报 422。GET Detail 与正文同一读取快照生成 `content_sha256`，PUT 在锁中 CAS 比对，未版本化/过期编辑器拒绝写入；前端 GET 尚未完成时禁用保存，并提交 `base_sha256`。
+- [x] 创建 [PR #8](https://github.com/GuoWen-XX/Infinite-Canvas/pull/8)（base `main@809024323f0741bb8cd8a02d268532b09e018457`）。`tests/test_skill_content_identity.py` 已编写 **17 项**，仍未在完整 `main.py` 中运行。修改内容对应的 Python 保存/解析函数在本容器使用原生 Python 3.13 + PyYAML 的**独立镜像隔离逻辑**执行 **14/14 PASS**（不等于仓库集成测试）。从 GitHub 正确 HEAD 源码直接在 V8 + Node built-in shim 中执行前端 `tests/test_skill_variant_identity.cjs` **5/5 PASS**。无真实文件/Key、无计费模型、无 GitHub Actions。
+- [ ] 阶段合并须记录缺失验收的有限风险例外。正式 `python -m unittest ...`、`node --test`、UI 浏览器测试、完整 checkout 与正式独立代码审查仍未完成；不得宣称最终验收通过。以上均为 S08 发布前阻断验收；S06 安装依赖阶段须验证 PyYAML 正式安装。
 
 ### S06 — Skill 安装与升级（R3/R4）
 
