@@ -233,6 +233,7 @@
 - [ ] 没有 Windows 隔离副本/完整可执行 repo checkout；全量 Python/Node、安装、浏览器和插件联调均 **NOT_RUN**。在补齐之前 S08 **RELEASE_BLOCKED**；不得借阶段合并豁免宣布最终验收或发布。GitHub Actions 按维护者约束未触发。
 
 
+- [x] S08 发现 updater 发布源一致性阻断：`main.py` 仍指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，与此仓库修复目标 `GuoWen-XX/Infinite-Canvas@main` 不同；已新增 `tools/check_s08_release_source.py` 和 4 项静态模拟测试，本地等价实现执行 **4/4 PASS**，对现有仓库常量静态判断 **FAIL**。不擅自改分支/发布源，必须另行验证安全更新迁移。
 - [ ] 完整 Python unittest discover、JS 语法与浏览器用例、Windows 启动器实际运行。
 - [ ] LAN/Chrome/Photoshop/ModelScope 与纯本机模式回归。
 - [ ] 版本、自动更新源、安装流程和权限说明核对。
