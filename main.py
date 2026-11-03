@@ -20908,7 +20908,9 @@ def skill_github_version_meta(existing, sha, tracking_ref, skill_root):
     """Keep a moving ref distinct from the installed immutable commit."""
     ref = str(tracking_ref or "").strip()
     if re.fullmatch(r"[0-9a-fA-F]{7,64}", ref):
-        raise HTTPException(status_code=422, detail="跟踪版本必须使用分支或标签，不可使用提交 SHA")
+        # Users may explicitly preview/install an immutable commit. Install
+        # that commit but follow the repository default branch for future checks.
+        ref = ""
     return {
         **existing,
         "commit_sha": str(sha or "").strip().lower(),
