@@ -5,6 +5,7 @@ keys, network requests, models or external directories are touched.
 Run: python -m unittest tests.test_skill_content_identity -v
 """
 import asyncio
+import hashlib
 import os
 import tempfile
 import unittest
@@ -49,9 +50,13 @@ class SkillContentIdentityTests(unittest.TestCase):
         with open(self.skill_md, encoding="utf-8") as f:
             return f.read()
 
-    def update(self, body, variants=None, content_format="body"):
+    def update(self, body, variants=None, content_format="body", base_sha256=None):
+        # Each editor starts from the exact document hash served by GET detail.
+        if base_sha256 is None:
+            base_sha256 = hashlib.sha256(self.source().encode("utf-8")).hexdigest()
         payload = main.SkillUpdateRequest(
-            content=body, variants=variants, content_format=content_format)
+            content=body, variants=variants, content_format=content_format,
+            base_sha256=base_sha256)
         return asyncio.run(main.api_skill_update("ink-skill", payload))
 
     def test_body_only_update_keeps_unknown_metadata_and_comments(self):
@@ -160,6 +165,27 @@ class SkillContentIdentityTests(unittest.TestCase):
             source="custom", id="ink-skill", mode="fast", variant="ink-version2")
         selected = main.skill_diff_for_preview(selection, "user prompt")
         self.assertIn("old prompt", selected["compiled_prompt"])
+
+    def test_stale_editor_cannot_overwrite_newer_skill_body(self):
+        old_hash = hashlib.sha256(self.source().encode("utf-8")).hexdigest()
+        self.update("Newer content")
+        newer_file = self.source()
+        with self.assertRaises(HTTPException) as ctx:
+            self.update("Stale editor content", base_sha256=old_hash)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(self.source(), newer_file)
+
+    def test_unversioned_editor_rejected_before_writing(self):
+        original = self.source()
+        with self.assertRaises(HTTPException) as ctx:
+            self.update("Unsafe overwrite", base_sha256="")
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(self.source(), original)
+
+    def test_skill_detail_returns_content_digest(self):
+        detail = asyncio.run(main.api_skill_detail("custom", "ink-skill"))
+        expected = hashlib.sha256(self.source().encode("utf-8")).hexdigest()
+        self.assertEqual(detail["content_sha256"], expected)
 
     def test_preview_rejects_missing_variant_id(self):
         selection = main.SkillSelection(
