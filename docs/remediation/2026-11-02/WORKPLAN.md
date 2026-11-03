@@ -158,6 +158,15 @@
 - [x] 新增 `tests/test_canvas_save_races.cjs`（4 项）和 `tests/test_canvas_metadata_routes.cjs`（3 项），连同原有 `tests/test_canvas_conflict_recovery.cjs`（8 项），在**通过 GitHub 连接器取得准确 `0d99a7d950a95992d6c40f1b573e543f92a1ed68` 源码及测试正文后、隔离 V8 执行并使用 Node built-in 的受控等价 shim**，分别 **4/4、3/3、8/8 PASS（合计 15/15）**；四份 JS 文件 V8 整体语法解析 4/4 PASS。**这是在 V8 中运行了仓库实际 JS 逻辑与测试用例的有限执行，不是 `node --test`、浏览器测试或完整项目回归成功。**
 - [ ] `tests/test_canvas_revision.py` 8 项、真实 Node.js `node --test tests/test_canvas_*.cjs`、浏览器双标签增/改/删与回滚、完整 Python unittest discover 未执行；正确 HEAD 完整 checkout 受 github.com DNS 阻碍，需要无费用可执行的完整环境。Codex 自动审查缺 environment；不手动触发 Review 或 Actions。
 
+**2026-11-03 S04 回收站恢复及双标签回归增量（PR #7）：**
+
+- [x] 在正确 PR 源码中发现 Classic / Board 的 trash restore 都无条件 `POST /restore`，旧标签页可在该记录已被其他客户端恢复、再次删除或改变后仍执行过期恢复；以实际 JavaScript 路由处理器隔离执行，修复前经典与列表两种入口均没有 `base_revision`（2/2 复现）。
+- [x] 后端 `restore_canvas` 在每画布事务锁内检验版本，缺失/过期 `base_revision` 返回 409，不再无条件恢复；经典画布和画布列表以已观察回收站 `revision` 提交，409/缺失版本只刷新列表，不错误移除记录。
+- [x] `tests/test_canvas_revision.py` 新增 3 项及现有恢复+清除测试迁移，当前累计 **24 项 Python S04 测试已编写、尚未实际运行 `main.py`**。
+- [x] 新增 `tests/test_canvas_restore_cas.cjs` 6 项，正确代码 HEAD `87ae3378b96c6e45cd956e43940430dc47a9790a` 的真实 JS 与 CJS 经隔离 V8+Node 内置模块 shim **6/6 PASS**，修改的两份 JS 文件语法解析 **2/2 PASS**。
+- [x] 新增 `tests/test_canvas_two_tab_conflict.cjs` 3 项：从正确 HEAD `0c66b8f4b2f04530cee48b686a3ba8ab22ccc105` 读取实际 `canvas.js` 保存和 `canvas-conflict-recovery.js` 副本恢复源码，以离线 CAS 服务器模拟两个独立标签页，验证双方交错保存、409 不覆盖新节点、失败侧草稿保留、另存独立副本不修改原画布；隔离 V8 中 **3/3 PASS**。
+- [ ] 以上均为 **隔离 V8 测试**，不是原生 `node --test`、双标签真实浏览器、Windows 或完整 Python 项目测试。真实 checkout 仍遭 `github.com` DNS 失败；**TEST_GATE BLOCKED**。PR #7 仍无独立 Review（Codex bot 要求仓库 environment）；**REVIEW_GATE BLOCKED**。不得将这些 PASS 代替发布验收，不运行 Actions、不手动请求 Codex 审查，S05 不启动。
+
 ### S05 — Skill 内容稳定（R2/R7）
 
 - [ ] 复现/测试打开即保存、frontmatter 未知字段、variant 自定义 ID。
