@@ -44,7 +44,7 @@ python -m pip check
 - [ ] 核对 `main.py` 自动更新源与仓库目标分支；当前已知旧更新渠道指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，不能因本仓库 `main` 合并就宣称旧版用户已经收到修复。**禁止在没有单独发布决策时擅改来源/default branch。**
 - [ ] 必须有发布前残余风险报告；未消除的高风险失败或缺失的必要测试阻止发布。
 
-## 3. 自动更新源一致性 **FAIL（发布阻断）**
+## 3. 自动更新源一致性：源码修复已提交，旧客户端迁移仍需注意
 
 已从 S08 基线的 `main.py` 实际源码读取：
 - `GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"`
@@ -59,6 +59,8 @@ python -m pip check
 ```bash
 python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canvas --expected-branch main --json
 ```
+
+**2026-11-04 更新（S08 后续修复分支）：** 已将 `main.py` 的 GitHub 仓库、分支和 3 条派生下载地址统一改为 `GuoWen-XX/Infinite-Canvas@main`；扩展 `tests/test_s08_release_source.py` 静态回归检查。原旧源常量属于修复前基线记录，不代表此候选分支现在仍使用旧源。**这只修复新代码的更新指向，不代表已经把旧版客户端的更新配置自动改过来，亦不冒充 Windows 端到端升级测试。** ModelScope 上游更新回退继续禁用。源码修复不要求增加任何安装步骤。
 
 ## 4. 状态结论
 
