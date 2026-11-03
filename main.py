@@ -3419,6 +3419,7 @@ class CanvasMetaUpdate(BaseModel):
     project: Optional[str] = None
     board_x: Optional[float] = None
     board_y: Optional[float] = None
+    base_revision: Optional[int] = None
 
 class ProjectCreateRequest(BaseModel):
     name: str = "新项目"
@@ -3434,9 +3435,11 @@ class CanvasSaveRequest(BaseModel):
     connections: List[Dict[str, Any]] = []
     viewport: Dict[str, Any] = {}
     logs: List[Dict[str, Any]] = []
-    settings: Dict[str, Any] = {}
+    # None means an older/classic editor did not send settings; do not erase it.
+    settings: Optional[Dict[str, Any]] = None
     client_id: str = ""
     base_updated_at: int = 0
+    base_revision: Optional[int] = None
 
 class CanvasAssetCheckRequest(BaseModel):
     urls: List[str] = []
@@ -4006,10 +4009,13 @@ def next_canvas_updated_at(previous):
         previous = 0
     return max(now_ms(), previous + 1)
 
-def write_canvas(canvas, *, bump_updated_at=True):
+def write_canvas(canvas, *, bump_updated_at=True, bump_revision=True):
     """把画布落盘。调用方必须已持有该画布的事务锁（canvas_transaction_lock）。"""
     if bump_updated_at:
         canvas["updated_at"] = next_canvas_updated_at(canvas.get("updated_at"))
+    # Revision advances even for metadata-only changes that leave updated_at intact.
+    if bump_revision:
+        canvas["revision"] = int(canvas.get("revision") or 0) + 1
     with CANVAS_LOCK:
         atomic_write_json(canvas_path(canvas["id"]), canvas, indent=2)
     return canvas
@@ -4019,7 +4025,7 @@ def save_canvas(canvas):
     with canvas_transaction_lock(canvas.get("id")):
         return write_canvas(canvas)
 
-def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=True):
+def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=True, bump_revision=True):
     """在一个事务里完成"读取 → 修改 → 落盘"，全程持有该画布的事务锁。
 
     mutator 直接修改传入的 canvas；返回 False 表示本次无需改动、不落盘。
@@ -4030,7 +4036,26 @@ def mutate_canvas(canvas_id, mutator, *, allow_deleted=False, bump_updated_at=Tr
         canvas = load_canvas_any(canvas_id) if allow_deleted else load_canvas(canvas_id)
         if mutator(canvas) is False:
             return canvas
-        return write_canvas(canvas, bump_updated_at=bump_updated_at)
+        return write_canvas(canvas, bump_updated_at=bump_updated_at, bump_revision=bump_revision)
+
+def check_canvas_base_revision(canvas, base_revision=None, base_updated_at=None):
+    """Compare-and-swap under the canvas transaction lock.
+
+    Legacy editors may supply a timestamp; title/icon edits advance that
+    timestamp so older clients cannot silently overwrite renamed canvases.
+    """
+    current = int(canvas.get("revision") or 0)
+    if base_revision is not None:
+        matches = int(base_revision) == current
+    else:
+        matches = bool(base_updated_at) and int(base_updated_at) == int(canvas.get("updated_at") or 0)
+    if not matches:
+        raise HTTPException(status_code=409, detail={
+            "message": "画布已被其他页面更新，已拒绝旧版本覆盖。",
+            "canvas": canvas, "revision": current,
+            "updated_at": int(canvas.get("updated_at") or 0),
+        })
+
 
 def normalize_canvas_kind(kind="classic"):
     return "smart" if str(kind or "").strip().lower() == "smart" else "classic"
@@ -4160,6 +4185,7 @@ def canvas_record(data):
         "board_y": data.get("board_y"),
         "created_at": data.get("created_at", 0),
         "updated_at": data.get("updated_at", 0),
+        "revision": int(data.get("revision") or 0),
         "deleted_at": data.get("deleted_at", 0),
         "node_count": len(data.get("nodes", [])),
     }
@@ -17346,6 +17372,7 @@ async def get_canvas_meta(canvas_id: str):
     return {
         "id": canvas.get("id"),
         "updated_at": canvas.get("updated_at", 0),
+        "revision": int(canvas.get("revision") or 0),
         "title": canvas.get("title", "未命名画布"),
         "icon": canvas.get("icon", "layers"),
         "kind": normalize_canvas_kind(canvas.get("kind")),
@@ -17374,7 +17401,16 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
         if payload.board_y is not None:
             canvas["board_y"] = float(payload.board_y)
 
-    canvas = mutate_canvas(canvas_id, apply, bump_updated_at=False)
+    # Renames/icons invalidate legacy timestamp-based editor snapshots, too.
+    bump_time = payload.title is not None or payload.icon is not None
+    def checked_apply(canvas):
+        # Metadata changes are content changes too. Never permit a missing
+        # version token to bypass the canvas CAS boundary.
+        # Metadata edits may deliberately leave updated_at unchanged. For
+        # this endpoint only a revision can reliably detect stale editors.
+        check_canvas_base_revision(canvas, payload.base_revision)
+        apply(canvas)
+    canvas = mutate_canvas(canvas_id, checked_apply, bump_updated_at=bump_time)
     return {"canvas": canvas_record(canvas)}
 
 @app.get("/api/canvases/{canvas_id}")
@@ -17383,7 +17419,9 @@ async def get_canvas(canvas_id: str):
 
 @app.post("/api/canvases/{canvas_id}/touch")
 async def touch_canvas(canvas_id: str):
-    canvas = mutate_canvas(canvas_id, lambda c: None)
+    # Touch updates activity time but not content. Another tab opening the
+    # canvas must not invalidate a legitimate editor's content revision.
+    canvas = mutate_canvas(canvas_id, lambda c: None, bump_revision=False)
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @app.get("/api/canvas-assets")
@@ -18561,13 +18599,7 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         # 乐观并发检查必须在锁内做。放在锁外会出现 TOCTOU：读到 updated_at 之后、
         # 真正写入之前，另一个请求已经保存过，于是本次比较基于过期的值通过，
         # 静默覆盖掉那次保存。锁内比较才能保证检查与写入之间没有窗口。
-        current_updated_at = int(canvas.get("updated_at") or 0)
-        if payload.base_updated_at and current_updated_at and int(payload.base_updated_at) < current_updated_at:
-            raise HTTPException(status_code=409, detail={
-                "message": "画布已被其他页面更新，已拒绝旧版本覆盖。",
-                "canvas": canvas,
-                "updated_at": current_updated_at,
-            })
+        check_canvas_base_revision(canvas, payload.base_revision, payload.base_updated_at)
         canvas["title"] = (payload.title or canvas.get("title") or "未命名画布")[:80]
         canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
         canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
@@ -18578,15 +18610,23 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         else:
             canvas["viewport"] = canvas.get("viewport") or {"x": 0, "y": 0, "scale": 1}
         canvas["logs"] = payload.logs[-500:]
-        canvas["settings"] = payload.settings or {}
+        if payload.settings is not None:
+            canvas["settings"] = payload.settings
 
     canvas = mutate_canvas(canvas_id, apply)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
     return {"canvas": canvas}
 
 @app.delete("/api/canvases/{canvas_id}")
-async def delete_canvas(canvas_id: str):
+async def delete_canvas(canvas_id: str, base_revision: Optional[int] = None,
+                        base_updated_at: Optional[int] = None):
+    """Soft-delete only the version the user actually selected.
+
+    A stale tab must not delete a newer canvas. Legacy timestamp-aware
+    clients may use base_updated_at; callers without a version get 409.
+    """
     def apply(canvas):
+        check_canvas_base_revision(canvas, base_revision, base_updated_at)
         if canvas.get("deleted_at"):
             return False
         canvas["deleted_at"] = now_ms()
@@ -18595,20 +18635,30 @@ async def delete_canvas(canvas_id: str):
     return {"ok": True}
 
 @app.post("/api/canvases/{canvas_id}/restore")
-async def restore_canvas(canvas_id: str):
+async def restore_canvas(canvas_id: str, base_revision: Optional[int] = None):
+    """Restore only the trash revision the user selected.
+
+    Restoring from an outdated tab without a CAS check could resurrect a canvas
+    that another client deleted or modified after this trash view loaded.
+    """
     def apply(canvas):
+        check_canvas_base_revision(canvas, base_revision)
         if not canvas.get("deleted_at"):
-            return False
+            raise HTTPException(status_code=409, detail="画布已恢复，请刷新回收站")
         canvas.pop("deleted_at", None)
 
     canvas = mutate_canvas(canvas_id, apply, allow_deleted=True)
     return {"canvas": canvas}
 
 @app.delete("/api/canvases/{canvas_id}/purge")
-async def purge_canvas(canvas_id: str):
-    path = canvas_path(canvas_id)
-    if os.path.exists(path):
-        os.remove(path)
+async def purge_canvas(canvas_id: str, base_revision: Optional[int] = None):
+    """Irreversible purge requires a current trash entry, checked under lock."""
+    with canvas_transaction_lock(canvas_id):
+        canvas = load_canvas_any(canvas_id)
+        check_canvas_base_revision(canvas, base_revision)
+        if not canvas.get("deleted_at"):
+            raise HTTPException(status_code=409, detail="画布未处于回收站，拒绝彻底删除")
+        os.remove(canvas_path(canvas_id))
     return {"ok": True}
 
 # --- GPT 对话 ---

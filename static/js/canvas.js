@@ -388,9 +388,18 @@ const CANVAS_LIST_PROJECT_KEY = 'canvasListCurrentProjectId';
 const CANVAS_COLOR_OPTIONS = ['red','orange','amber','green','teal','blue','violet','pink','slate'];
 // 先绑定返回，避免编辑器后续初始化较慢时丢失来源项目。
 backToManagerBtn?.addEventListener('click', () => {
+    if(canvas && (savingCanvasNow || localCanvasDirty || canvasConflictPending)){
+        // Do not navigate away while a PUT is pending or an edit is unsaved.
+        // Keep the latest local nodes recoverable even if the request fails.
+        const record = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+        setStatus('Unsaved canvas edits — export or save a recovery copy before leaving');
+        return;
+    }
     window.location.href = canvasListUrlForProject(canvas?.project || requestedCanvasListProject() || rememberedCanvasListProject());
 });
 let localCanvasDirty = false;
+let canvasConflictPending = false;
 let savingCanvasNow = false;
 let saveCanvasAgain = false;
 let applyingRemoteCanvas = false;
@@ -398,6 +407,13 @@ let remoteSyncTimer = null;
 let remoteSyncInterval = null;
 let remoteSyncBusy = false;
 let lastCanvasUpdatedAt = 0;
+window.addEventListener('beforeunload', event => {
+    if(!canvas || !(savingCanvasNow || localCanvasDirty || canvasConflictPending)) return;
+    // A tab close/reload must not silently discard edits or an in-flight PUT.
+    captureCanvasConflictDraft();
+    event.preventDefault();
+    event.returnValue = '';
+});
 let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
 let imageModels = ['gpt-image-2', 'nano-banana-pro'];
 let chatModels = ['gpt-4o-mini'];
@@ -1426,6 +1442,12 @@ function refreshGeometryAfterLayout(){
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
     localCanvasDirty = true;
+    if(canvasConflictPending){
+        const record = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+        setStatus('Save conflict — export or save a separate recovery copy');
+        return;
+    }
     setStatus('Saving...');
     clearTimeout(saveTimer);
     if(savingCanvasNow){
@@ -1475,13 +1497,31 @@ function serializableCanvasNode(node){
 function serializableCanvasNodes(list=nodes){
     return (list || []).map(serializableCanvasNode);
 }
+function captureCanvasConflictDraft(){
+    const record = {
+        canvas_id:canvas.id, kind:'classic', project:canvas.project || 'default',
+        base_revision:Number(canvas.revision || 0),
+        base_updated_at:Number(lastCanvasUpdatedAt || 0),
+        saved_at:Date.now(), title:canvas.title, icon:canvas.icon,
+        nodes:serializableCanvasNodes(), connections, viewport,
+        logs:canvas.logs || [], settings:canvas.settings || {}
+    };
+    try { localStorage.setItem('canvas_conflict_draft_' + canvas.id, JSON.stringify(record)); }
+    catch(err) {
+        // The draft exists only in memory now; it will vanish on reload.
+        record.persistence_error = true;
+        console.error('Unable to preserve conflicting canvas draft; export it now',err);
+    }
+    return record;
+}
 async function saveCanvas(){
-    if(!canvas || applyingRemoteCanvas) return;
+    if(!canvas || applyingRemoteCanvas || canvasConflictPending) return;
     if(savingCanvasNow){
         saveCanvasAgain = true;
         return;
     }
     sanitizeConnections();
+    const saveTargetId = canvas.id;
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
@@ -1496,26 +1536,59 @@ async function saveCanvas(){
                 viewport,
                 logs:canvas.logs || [],
                 client_id:CLIENT_ID,
-                base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
+                base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0),
+                base_revision:Number(canvas.revision || 0)
             })
         });
+        // A navigation may change the active canvas while this PUT is in flight.
+        if(!canvas || canvas.id !== saveTargetId) return;
         if(res.status === 409){
             const data = await res.json().catch(() => ({}));
+            if(!canvas || canvas.id !== saveTargetId) return;
             const remote = data.detail?.canvas || data.canvas;
             if(localCanvasDirty || saveCanvasAgain){
-                lastCanvasUpdatedAt = Number(data.detail?.updated_at || data.updated_at || remote?.updated_at || lastCanvasUpdatedAt || 0);
-                saveCanvasAgain = true;
-                setStatus('Saving...');
+                // A 409 means our base is stale: never advance the base token and
+                // blindly retry, which would overwrite another editor's changes.
+                // Keep an independent recovery copy until conflict UI is resolved.
+                const record = captureCanvasConflictDraft();
+                canvasConflictPending = true;
+                window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+                localCanvasDirty = true;
+                saveCanvasAgain = false;
+                setStatus('Save conflict — local edits preserved; reload or resolve before saving');
                 return;
             }
             if(remote) applyRemoteCanvasData(remote);
             setStatus('Synced');
             return;
         }
+        if(res.status === 404 || res.status === 410){
+            // Another tab may have moved this canvas to trash while we edited it.
+            // Keep our nodes and metadata as a separate recoverable draft.
+            const record = captureCanvasConflictDraft();
+            canvasConflictPending = true;
+            localCanvasDirty = true;
+            saveCanvasAgain = false;
+            window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+            setStatus('Canvas no longer exists on server — local edits preserved for recovery');
+            return;
+        }
         if(!res.ok) throw new Error('save failed');
         const data = await res.json().catch(() => ({}));
+        if(!canvas || canvas.id !== saveTargetId) return;
         const localViewport = {...viewport};
-        if(data.canvas) canvas = {...canvas, ...data.canvas, viewport:localViewport};
+        if(data.canvas){
+            if(saveCanvasAgain){
+                // The response reflects the *previous* request. Keep edits made
+                // while that request was in flight, and only advance its CAS token.
+                canvas = {...canvas,
+                    revision: data.canvas.revision ?? canvas.revision,
+                    updated_at: data.canvas.updated_at ?? canvas.updated_at,
+                    viewport: localViewport};
+            } else {
+                canvas = {...canvas, ...data.canvas, viewport:localViewport};
+            }
+        }
         viewport = localViewport;
         canvas.updated_at = Number(canvas.updated_at || Date.now());
         lastCanvasUpdatedAt = canvas.updated_at;
@@ -1524,7 +1597,18 @@ async function saveCanvas(){
         setStatus('Saved');
         loadCanvasList(false);
     } catch(e) {
-        setStatus('Save failed');
+        // Network failures and 5xx responses may have an unknown commit state.
+        // Preserve the current draft; never silently retry with a newer CAS token.
+        if(canvas && canvas.id === saveTargetId){
+            const record = captureCanvasConflictDraft();
+            canvasConflictPending = true;
+            localCanvasDirty = true;
+            saveCanvasAgain = false;
+            window.CanvasConflictRecovery?.show({id:saveTargetId,kind:'classic',record});
+            setStatus('Save failed — local draft preserved for recovery');
+        } else {
+            setStatus('Save failed');
+        }
         console.error(e);
     } finally {
         savingCanvasNow = false;
@@ -1668,6 +1752,22 @@ function setCanvasSortMode(mode){
     refreshGateViewControls();
 }
 async function patchCanvasMeta(id, patch){
+    function preserveFailedPatch(){
+        const key = 'canvas_meta_conflict_' + id;
+        let previous = {};
+        try {
+            const stored = JSON.parse(localStorage.getItem(key) || 'null');
+            if(stored?.patch && typeof stored.patch === 'object' && !Array.isArray(stored.patch)) previous = stored.patch;
+        } catch(_) {}
+        const merged = {...previous, ...patch};
+        let persisted = false;
+        try {
+            localStorage.setItem(key, JSON.stringify({patch:merged, saved_at:Date.now()}));
+            persisted = true;
+        } catch(err) { console.error('Unable to persist metadata recovery draft', err); }
+        window.CanvasConflictRecovery?.showMetadata({id, patch:merged, ...(!persisted ? {persistenceError:true} : {})});
+        return persisted;
+    }
     const item = canvases.find(c => c.id === id);
     if(item) Object.assign(item, patch);
     if(canvas?.id === id) Object.assign(canvas, patch);
@@ -1677,12 +1777,25 @@ async function patchCanvasMeta(id, patch){
         const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(patch)
+            body:JSON.stringify({...patch, base_revision:item?.revision ?? canvas?.revision ?? null})
         });
+        if(res.status === 409){
+            throw new Error('metadata revision conflict; attempted changes preserved locally');
+        }
         if(!res.ok) throw new Error('meta save failed');
         const data = await res.json();
-        if(data.canvas) updateCanvasListRecord(data.canvas);
+        if(data.canvas){
+            updateCanvasListRecord(data.canvas);
+            if(canvas?.id === id){
+                canvas.revision = Number(data.canvas.revision || 0);
+                canvas.updated_at = Number(data.canvas.updated_at || canvas.updated_at || 0);
+                lastCanvasUpdatedAt = canvas.updated_at;
+            }
+        }
     } catch(e){
+        // Network/5xx failures are just as recoverable as a 409: keep the
+        // optimistic title/icon/metadata patch available after a reload.
+        preserveFailedPatch();
         setStatus(tr('canvas.metaSaveFailed') || '保存失败');
         console.error(e);
         await loadCanvasList(false);
@@ -1983,35 +2096,9 @@ function toggleEmojiPicker(id, event){
 async function setCanvasIcon(id, icon, event){
     event?.preventDefault();
     event?.stopPropagation();
-    const item = canvases.find(c => c.id === id);
-    if(item) item.icon = icon || 'layers';
     closeCanvasMetaPopover();
-    renderCanvasList();
-    try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target) {
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
-            target = data.canvas;
-        }
-        target.icon = icon || 'layers';
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
-        });
-        if(!res.ok) throw new Error('图标保存失败');
-        if(canvas?.id === id) canvas.icon = target.icon;
-        await loadCanvasList(false);
-    } catch(e) {
-        setStatus('图标保存失败');
-        console.error(e);
-    }
+    // This is a metadata-only edit. Never PUT a stale full canvas snapshot.
+    await patchCanvasMeta(id, {icon: icon || 'layers'});
 }
 function startTitleEdit(id, titleEl){
     if(!titleEl || titleEl.querySelector('input')) return;
@@ -2047,47 +2134,50 @@ function startTitleEdit(id, titleEl){
     };
 }
 async function setCanvasTitle(id, title){
-    const item = canvases.find(c => c.id === id);
-    if(item) item.title = title;
-    if(canvas?.id === id) canvas.title = title;
-    renderCanvasList();
-    try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target){
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
-            target = data.canvas;
-        }
-        target.title = title;
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
-        });
-        if(!res.ok) throw new Error('重命名失败');
-        if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
-        await loadCanvasList(false);
-    } catch(e){
-        setStatus('重命名失败');
-        console.error(e);
+    // A full-canvas PUT without base_revision would fail CAS or erase nodes.
+    // patchCanvasMeta handles revision and keeps a recoverable copy on 409.
+    await patchCanvasMeta(id, {title});
+    if(currentCanvasTitle && canvas?.id === id){
+        currentCanvasTitle.textContent = canvas.title || title;
     }
 }
+function preserveDraftBeforeCanvasSwitch(){
+    if(!canvas || !(localCanvasDirty || savingCanvasNow || saveCanvasAgain || canvasConflictPending)) return false;
+    const record = captureCanvasConflictDraft();
+    window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+    setStatus('Unsaved canvas edits preserved — resolve or save before switching');
+    return true;
+}
 async function openCanvas(id){
+    if(preserveDraftBeforeCanvasSwitch()) return;
     setStatus('Opening...');
     try {
         const res = await fetch(`/api/canvases/${id}`);
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
         const data = await res.json();
+        // Local edits may arrive while the GET is waiting on the network.
+        if(preserveDraftBeforeCanvasSwitch()) return;
+        let openingCanvas = data.canvas;
+        if(!openingCanvas || openingCanvas.id !== id) throw new Error(tr('canvas.openFailed'));
+        const touched = await touchCanvasOpened(openingCanvas.id);
+        if(preserveDraftBeforeCanvasSwitch()) return;
+        // Touch returns the CURRENT server revision, not necessarily the one
+        // associated with the GET's nodes. Never pair a newer CAS token with
+        // stale content: another editor may have saved between GET and touch.
+        if(touched?.canvas?.revision != null &&
+           Number(touched.canvas.revision) !== Number(openingCanvas.revision || 0)){
+            const latest = await fetch(`/api/canvases/${encodeURIComponent(id)}`);
+            if(!latest.ok) throw new Error(tr('canvas.openFailed'));
+            const latestData = await latest.json();
+            if(!latestData.canvas || latestData.canvas.id !== id) throw new Error(tr('canvas.openFailed'));
+            openingCanvas = latestData.canvas;
+        } else if(touched?.updated_at){
+            openingCanvas.updated_at = Number(touched.updated_at);
+        }
+        if(preserveDraftBeforeCanvasSwitch()) return;
         resetCascadeRuntimeState();
-        canvas = data.canvas;
+        canvas = openingCanvas;
         rememberCanvasListProject(canvas.project || 'default');
-        const touched = await touchCanvasOpened(canvas.id);
-        if(touched?.updated_at) canvas.updated_at = Number(touched.updated_at);
         if((canvas.kind || 'classic') === 'smart'){
             openSmartCanvasPage(canvas.id);
             return;
@@ -2099,6 +2189,7 @@ async function openCanvas(id){
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || 0);
         localCanvasDirty = false;
+        canvasConflictPending = false;
         resetTransientRunState(nodes);
         sanitizeConnections();
         pruneMissingComfyWorkflows();
@@ -2110,6 +2201,7 @@ async function openCanvas(id){
         resumeCanvasImageTasks();
         startCanvasRemotePolling();
         setStatus('Ready');
+        window.CanvasConflictRecovery?.showSaved(canvas.id,'classic');
     } catch(e) {
         setStatus(tr('canvas.openFailed'));
         console.error(e);
@@ -2201,13 +2293,15 @@ async function refreshMissingCanvasAssets(){
     }
 }
 async function syncRemoteCanvasNow(){
-    if(!canvas) return;
+    // Do not replace unsaved edits with a remote canvas snapshot.
+    if(!canvas || localCanvasDirty || savingCanvasNow) return;
     try {
         const res = await fetch(`/api/canvases/${canvas.id}`);
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
         const data = await res.json();
         const remote = data.canvas;
-        if(Number(remote?.updated_at || 0) >= Number(lastCanvasUpdatedAt || 0)){
+        if(Number(remote?.revision || 0) > Number(canvas.revision || 0) ||
+           Number(remote?.updated_at || 0) > Number(lastCanvasUpdatedAt || 0)){
             applyRemoteCanvasData(remote);
         }
     } catch(e) {
@@ -2224,7 +2318,8 @@ async function checkRemoteCanvasVersion(){
         if(!res.ok) throw new Error('meta failed');
         const meta = await res.json();
         const remoteUpdatedAt = Number(meta.updated_at || 0);
-        if(remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
+        if(Number(meta.revision || 0) > Number(canvas.revision || 0) ||
+           remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
             await syncRemoteCanvasNow();
         }
     } catch(e) {
@@ -2249,16 +2344,34 @@ function handleCanvasUpdatedMessage(data){
     if(data.canvas_id !== canvas.id) return;
     const remoteUpdatedAt = Number(data.updated_at || 0);
     if(remoteUpdatedAt && remoteUpdatedAt <= Number(lastCanvasUpdatedAt || 0)) return;
+    // An incoming WebSocket event must never discard an unsaved local draft.
+    if(localCanvasDirty || savingCanvasNow){
+        setStatus('Remote changes detected — local edits preserved');
+        return;
+    }
     clearTimeout(saveTimer);
     saveTimer = null;
-    localCanvasDirty = false;
     clearTimeout(remoteSyncTimer);
     remoteSyncTimer = setTimeout(syncRemoteCanvasNow, savingCanvasNow ? 700 : 120);
     setStatus('Syncing...');
 }
 async function returnToCanvasManager(){
     clearTimeout(saveTimer);
-    if(canvas && localCanvasDirty) await saveCanvas();
+    if(canvas && localCanvasDirty){
+        // A save already in flight cannot be awaited by calling saveCanvas()
+        // again. Leaving now would discard edits made after its snapshot.
+        if(savingCanvasNow){
+            setStatus('Save in progress — finish saving before leaving canvas');
+            return;
+        }
+        await saveCanvas();
+        if(canvas && (localCanvasDirty || canvasConflictPending)){
+            const record = captureCanvasConflictDraft();
+            window.CanvasConflictRecovery?.show({id:canvas.id,kind:'classic',record});
+            setStatus('Unsaved changes preserved — resolve them before leaving');
+            return;
+        }
+    }
     stopCanvasRemotePolling();
     canvas = null;
     nodes = [];
@@ -2298,9 +2411,27 @@ function cancelDeleteCanvas(event){
 async function deleteCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = canvases.find(item => item.id === id) || (canvas?.id === id ? canvas : null);
+    if(record?.revision == null){
+        setStatus('Canvas revision unavailable — refresh before deleting');
+        await loadCanvasList(false);
+        return;
+    }
+    // A stale tab must not move a newer remote version into trash.
+    if(canvas?.id === id && (localCanvasDirty || savingCanvasNow || canvasConflictPending)){
+        const draft = captureCanvasConflictDraft();
+        window.CanvasConflictRecovery?.show({id,kind:'classic',record:draft});
+        setStatus('Unsaved local changes — resolve before deleting');
+        return;
+    }
     setStatus('Moving to trash...');
     try {
-        const res = await fetch(`/api/canvases/${id}`, {method:'DELETE'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}?base_revision=${encodeURIComponent(record.revision)}`, {method:'DELETE'});
+        if(res.status === 409){
+            setStatus('Canvas changed in another tab — refresh before deleting');
+            await loadCanvasList(false);
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.moveToTrashFailed'));
         const deletingCurrent = canvas?.id === id;
         pendingDeleteCanvasId = null;
@@ -2324,9 +2455,20 @@ async function deleteCanvas(id, event){
 async function restoreCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = deletedCanvases.find(item => item.id === id);
+    if(record?.revision == null){
+        setStatus('Trash revision unavailable — refresh before restoring');
+        await loadTrashList();
+        return;
+    }
     setStatus('Restoring...');
     try {
-        const res = await fetch(`/api/canvases/${id}/restore`, {method:'POST'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore?base_revision=${encodeURIComponent(record.revision)}`, {method:'POST'});
+        if(res.status === 409){
+            setStatus('Trash entry changed in another tab — restore cancelled');
+            await loadTrashList();
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.restoreFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
@@ -2341,9 +2483,20 @@ async function restoreCanvas(id, event){
 async function purgeCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    const record = deletedCanvases.find(item => item.id === id);
+    if(record?.revision == null){
+        setStatus('Trash record has no revision — reload before deleting');
+        await loadTrashList();
+        return;
+    }
     setStatus('Deleting...');
     try {
-        const res = await fetch(`/api/canvases/${id}/purge`, {method:'DELETE'});
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/purge?base_revision=${encodeURIComponent(record.revision)}`, {method:'DELETE'});
+        if(res.status === 409){
+            setStatus('Trash entry changed — permanent deletion cancelled');
+            await loadTrashList();
+            return;
+        }
         if(!res.ok) throw new Error(tr('canvas.purgeFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);

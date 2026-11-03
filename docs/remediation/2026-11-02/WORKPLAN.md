@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 IN_PROGRESS / CODE_REVIEW_RECHECK_REQUIRED / TEST_GATE_BLOCKED`。S02 全量回归与 Windows/LAN/Chrome/Photoshop 验证必须在 S08 发布前补齐；S03 新发现的 P1/P2 已提交修复但未获最新 HEAD 复审。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 PR_OPEN / REVIEW_BLOCKED / TEST_GATE_BLOCKED`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 仍未达到审查/测试门禁。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -24,8 +24,8 @@
 | S00 | MERGED | 固定修复基线，提交技术方案、执行台账、评审规范 | `docs/remediation/2026-11-02/*.md` | 文档 PR 被认可后，解锁 S01 |
 | S01 | MERGED | 阻止保存的 API Key 被任意 `base_url` 带出（SEC-01） | `main.py`、`tests/test_provider_security.py` | saved key 不发往任意目标；正常 provider 测试可用；Mock 无真实请求 |
 | S02 | MERGED / DEFERRED VALIDATION | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
-| S03 | IN_PROGRESS | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
-| S04 | NOT_STARTED | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
+| S03 | MERGED / DEFERRED VALIDATION | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
+| S04 | IN_PROGRESS | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | NOT_STARTED | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
@@ -125,12 +125,58 @@
 - [x] 同一 PR 已提交针对性修复：先**以当前权限启动**原 Python，传入 `-I` 隔离模块搜索路径，并从专用临时目录导入该提交的 `storage_guard.py` 兼容源码后**才在子进程内 setuid/setgid(nobody)**；整个测试目录创建于所有祖先经过 `other +x` 检查的标准 `/tmp` 下，完全不修改用户 `TMPDIR` 的权限；在同一降权身份先核实旧 `O_RDONLY` 必失败，再测试 `O_PATH/O_SEARCH` 读取和删临时文件，最后恢复目录权限以保证 `TemporaryDirectory` 可清理。non-root 时仍直接验证 0311 目录，无额外降权。
 - [ ] 此次修复需要对 **最终 HEAD** 再次独立审查，九条原有未解决 findings（已提交代码修复或测试修复）不能预先关闭。S03 共 **45 项回归代码**，没有完整项目 PASS；隔离内核权限验证 1 次成功并非仓库回归测试。S02 延期实测必须在 S08 发布前补齐。
 
+
+**2026-11-02 S03 合并、S04 启动记录：** PR #6 最新代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的独立 review 0 findings、14/14 历史线程 resolved。已以明确记录的有限风险例外合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`；风险公告见 [PR #6 有限风险放行记录](https://github.com/GuoWen-XX/Infinite-Canvas/pull/6#issuecomment-6580377629)。**S03 45 项新增回归并未在完整仓库实际通过，Windows HANDLE/junction/UNC、FFmpeg/Range/Streaming、旧版发布源升级均为 S08 发布阻断验证，绝不可写成 PASS。** 旧更新源不指向本仓库 main，不能据合并称已发布。S02 延期的 28 项与 LAN/Chrome/Photoshop/ModelScope 联调同样是 S08 必补。已从上述 merge SHA 创建 `fix/S04-canvas-conflicts`，开始 R1/R6；GitHub Actions 未触发，不手动请求 Codex Review。
+
+**S03 合并/延期验证记录（2026-11-02）：** PR #6 已于 15:00:18 UTC 合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的 Codex 复审无新发现，14/14 review threads resolved。维护者在 PR 中公开有限风险例外；**45 项新增 S03 测试仍仅已编写，正确 HEAD 全量 unittest、Windows/UNC/junction、FFmpeg/Range/Streaming 与实际更新渠道均未完成验证**。本次合并不是 TEST_GATE_PASS，也不是发布许可；以上全部列为 S08 发布前阻断验收。GitHub Actions 本阶段 0 次主动运行。
+
 ### S04 — 画布保存（R1/R6）
+
+**S04 元数据网络失败保护（2026-11-02）：** 在 PR #7 实际 `canvas.js::patchCanvasMeta`、`canvas-list.js::persistMeta` 隔离复现网络异常/503 时乐观更新未持久化、未出现恢复提示（四种失败场景）。已在本阶段 PR 同时修复：任意失败均保留 `canvas_meta_conflict_<id>` 草稿并展示显式确认后 CAS 重试，不静默覆盖远端。新增 `tests/test_canvas_meta_transport.cjs` 6 项；准确代码提交 `0cd5ecdeb879d627e943d231d3cec162f5c20213` 的真实 JS/CJS 在隔离 V8 + Node shim **6/6 PASS**，两份 JS 语法解析 **2/2 PASS**，不是原生 Node/浏览器/完整 Python PASS。`test_canvas_revision.py` 目前含 21 个已编写测试方法，完整项目未运行。S04 仍 DRAFT / REVIEW_BLOCKED / TEST_GATE_BLOCKED，S05 不启动，Actions NOT_RUN。
+
+
+**S04 新增 Smart Canvas 远端修订竞态闭环（2026-11-02）：** 在旧 `applyMergedServerCanvas` 真实源码的隔离 V8 复现：远端删除节点后，本地并集合并仍保留已删除节点，且只更新 `updated_at` 未更新 `revision`。已在 PR #7 同阶段修复：显式追踪 dirty 状态；远端新 revision 与未保存/在途/排队/运行中本地工作冲突时保留草稿并要求人工恢复；无本地改动时精确采用远端节点集和 revision，过期 GET/touch-only 不误合并。新增 `tests/test_smart_canvas_remote_merge.cjs` 6 项，增强已有 Smart Canvas save fixture；从 GitHub 准确提交的源码和 6 份 CJS 测试中进行 V8+Node built-in shim 隔离执行 **41/41 PASS**、4 份 JS 语法解析 **4/4 PASS**。**非原生 Node/浏览器/完整 Python PASS**；S04 审查和测试门禁继续 BLOCKED，PR #7 不合并、S05 不启动；Actions NOT_RUN。
+
+- [x] S03 已合并后从 `main@081edae` 建立 `fix/S04-canvas-conflicts` 与 Draft PR #7；不触及 S05。
+- [x] 首批前端修复阻止普通画布 409 盲目重试，使用本地恢复草稿，避免 WebSocket/轮询直接覆盖未保存编辑。
+- [x] 新增 `tests/test_canvas_revision.py` 期望行为回归（包括元数据改名后旧编辑器拒绝覆盖、两个编辑器同 revision 仅一方可提交、touch 不引发内容假冲突、legacy timestamp 兼容）。**已编写，未在完整 main.py 环境执行。**
+- [x] 后端 `write_canvas` 独立 `revision`、锁内 CAS；meta-only 更新仍递增 revision，标题/图标同时递增 `updated_at` 保护旧客户端；touch 只变活动时间；画布 GET/meta/list/touch 返回 revision。
+- [x] 普通画布、列表页和智能画布传递 revision；智能画布 409 不再盲目合并重试，而保存本地冲突草稿。三份 JS 通过 V8 纯语法解析（不等于浏览器集成测试）。
+- [x] 已新增可见的冲突恢复面板：导出本地 JSON、另存独立画布副本、查看服务器版本、元数据经用户确认后 CAS 重试；浏览器双标签交互尚待真实验证。
+- [ ] **当前阻断：** 正确 HEAD Python `main.py` 集成测试、Node 原生命令与双标签浏览器/智能画布端到端测试尚未执行；PR #7 自动 Codex 审查提示仓库缺少 Codex environment，当前没有独立审查结论。未达到门禁，不合并、不启动 S05。
+
 
 - [ ] 从 PR #2 的 `review_conflict_probe.cjs` 提炼正确行为回归（旧 probe 的“通过”不能复用）。
 - [ ] 先验证本地旧版本、远端新增、远端删除、多端编辑以及改名冲突的失败。
 - [ ] 实施冲突提示/草稿保留/三方合并或人工决策；标题/图标加入真正的 revision。
 - [ ] UI 双标签测试、后台 Python 画布并发测试；PR 审查合并后解锁 S05。
+
+**2026-11-03 S04 修复与可核实隔离执行（PR #7）：**
+
+- [x] 在 PR #7 源码中复现保存中再次修改标题/图标的数据丢失：旧 PUT 响应把较新的本地标题和图标覆盖回旧值；修复为只有本次保存确认的 `revision/updated_at` 可以推进，仍保持 in-flight 后的新编辑并再次 CAS 保存，旧画布异步响应不得复活已切换的画布。返回管理页时若仍保存中/仍有未处理草稿则禁止丢弃。
+- [x] 修复画布列表旧 `setCanvasIcon/setCanvasTitle` 以整画布 PUT（不带 `base_revision`）写入的缺陷，统一走 `patchCanvasMeta` 的 revision-aware POST，避免失败或覆盖节点。
+- [x] 新增 `tests/test_canvas_save_races.cjs`（4 项）和 `tests/test_canvas_metadata_routes.cjs`（3 项），连同原有 `tests/test_canvas_conflict_recovery.cjs`（8 项），在**通过 GitHub 连接器取得准确 `0d99a7d950a95992d6c40f1b573e543f92a1ed68` 源码及测试正文后、隔离 V8 执行并使用 Node built-in 的受控等价 shim**，分别 **4/4、3/3、8/8 PASS（合计 15/15）**；四份 JS 文件 V8 整体语法解析 4/4 PASS。**这是在 V8 中运行了仓库实际 JS 逻辑与测试用例的有限执行，不是 `node --test`、浏览器测试或完整项目回归成功。**
+- [ ] `tests/test_canvas_revision.py` 8 项、真实 Node.js `node --test tests/test_canvas_*.cjs`、浏览器双标签增/改/删与回滚、完整 Python unittest discover 未执行；正确 HEAD 完整 checkout 受 github.com DNS 阻碍，需要无费用可执行的完整环境。Codex 自动审查缺 environment；不手动触发 Review 或 Actions。
+
+**2026-11-03 S04 回收站恢复及双标签回归增量（PR #7）：**
+
+- [x] 在正确 PR 源码中发现 Classic / Board 的 trash restore 都无条件 `POST /restore`，旧标签页可在该记录已被其他客户端恢复、再次删除或改变后仍执行过期恢复；以实际 JavaScript 路由处理器隔离执行，修复前经典与列表两种入口均没有 `base_revision`（2/2 复现）。
+- [x] 后端 `restore_canvas` 在每画布事务锁内检验版本，缺失/过期 `base_revision` 返回 409，不再无条件恢复；经典画布和画布列表以已观察回收站 `revision` 提交，409/缺失版本只刷新列表，不错误移除记录。
+- [x] `tests/test_canvas_revision.py` 新增 3 项及现有恢复+清除测试迁移，当前累计 **24 项 Python S04 测试已编写、尚未实际运行 `main.py`**。
+- [x] 新增 `tests/test_canvas_restore_cas.cjs` 6 项，正确代码 HEAD `87ae3378b96c6e45cd956e43940430dc47a9790a` 的真实 JS 与 CJS 经隔离 V8+Node 内置模块 shim **6/6 PASS**，修改的两份 JS 文件语法解析 **2/2 PASS**。
+- [x] 新增 `tests/test_canvas_two_tab_conflict.cjs` 3 项：从正确 HEAD `0c66b8f4b2f04530cee48b686a3ba8ab22ccc105` 读取实际 `canvas.js` 保存和 `canvas-conflict-recovery.js` 副本恢复源码，以离线 CAS 服务器模拟两个独立标签页，验证双方交错保存、409 不覆盖新节点、失败侧草稿保留、另存独立副本不修改原画布；隔离 V8 中 **3/3 PASS**。
+- [ ] 以上均为 **隔离 V8 测试**，不是原生 `node --test`、双标签真实浏览器、Windows 或完整 Python 项目测试。真实 checkout 仍遭 `github.com` DNS 失败；**TEST_GATE BLOCKED**。PR #7 仍无独立 Review（Codex bot 要求仓库 environment）；**REVIEW_GATE BLOCKED**。不得将这些 PASS 代替发布验收，不运行 Actions、不手动请求 Codex 审查，S05 不启动。
+
+**2026-11-03 S04 当前 HEAD 跨用例隔离回归复验：**
+
+- [x] 从 `0b4c74b740917b79e15f849d551146138fc9cc62` 经 GitHub 连接器读取 **11 份已提交 CJS 测试文件**和 `canvas.js`、`canvas-list.js`、`smart-canvas.js`、`canvas-conflict-recovery.js` 的真实内容，以隔离 V8 执行测试函数，通过仅用于 Node 内置 `node:test/assert/fs/path/vm` 的受控 shim 和内存文件映射。首轮 10 份 64/64 PASS，单独修正测试运行器 shim 对 `require('node:test')` 函数式 API 的支持后，余下 `test_canvas_navigation_failure.cjs` 4/4 PASS；**合计 11 份 CJS / 68/68 用例隔离 PASS**，4 份应用 JS 文件 V8 语法解析 4/4 PASS。
+- [ ] **不得将隔离 V8 / Node 内置 API shim 冒充本机原生 Node 命令、真实浏览器或 `main.py` Python 全量测试。** 完整 checkout 仍无法解析 `github.com`；Python S04 24 项仅已编写。S04 PR #7 保留 Draft，自动 Codex 审查缺少 environment，无独立 Review，仍不得合并或开始 S05；不执行 Actions，不使用真实数据/Key/付费模型。
+
+**2026-11-03 S04 备份失败可见性及最终本轮回归（PR #7）：**
+
+- [x] 经典/智能画布的冲突草稿写入 `localStorage` 若遇禁用存储、QuotaExceededError，过去仅打印 console，但恢复面板仍按已持久保存的语气提示，刷新页面会丢失。现在分别标记 `record.persistence_error=true`，恢复 UI 明确高优先级警告“草稿仅在内存、刷新/关闭会丢失”，提示立即导出 JSON 或保存独立副本。正常写入的提示不变。
+- [x] 新增 `tests/test_canvas_draft_storage_failure.cjs` 4 项，对真实 classic/smart 草稿保存函数及恢复面板执行失败/成功对照，**4/4 限定 V8 执行 PASS**。
+- [x] 从正确 HEAD `c01d4fdec4190a8ff57ae222d53a8c6ec7ac3c20` 读取实际 12 份 CJS 回归测试以及四份应用 JS 源文件，以隔离 V8、受控 `node:test/assert/fs/path/vm` API shim 完整重跑：**12 份用例集 72/72 PASS；4/4 JS 应用源码语法解析 PASS**。该结论不是 `node --test`、浏览器双标签或完整 Python `main.py` 验收；S04 的 24 项 Python 测试尚未实际运行，环境仍无法 DNS 解析 `github.com`。PR 无独立审查且仍为 DRAFT / TEST_GATE_BLOCKED / REVIEW_BLOCKED。禁止直接合并、禁止启动 S05、禁止自动跑 Actions。
 
 ### S05 — Skill 内容稳定（R2/R7）
 
@@ -196,3 +242,55 @@ Final merge SHA:
 - PR #2：https://github.com/GuoWen-XX/Infinite-Canvas/pull/2
 - 技术设计：`TECHNICAL_PLAN.md`
 - 审查关卡：`REVIEW_GATE.md`
+
+
+## S04 recovery UI increment — 2026-11-02
+
+- S04 PR #7 remains **DRAFT / NOT MERGED**, target `main@081edae763ec73505bed9f82e4274bfeaabc16c3`. Previous S03 merge is not proof that deferred tests passed.
+- Added `static/js/canvas-conflict-recovery.js` and loaded it in the classic editor, smart editor and canvas list. A 409 now exposes an actionable, non-destructive panel: export the local JSON draft, create a **new independent canvas** (POST new ID then revision-checked PUT to that new ID only), or inspect the current server canvas in another tab. Original canvas is never automatically overwritten. Conflict drafts remain in localStorage, including across reload; smart-canvas edits after 409 refresh the local recovery snapshot. Metadata conflicts offer an explicit latest-revision CAS retry and keep the patch until success.
+- Added `tests/test_canvas_conflict_recovery.cjs` (**8 authored tests**). The exact committed helper and test source were executed in an **isolated V8 mock harness: 8/8 PASS**, covering independent copy, smart settings, failures, metadata CAS and persisted smart-draft discovery. This is **not a Node test run or a browser/UI integration pass**. The three modified application JS files were parsed in V8 (syntax only); Python `tests/test_canvas_revision.py` **8 authored cases NOT_RUN** on full `main.py`. Actual `node --test tests/test_canvas_conflict_recovery.cjs`, browser two-tab races, recovery UI, Windows/LAN/plugin and full Python regression remain **NOT_RUN**.
+- The GitHub workflow remains `workflow_dispatch`-only; no Actions runs or paid AI were triggered. The local container still cannot resolve github.com and lacks a full checkout.
+- **REVIEW_BLOCKED:** PR #7 has no formal reviews and no inline threads; the Codex connector bot requires creating a repository Codex environment. This requires user-side configuration or an alternative independent reviewer. Do not self-approve or merge S04.
+- Further S04 verification: two-tab simultaneous add/edit/delete, same-node delete-vs-edit, title/icon changes, explicit recovery-copy flow, stale draft retention, smart-canvas background saves and cross-tab revisions. S02/S03 deferred full tests remain S08 release blockers.
+
+
+## S04 Smart Canvas 并发保存修复与可核查隔离回归（2026-11-02）
+
+- **真实复现（修复前）**：直接提取 PR #7 中 `smart-canvas.js` 的 `saveCanvas/scheduleSave`，在隔离 V8 Deferred HTTP 中观察到两次同时发送的 PUT 使用相同 `base_revision=4`，且请求期间新增节点未写入 409 恢复草稿（草稿只有旧节点）。这是本阶段 R1 的实质性数据丢失风险，不是纯静态推测。
+- **同 PR 最小修复**：`smart-canvas.js` 现在串行化 PUT，合并保存期间的新编辑，并在服务器确认最新 revision 后按新版本重新保存；409/404/410 备份当前最新节点与设置而非旧请求快照；切换画布后的迟到响应不能修改新画布；暂时网络失败保留本地恢复草稿。新增 `tests/test_smart_canvas_save_serialization.cjs` 5 项。
+- **实际有限验证**：在准确代码 HEAD `5c98abbc9ca24b8057003b62ed5c7c74589b1233` 通过 GitHub 连接器读取四份 JS 模块及五份 CJS 测试原文，在隔离 V8 中用 Node 内置模块等价 shim 执行全部 **32/32 PASS**（8 recovery + 9 delete CAS + 3 metadata + 7 save races + 5 smart serialization）。这不是 Node CLI `node --test`，不是完整浏览器双标签测试，也不是 Python `main.py` 集成回归。
+- **门禁不变**：S04 PR #7 仍为 Draft；独立 Codex Review 因仓库 environment 未配置而阻断，正确 HEAD 的 Python unittest、真实 Node/浏览器及跨平台测试尚未通过。S05 不得启动；Actions 未触发、未使用真实用户数据/密钥或付费模型。
+
+
+## S04 当前最新进度补记（2026-11-03）
+
+- [x] S04 Draft PR #7 的普通画布与智能画布并发保护、revision CAS、标题/图标元数据 CAS、冲突草稿恢复 UI 已在分支实现。额外修复无版本删除、过期删除、回收站永久删除的不可逆竞态：服务端在锁内校验 revision 和回收站状态；两个 UI 删除入口携带所见 revision；过期 409 仅刷新列表不执行删除。
+- [x] 保留 classic 客户端未发送的 `settings`，仅在明确传字段时更新；远端已删除时（404/410）classic/smart 保存当前本地编辑至可恢复草稿。
+- [x] `tests/test_canvas_revision.py` **18 项已编写但未在完整 main.py 执行**；包括过期软删除、永久 purge 并发恢复、缺版本拒绝、设置保留。不得计为 Python 测试 PASS。
+- [x] 最新代码快照 `6bdbfa13abde05f38f2a449e4ca797b332f690e6`：通过 GitHub 连接器读取 **4 个真实 JS 模块与 5 个 CJS 测试文件**，在隔离 V8 中以 Node built-ins 等价 shim 实际执行 **33/33 用例通过**（save races 8、metadata 3、conflict recovery 8、delete CAS 9、smart serialization 5），另做 4/4 文件 V8 语法解析；共 37/37 项有限检查。**非真实 `node --test`、非浏览器双标签、非主程序 Python unittest、非全仓测试。**
+- [ ] **S04 合并仍阻断**：正确 HEAD 的 Python 后端 18 项及全量 unittest、原生 Node、真实浏览器两标签并发与 Windows/兼容性没有实际运行。PR #7 尚无独立审查通过；仓库自动 review 评论要求先创建 Codex environment，本会话不手动请求 Review。Actions 默认 0 次，不使用真实画布、密钥或付费模型。
+- [ ] S02 延期 28 项与 LAN/Chrome/Photoshop/ModelScope、S03 45 项与 Windows/UNC/Range/旧 updater 发布源测试必须在 S08 发布前补齐；S05 不得提前启动。
+
+
+### S04 经典画布 GET→touch CAS 版本错配修复（2026-11-02）
+
+- [x] **新复现的 R1 数据覆盖窗口**：经典编辑器打开画布时先 GET 旧快照（revision 4，旧 nodes），然后 `/touch` 返回其他客户端刚提交的 revision 5；旧代码直接把 revision 5 写入 revision 4 的本地节点快照。下一次 PUT 会以合法的 revision 5 覆盖远端新节点。以实际旧版 `openCanvas` 函数和模拟时序独立复现；新增 `tests/test_canvas_open_touch_race.cjs`，修复前两项中 **1 FAIL / 1 PASS**（预期红测）。
+- [x] 修复：仅在 GET 的 revision 与 touch 观察的 revision 相等时保留原快照；不同则重新 GET 最新**节点与对应 revision**，且在异步阶段重复检查本地待保存编辑，不再把 touch 的较新 revision 赋给旧内容。版本不变的 touch 不多发 GET。
+- [x] 正确提交 `203705615a86574eed6cb3e714171a9fea572a6c` 上从 GitHub 获取 4 个实际应用 JS 与 7 个 CJS 回归文件，在**隔离 V8 + Node 内置模块 shim** 执行 **43/43 PASS**、4/4 JS 语法解析 PASS（新增 2 项）。**不是**原生 Node、真实浏览器、Python `main.py` 或跨平台联调通过。
+- [ ] S04 PR #7 仍 DRAFT，独立审查受仓库 Codex environment 缺失阻断；Python 18 项、原生 Node、真实双标签及完整项目测试未执行。不得合并或启动 S05。GitHub Actions 未运行；S02/S03 延期验收仍为 S08 发布前阻断。
+
+
+### S04 经典画布传输失败与离开页面数据保全（2026-11-02）
+
+- [x] **修复前失败复现**：准确 PR HEAD `89af5ac4` 的 `canvas.js` 真实回退按钮监听器在 PUT 未完成时仍直接跳转管理页；同一源码的 `saveCanvas` 遇网络拒绝仅显示 `Save failed`，不持久化草稿、不展示恢复面板。两项隔离 V8 反例均 FAIL，属于 R1 数据丢失路径。
+- [x] 同一 PR 修复：未保存/正在保存/冲突状态下，编辑器内返回管理页按钮先保存最新草稿并展示恢复面板，阻止直接跳转；`beforeunload` 保存草稿并请求浏览器确认；网络异常/5xx 保留草稿、进入人工恢复状态且禁止盲目重试。无未保存修改时仍正常返回。
+- [x] 新增 `tests/test_canvas_navigation_failure.cjs` 4 项原生 Node 可执行测试**源码**；在准确提交 `a792a08484b129333125fab95d7fbe9f8cc07d65` 通过 GitHub 读取真实 `canvas.js`，在独立 V8 对四个行为进行隔离验证 **4/4 PASS**，另 `canvas.js` 和新增 CJS 语法解析 **2/2 PASS**。**不是** `node --test`、完整 Python `main.py` 或浏览器双标签集成通过。
+- [ ] 门禁不变：PR #7 仍 Draft；正式独立 Review 0，仓库 Codex environment 尚未配置；原生 Node、Python 21 项及完整项目、浏览器/Windows 联调未执行。不得合并 S04 或开始 S05。S02/S03 延期测试仍须 S08 发布前补齐；GitHub Actions 不运行。
+
+
+## S04 连续元数据失败草稿合并（2026-11-03）
+
+- 真实旧函数隔离复现：离线先改名再改图标，两次失败共用 canvas_meta_conflict_<id> 键，后一次覆盖前一次，恢复草稿仅剩 icon，丢失 title。
+- 已在 classic patchCanvasMeta 与列表 persistMeta 修复：按字段合并既有失败草稿，同字段最新编辑优先；localStorage 不可写时恢复面板明确警告，并提供属性 JSON 导出；更新 HTML 资源版本避免旧缓存。
+- 扩展 tests/test_canvas_meta_transport.cjs，由 6 至 12 项。实际从 PR #7 分支读取最新应用 JS 与 CJS 测试，在隔离 V8 + Node built-in shims 运行 **12/12 PASS**，4 个 JS 文件语法解析 **4/4 PASS**；不是原生 node --test、完整 Python、真实浏览器或 Windows PASS。
+- S04 独立 Review 仍未取得，完整测试门禁未过；PR #7 保持 Draft，S05 不启动。GitHub Actions 保持 workflow_dispatch-only、未触发；没有真实 Key、用户画布或计费 AI。

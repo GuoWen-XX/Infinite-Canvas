@@ -187,6 +187,9 @@ async function loadAll(){
         projects = (pData.projects || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
         if(!projects.length) projects = [{ id: 'default', name: L('默认项目','Default'), order: 0, canvas_count: 0 }];
         canvases = cData.canvases || [];
+        for(const record of canvases){
+            if(window.CanvasConflictRecovery?.showSavedMetadata(record.id)) break;
+        }
         // pick first project (prefer default / order 0)
         if(!projects.find(p => p.id === currentProjectId)){
             const def = projects.find(p => p.id === 'default') || projects.slice().sort((a, b) => (a.order || 0) - (b.order || 0))[0];
@@ -852,27 +855,72 @@ async function moveCanvasToProject(id, projectId){
 
 /* ===== Card meta persist (POST /meta) ===== */
 async function persistMeta(id, patch){
+    function preserveFailedPatch(){
+        const key = 'canvas_meta_conflict_' + id;
+        let previous = {};
+        try {
+            const stored = JSON.parse(localStorage.getItem(key) || 'null');
+            if(stored?.patch && typeof stored.patch === 'object' && !Array.isArray(stored.patch)) previous = stored.patch;
+        } catch(_) {}
+        const merged = {...previous, ...patch};
+        let persisted = false;
+        try {
+            localStorage.setItem(key, JSON.stringify({patch:merged, saved_at:Date.now()}));
+            persisted = true;
+        } catch(err) { console.error('Unable to persist metadata recovery draft', err); }
+        window.CanvasConflictRecovery?.showMetadata({id, patch:merged, ...(!persisted ? {persistenceError:true} : {})});
+        return persisted;
+    }
+    const record = canvases.find(x => x.id === id);
     try {
         const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patch)
+            body: JSON.stringify({...patch, base_revision: record?.revision ?? null})
         });
+        if(res.status === 409){
+            preserveFailedPatch();
+            const latest = await fetch(`/api/canvases/${encodeURIComponent(id)}`);
+            if(latest.ok){
+                const data = await latest.json();
+                const idx = canvases.findIndex(x => x.id === id);
+                if(idx >= 0 && data.canvas) canvases[idx] = {...canvases[idx], ...data.canvas};
+                renderBoard();
+            }
+            setStatus(L('修改冲突：已保留本地修改，请重新确认','Conflict: local change saved for recovery'));
+            return;
+        }
         if(!res.ok) throw new Error('meta save failed');
         const data = await res.json();
         if(data.canvas){
             const idx = canvases.findIndex(x => x.id === id);
             if(idx >= 0) canvases[idx] = { ...canvases[idx], ...data.canvas };
         }
-    } catch(e){ console.error(e); setStatus(L('保存失败','Save failed')); }
+    } catch(e){
+        // Transport/server failures must retain the optimistic metadata edit,
+        // just like a 409. Otherwise a reload silently loses the user's change.
+        preserveFailedPatch();
+        console.error(e);
+        setStatus(L('属性未保存：已保留本地修改','Metadata not saved: local edit preserved'));
+    }
 }
 
 /* ===== Delete canvas (soft -> trash, with confirm) ===== */
 async function deleteCanvas(id){
     const c = canvases.find(x => x.id === id);
     if(!c) return;
+    if(c.revision == null){
+        setStatus(L('版本未知，请刷新后删除','Revision missing; refresh before deleting'));
+        await loadAll();
+        return;
+    }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}?base_revision=${encodeURIComponent(c.revision)}`, { method: 'DELETE' });
+        if(res.status === 409){
+            setStatus(L('画布已在其他页面修改，已取消删除','Canvas changed elsewhere; deletion cancelled'));
+            await loadAll();
+            return;
+        }
         if(!res.ok) throw new Error('delete failed');
         canvases = canvases.filter(x => x.id !== id);
         renderBoard();
@@ -958,8 +1006,19 @@ function renderTrash(){
     refreshIcons();
 }
 async function restoreCanvas(id){
+    const record = deletedCanvases.find(c => c.id === id);
+    if(record?.revision == null){
+        setStatus(L('版本未知，请刷新回收站后恢复','Unknown revision; refresh trash before restoring'));
+        await loadTrash();
+        return;
+    }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore`, { method: 'POST' });
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/restore?base_revision=${encodeURIComponent(record.revision)}`, {method:'POST'});
+        if(res.status === 409){
+            setStatus(L('回收站已被其他页面修改，已取消恢复','Trash changed elsewhere; restore cancelled'));
+            await loadTrash();
+            return;
+        }
         if(!res.ok) throw new Error('restore failed');
         deletedCanvases = deletedCanvases.filter(c => c.id !== id);
         await loadAll();           // restored canvas returns to its stored project
@@ -968,8 +1027,19 @@ async function restoreCanvas(id){
     } catch(e){ console.error(e); setStatus(L('恢复失败','Restore failed')); }
 }
 async function purgeCanvas(id){
+    const record = deletedCanvases.find(c => c.id === id);
+    if(record?.revision == null){
+        setStatus(L('版本未知，请刷新回收站后重试','Unknown revision; refresh trash first'));
+        await loadTrash();
+        return;
+    }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/purge`, { method: 'DELETE' });
+        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/purge?base_revision=${encodeURIComponent(record.revision)}`, { method: 'DELETE' });
+        if(res.status === 409){
+            setStatus(L('回收站项目已变化，取消彻底删除','Trash entry changed; permanent deletion cancelled'));
+            await loadTrash();
+            return;
+        }
         if(!res.ok) throw new Error('purge failed');
         deletedCanvases = deletedCanvases.filter(c => c.id !== id);
         renderTrash();

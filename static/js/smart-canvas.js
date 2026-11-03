@@ -100,6 +100,8 @@ let didPan = false;
 let portDragState = null;
 let connectionEraseState = null;
 let saveTimer = null;
+let smartCanvasConflictPending = false;
+let smartCanvasLocalDirty = false;
 let apiProviders = [];
 let comfyWorkflows = [];
 let comfyInstanceCount = 1;
@@ -5421,20 +5423,46 @@ function mergeSmartConnections(localConns, remoteConns, nodeIds){
     return out;
 }
 function applyMergedServerCanvas(serverCanvas){
-    if(!serverCanvas || !canvas) return false;
-    const remoteNodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
-    const mergedNodes = mergeSmartNodeLists(nodes, remoteNodes);
-    const nodeIds = new Set(mergedNodes.map(n => n.id));
-    nodes = mergedNodes;
-    canvas.connections = mergeSmartConnections(canvas.connections, serverCanvas.connections, nodeIds);
+    if(!serverCanvas || !canvas || serverCanvas.id !== canvasId || canvas.id !== canvasId) return false;
+    const remoteRevision = Number(serverCanvas.revision || 0);
+    const localRevision = Number(canvas.revision || 0);
+    // Ignore a late GET from an older revision. Touch can advance updated_at
+    // without advancing content revision, so it is not a merge signal.
+    if(remoteRevision < localRevision) return false;
+    if(remoteRevision === localRevision){
+        canvas.updated_at = Math.max(Number(canvas.updated_at || 0), Number(serverCanvas.updated_at || 0));
+        return false;
+    }
+    if(smartCanvasLocalDirty || canvasSyncInFlight || saveCanvas.queued || smartCanvasAnyRunning()){
+        // A remote revision must never be silently merged into unsaved local
+        // nodes (or used as a new CAS base). Preserve the complete local draft
+        // and require explicit recovery before any further same-ID PUT.
+        smartCanvasConflictPending = true;
+        clearTimeout(saveTimer);
+        const record = persistSmartConflictDraft();
+        window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+        toast('检测到其他页面的画布修改：本地草稿已保留，请先处理冲突');
+        return false;
+    }
+    // No pending local edits: adopt the exact remote node set, including
+    // deletions. The previous union merge resurrected deleted remote nodes.
+    nodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
+    canvas.nodes = nodes;
+    canvas.connections = Array.isArray(serverCanvas.connections) ? serverCanvas.connections : [];
+    canvas.revision = remoteRevision;
+    canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
+    canvas.title = serverCanvas.title || canvas.title;
+    canvas.icon = serverCanvas.icon || canvas.icon;
+    // Keep existing completed-task cleanup after adopting remote content.
     const cleanedState = clearCompletedNodeBusyStates();
     const recoveredLoopOutputs = recoverStuckLoopOutputsFromLogs();
-    canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
-    if(canvas.title !== serverCanvas.title && serverCanvas.title){
-        canvas.title = serverCanvas.title;
-        const titleEl = document.getElementById('smartTitle');
-        if(titleEl) titleEl.textContent = canvas.title;
+    if(serverCanvas.settings && typeof serverCanvas.settings === 'object'){
+        canvas.settings = serverCanvas.settings;
+        settings = {...settings, ...serverCanvas.settings};
+        canvasDefaultSmartSettings = cloneSmartSettings(settings);
     }
+    const titleEl = document.getElementById('smartTitle');
+    if(titleEl) titleEl.textContent = canvas.title;
     render();
     if(typeof scheduleConnectionLayerRefresh === 'function') scheduleConnectionLayerRefresh();
     if(cleanedState || recoveredLoopOutputs) scheduleSave();
@@ -5443,7 +5471,7 @@ function applyMergedServerCanvas(serverCanvas){
     return true;
 }
 async function mergeReloadCanvasNow(){
-    if(!canvasId) return;
+    if(!canvasId || smartCanvasConflictPending) return;
     if(dragState || selectionState){
         // 用户正在拖拽/框选，稍后再合并，别打断操作
         scheduleCanvasMergeReload(600);
@@ -6015,6 +6043,8 @@ async function loadCanvas(){
         if(!res.ok) return;
         const data = await res.json();
         canvas = data.canvas;
+        smartCanvasConflictPending = false;
+        smartCanvasLocalDirty = false;
         rememberCanvasListProject(canvas.project || 'default');
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
@@ -6056,14 +6086,51 @@ async function loadCanvas(){
         resumeSmartPendingTasks();
         resumeJimengPendingNodes();
         startCanvasMetaPoll();
+        window.CanvasConflictRecovery?.showSaved(canvasId,'smart');
     } catch(e) { toast(tr('smart.toastCanvasFail')); }
 }
+function persistSmartConflictDraft(snapshot=null){
+    if(!canvas) return null;
+    if(!snapshot){
+        canvas.nodes = nodes;
+        canvas.viewport = {...viewport};
+    }
+    const record = {
+        canvas_id:canvasId, base_revision:Number(canvas.revision || 0),
+        saved_at:Date.now(), canvas:snapshot || canvasForStorage()
+    };
+    try { localStorage.setItem('smart_canvas_conflict_draft_' + canvasId, JSON.stringify(record)); }
+    catch(err) {
+        // Never imply a persistent backup when quota/private-mode storage failed.
+        record.persistence_error = true;
+        console.error('Smart canvas recovery backup failed; export the draft now',err);
+    }
+    return record;
+}
 function scheduleSave(){
+    smartCanvasLocalDirty = true;
     clearTimeout(saveTimer);
+    if(smartCanvasConflictPending){
+        const record = persistSmartConflictDraft();
+        if(record) window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+        return;
+    }
+    if(canvasSyncInFlight){
+        // Coalesce edits made while a previous PUT is pending.
+        saveCanvas.queued = true;
+        return;
+    }
     saveTimer = setTimeout(saveCanvas, 450);
 }
 async function saveCanvas(){
-    if(!canvasId || !canvas) return;
+    if(!canvasId || !canvas || smartCanvasConflictPending) return;
+    if(canvasSyncInFlight){
+        saveCanvas.queued = true;
+        return;
+    }
+    const saveTargetId = canvasId;
+    saveCanvas.queued = false;
+    smartCanvasLocalDirty = true;
     savePromptDraftForCurrent();
     nodes.forEach(node => {
         node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -6087,32 +6154,44 @@ async function saveCanvas(){
                 logs:storageCanvas.logs || [],
                 settings:storageCanvas.settings,
                 base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
+                base_revision:Number(canvas.revision || 0),
                 client_id:smartClientId
             })
         });
+        // The active canvas may have changed while the HTTP request was pending.
+        if(!canvas || canvasId !== saveTargetId || canvas.id !== saveTargetId) return;
         if(res.ok){
             const data = await res.json();
+            if(!canvas || canvasId !== saveTargetId || canvas.id !== saveTargetId) return;
             if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
-        } else if(res.status === 409) {
-            // 冲突：别人先保存了。合并对方的状态（节点 id 合并、图片取并集，谁都不丢），
-            // 然后用对方最新的 updated_at 作为基底重存，把合并结果落盘——而不是直接覆盖对方。
-            const data = await res.json().catch(() => ({}));
-            const serverCanvas = data.detail?.canvas;
-            if(serverCanvas){
-                applyMergedServerCanvas(serverCanvas);
-                nodes.forEach(node => {
-                    node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
-                    if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
-                });
-                canvas.nodes = nodes;
-            } else if(data.detail?.updated_at) {
-                canvas.updated_at = data.detail.updated_at;
-            }
+            if(data.canvas?.revision != null) canvas.revision = Number(data.canvas.revision);
+            smartCanvasLocalDirty = Boolean(saveCanvas.queued);
+        } else if(res.status === 409 || res.status === 404 || res.status === 410) {
+            // Never advance the base and retry an unverified same-ID merge.
+            // Preserve a recoverable draft until the user explicitly resolves it.
+            smartCanvasConflictPending = true;
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveCanvas, 300);
+            // Capture current nodes/settings, not the stale pre-request snapshot.
+            const record = persistSmartConflictDraft();
+            window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+            toast(res.status === 409
+                ? '画布版本冲突：请导出本地草稿或保存为独立副本'
+                : '服务器中的画布已被删除：本地编辑已保留，可保存为独立副本');
+        } else {
+            persistSmartConflictDraft();
+            toast('画布保存失败：本地草稿已保留，请稍后重试');
         }
-    } catch(e) {} finally {
+    } catch(e) {
+        if(canvasId === saveTargetId){
+            persistSmartConflictDraft();
+            toast('画布保存失败：本地草稿已保留，请稍后重试');
+        }
+    } finally {
         canvasSyncInFlight = false;
+        if(saveCanvas.queued && canvasId && canvas && !smartCanvasConflictPending){
+            saveCanvas.queued = false;
+            scheduleSave();
+        }
     }
 }
 function imageMetaFromNode(node){
