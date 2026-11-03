@@ -198,6 +198,14 @@
 - [x] `tests/test_skill_upgrade_tracking.py` 10 项已编写，尚未在完整项目运行。`tests/test_skill_install_tracking.cjs` 3/3 从真实 HEAD JS 测试在隔离 V8 + Node 内置 API shim 执行 PASS；本机 Python 3.13 的**镜像隔离逻辑**对 A→B→C、legacy ref、ZIP staging 旧文件回滚等执行 7/7 PASS。均不能冒充完整 Python/Node/Windows 验收；Actions 未运行，不调用真实 GitHub 外网/付费模型。
 - [ ] 正确 HEAD 的完整 Python unittest、原生 Node、真实 Windows 安装 PyYAML、ZIP/GitHub E2E 与独立 Review 仍未完成；S08 发布前补齐。按用户规定不因最终发布联调缺失无限期阻止阶段合并，但任何阶段合并必须明确记录风险。
 
+**2026-11-03 S06 安装备份与下载失败清理补强（PR #9）：**
+
+- [x] 找到两条数据风险：`swap_staged_into_target` 和 `api_skill_upgrade` 在开始新的安装/升级前删除已存在的 `.*.install-bak` / `.*.upgrade-bak` 备份，可能销毁上次失败留下的唯一恢复副本。已改为使用 `os.path.lexists` 严格拒绝并给出 HTTP 409，禁止静默删除备份（含 symlink）。
+- [x] 发现 `github_download_repo_zip` 遇 HTTP/客户端异常或取消时，过去只在体积超限时清理临时 ZIP。现以 `completed` 标记统一在所有非成功路径清理临时档案，并确保文件描述符关闭。
+- [x] `tests/test_skill_upgrade_tracking.py` 已增加备份保留、符号链接及下载失败清理 3 项，目前 **13 项 Python 主程序集成回归已编写，尚未在完整 `main.py` 执行**。
+- [x] 在本地 Python 3.13 以**从目标函数手工摘录的隔离镜像**（不是仓库原文 import）执行备份保留、失败回滚、符号链接三项 **3/3 PASS**，并观察到仅测试 fixture 未使用 context manager 导致的 ResourceWarning；不能冒充本仓库真实 `python -m unittest` 验收。
+- [ ] 完整项目 Python unittest、Windows/真实 GitHub 下载和升级、独立审查仍须 S08 发布前完成；本次没有 Actions、手动 Codex、真实 Key、付费额度或用户 Skill 文件。
+
 ### S07 — Codex 自定义存储媒体（R5）
 
 - [ ] 默认目录/自定义目录各准备独立 fixture。
