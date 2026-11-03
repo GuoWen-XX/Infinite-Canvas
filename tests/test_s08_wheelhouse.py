@@ -54,11 +54,11 @@ class WheelhouseGateTests(unittest.TestCase):
 
     def test_older_generic_python_wheel_accepted_for_python310(self):
         self.wheel("example-1.2.0-py39-none-any.whl")
-        self.assertTrue(self.audit("example==1.2.0\\n")["passed"])
+        self.assertTrue(self.audit("example==1.2.0\n")["passed"])
 
     def test_future_generic_python_wheel_rejected(self):
         self.wheel("example-1.2.0-py311-none-any.whl")
-        self.assertFalse(self.audit("example==1.2.0\\n")["passed"])
+        self.assertFalse(self.audit("example==1.2.0\n")["passed"])
 
     def test_rejects_unpinned_requirements(self):
         with self.assertRaises(ValueError):
