@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -26,8 +26,8 @@
 | S02 | MERGED / DEFERRED VALIDATION | 权限/CORS/ModelScope Token 路径（SEC-02） | `main.py`、`static/zimage.html`、`static/angle.html`、Chrome/Photoshop 连接器 | 未授权访问失败、合法 LAN/插件/ModelScope 功能正常 |
 | S03 | MERGED / DEFERRED VALIDATION | 存储根访问控制、SSRF、下载 ZIP 配额（SEC-03/04/05） | `main.py`、素材管理相关前端和测试 | 任意文件/内网 URL 被拒，合法自定义存储仍可使用 |
 | S04 | MERGED / DEFERRED VALIDATION | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
-| S05 | IN_PROGRESS | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
-| S06 | NOT_STARTED | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
+| S05 | MERGED / DEFERRED VALIDATION | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
+| S06 | IN_PROGRESS | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | NOT_STARTED | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
 | S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
 
@@ -188,12 +188,23 @@
 - [x] 创建 [PR #8](https://github.com/GuoWen-XX/Infinite-Canvas/pull/8)（base `main@809024323f0741bb8cd8a02d268532b09e018457`）。`tests/test_skill_content_identity.py` 已编写 **17 项**，仍未在完整 `main.py` 中运行。修改内容对应的 Python 保存/解析函数在本容器使用原生 Python 3.13 + PyYAML 的**独立镜像隔离逻辑**执行 **14/14 PASS**（不等于仓库集成测试）。从 GitHub 正确 HEAD 源码直接在 V8 + Node built-in shim 中执行前端 `tests/test_skill_variant_identity.cjs` **5/5 PASS**。无真实文件/Key、无计费模型、无 GitHub Actions。
 - [ ] 阶段合并须记录缺失验收的有限风险例外。正式 `python -m unittest ...`、`node --test`、UI 浏览器测试、完整 checkout 与正式独立代码审查仍未完成；不得宣称最终验收通过。以上均为 S08 发布前阻断验收；S06 安装依赖阶段须验证 PyYAML 正式安装。
 
+**S05 阶段合并记录（2026-11-03）：** [PR #8](https://github.com/GuoWen-XX/Infinite-Canvas/pull/8) 已在明确有限风险放行后合入 `main@a5b1a87129db075b26394e6e466ff3609d4ec7ee`，不是最终发布验收。18 项 Python S05 集成回归已编写但未在完整仓库运行、原生 Node/浏览器和独立 Review 延期为 S08 发布阻断；5/5 前端隔离 V8 和 14/14 本地镜像 Python 逻辑测试通过（不能视作主程序集成 PASS）。[合并前风险记录](https://github.com/GuoWen-XX/Infinite-Canvas/pull/8#issuecomment-6594008074)。由该 merge SHA 创建 `fix/S06-skill-install-upgrade`。
+
 ### S06 — Skill 安装与升级（R3/R4）
 
-- [ ] 在正式安装环境验证 PyYAML，不可仅 CI 临时 `pip install pyyaml`。
-- [ ] 提前检查依赖，错误时不碰已有 Skill 文件。
-- [ ] 分别维护 `tracking_ref` / `commit_sha`，模拟 A→B→C 更新。
-- [ ] ZIP/ GitHub install rollback、覆盖安装及校验测试；PR 审查合并后解锁 S07。
+- [x] 查明 `requirements.txt` 未包含 PyYAML，已固定 `PyYAML==6.0.3`（当前隔离 Python 3.13 已安装该版本）；Windows 正式安装环境仍须 S08 真实验证，不能宣称安装端 PASS。
+- [x] PyYAML 缺失时，在创建 Skill、GitHub 预览/安装/升级、ZIP 导入和 staging 文件复制**之前**返回 HTTP 503；不动现有 Skill。
+- [x] GitHub Skill 元数据将移动分支/标签 `tracking_ref` 与固定版本 `commit_sha` 分开。旧版误存 SHA 的 `ref` 降级跟踪仓库默认分支；显式指定分支持续跟踪，不因 A→B→C 升级变成提交 SHA。前端安装请求显式提交预览所用 ref；精确 SHA 安装保留安装 SHA、未来仍可检查默认分支。
+- [x] `tests/test_skill_upgrade_tracking.py` 10 项已编写，尚未在完整项目运行。`tests/test_skill_install_tracking.cjs` 3/3 从真实 HEAD JS 测试在隔离 V8 + Node 内置 API shim 执行 PASS；本机 Python 3.13 的**镜像隔离逻辑**对 A→B→C、legacy ref、ZIP staging 旧文件回滚等执行 7/7 PASS。均不能冒充完整 Python/Node/Windows 验收；Actions 未运行，不调用真实 GitHub 外网/付费模型。
+- [ ] 正确 HEAD 的完整 Python unittest、原生 Node、真实 Windows 安装 PyYAML、ZIP/GitHub E2E 与独立 Review 仍未完成；S08 发布前补齐。按用户规定不因最终发布联调缺失无限期阻止阶段合并，但任何阶段合并必须明确记录风险。
+
+**2026-11-03 S06 安装备份与下载失败清理补强（PR #9）：**
+
+- [x] 找到两条数据风险：`swap_staged_into_target` 和 `api_skill_upgrade` 在开始新的安装/升级前删除已存在的 `.*.install-bak` / `.*.upgrade-bak` 备份，可能销毁上次失败留下的唯一恢复副本。已改为使用 `os.path.lexists` 严格拒绝并给出 HTTP 409，禁止静默删除备份（含 symlink）。
+- [x] 发现 `github_download_repo_zip` 遇 HTTP/客户端异常或取消时，过去只在体积超限时清理临时 ZIP。现以 `completed` 标记统一在所有非成功路径清理临时档案，并确保文件描述符关闭。
+- [x] `tests/test_skill_upgrade_tracking.py` 已增加备份保留、符号链接及下载失败清理 3 项，目前 **13 项 Python 主程序集成回归已编写，尚未在完整 `main.py` 执行**。
+- [x] 在本地 Python 3.13 以**从目标函数手工摘录的隔离镜像**（不是仓库原文 import）执行备份保留、失败回滚、符号链接三项 **3/3 PASS**，并观察到仅测试 fixture 未使用 context manager 导致的 ResourceWarning；不能冒充本仓库真实 `python -m unittest` 验收。
+- [ ] 完整项目 Python unittest、Windows/真实 GitHub 下载和升级、独立审查仍须 S08 发布前完成；本次没有 Actions、手动 Codex、真实 Key、付费额度或用户 Skill 文件。
 
 ### S07 — Codex 自定义存储媒体（R5）
 

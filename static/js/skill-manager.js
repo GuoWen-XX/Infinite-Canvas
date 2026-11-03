@@ -292,7 +292,11 @@ async function githubInstall() {
         const result = await api('/api/skills/github/install', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, sha: ghPreview.repo.sha, name, overwrite, subdir: document.getElementById('ghSubdir').value.trim() }),
+            body: JSON.stringify({
+                url, sha: ghPreview.repo.sha,
+                tracking_ref: ghPreview.repo.ref || document.getElementById('ghRef').value.trim(),
+                name, overwrite, subdir: document.getElementById('ghSubdir').value.trim()
+            }),
         });
         const warnings = result.warnings || [];
         toast(`安装成功：${result.id}` + (warnings.length ? `（${warnings[0]}）` : ''), 4200);
