@@ -41,7 +41,7 @@ python -m pip check
 - [ ] 双标签 Chrome：画布增/改/删、元数据改名、409 草稿/恢复，智能画布并发保存、文件下载与 Range 断点续传。
 - [ ] LAN、Photoshop/Chrome 扩展、ModelScope Token 的授权/跨域场景在可控测试账号进行，禁止把真实用户 token 放入日志或测试夹。
 - [ ] S02 28 项与 S03 45 项延期回归、Windows UNC/junction、Skill 版本追踪 A→B→C、Codex 自定义媒体路径真实 Windows 安全验收。
-- [ ] 核对 `main.py` 自动更新源与仓库目标分支；当前已知旧更新渠道指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，不能因本仓库 `main` 合并就宣称旧版用户已经收到修复。**禁止在没有单独发布决策时擅改来源/default branch。**
+- [x] 核对并修复本仓库新版 `main.py` 更新源：PR #12 更新 URL，收尾修复同步将分支更新为 `main`，共同使 GitHub 更新目标指向 `GuoWen-XX/Infinite-Canvas@main`。原安装中的旧客户端仍可能指向旧来源，**真实升级迁移 NOT_RUN**；未修改默认分支。
 - [ ] 必须有发布前残余风险报告；未消除的高风险失败或缺失的必要测试阻止发布。
 
 ## 3. 自动更新源一致性：源码修复已提交，旧客户端迁移仍需注意
@@ -50,7 +50,7 @@ python -m pip check
 - `GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"`
 - `GITHUB_BRANCH = "zcode/iteration-01"`
 
-修复工程实际合入 `GuoWen-XX/Infinite-Canvas@main`。当前 updater 并非指向本修复来源；若用户更新，它可能用其他仓库/分支的文件覆盖此次合入的安全修复。**未经独立发布方案批准，不擅自修改默认分支、更新来源或上线设置。**
+修复工程实际合入 `GuoWen-XX/Infinite-Canvas@main`。**上文为修复前基线**：当时 updater 仍指向旧来源，存在覆盖安全修复的风险。PR #12 将仓库 URL 改为 `GuoWen-XX/Infinite-Canvas`，但保留旧 `GITHUB_BRANCH`；S08 收尾复核发现并在随后的收尾 PR 将该分支常量修正为 `main`，两者合并后新版 updater 才完整指向 `GuoWen-XX/Infinite-Canvas@main`；**旧客户端仍保留其已有更新源，不能把新代码中的修改误称旧版客户端已自动升级**。未变更仓库默认分支，未发布外部安装包。
 
 - [x] 新增 `tools/check_s08_release_source.py`：使用 `ast.parse` 静态读取更新器常量（绝不 import/启动 `main.py`），将 repo/branch 与明确期待的发布目标进行比对；不符返回失败退出码。
 - [x] `tests/test_s08_release_source.py` 4 项模拟测试：正确源通过，错误仓库、错误分支、动态未审计常量都必须拒绝。Python 3.13 在本地等价实现执行 **4/4 PASS**，仅模拟/静态检查；不代表真实旧客户端升级成功。
@@ -60,11 +60,11 @@ python -m pip check
 python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canvas --expected-branch main --json
 ```
 
-**2026-11-04 更新（S08 后续修复分支）：** 已将 `main.py` 的 GitHub 仓库、分支和 3 条派生下载地址统一改为 `GuoWen-XX/Infinite-Canvas@main`；扩展 `tests/test_s08_release_source.py` 静态回归检查。原旧源常量属于修复前基线记录，不代表此候选分支现在仍使用旧源。**这只修复新代码的更新指向，不代表已经把旧版客户端的更新配置自动改过来，亦不冒充 Windows 端到端升级测试。** ModelScope 上游更新回退继续禁用。源码修复不要求增加任何安装步骤。
+**2026-11-04 更新（S08 修复及收尾分支）：** PR #12 更正了 GitHub 仓库 URL，收尾复核又发现并修正了 `GITHUB_BRANCH` 未同步的遗漏。包括 3 条派生下载地址在内，合并这两次修复后才会统一指向 `GuoWen-XX/Infinite-Canvas@main`；扩展 `tests/test_s08_release_source.py` 静态回归检查。原旧源常量属于修复前基线记录，不代表此候选分支现在仍使用旧源。**这只修复新代码的更新指向，不代表已经把旧版客户端的更新配置自动改过来，亦不冒充 Windows 端到端升级测试。** ModelScope 上游更新回退继续禁用。源码修复不要求增加任何安装步骤。
 
 ## 4. 状态结论
 
-当前：`S08 IN_PROGRESS`；**可选离线安装 wheelhouse 的静态不匹配不作为阻止阶段 PR 合并的理由**。发布前仍须解决更新源覆盖安全修复风险，并对真实便携启动与必要回归取得证据。**S00–S07 阶段已合并，不等于最终验收。** 本仓库缺少能运行完整 checkout 的环境；GitHub Actions 不自动运行也不手动触发。必须保留未执行项目的真实状态，禁止填写“全绿”。
+当前：**S00–S08 计划内代码阶段已合并**（S08 PR #11 与修复 PR #12 均在 main）。可选 wheelhouse 静态问题不阻断免安装便携运行或阶段 PR 合并。本仓库更新源 URL 已由 PR #12 修复，分支常量由本轮收尾 PR 补修；两者必须都合并才算新版源码正确。旧客户端历史配置不会被自动覆盖。**正式发布前系统/设备验收仍为 NOT_VERIFIED**：尚无 Windows 便携实际启动、完整 checkout 全量 Python/Node、Chrome/PS/LAN/ModelScope 等联调和旧客户端升级记录；不得写作全绿或已正式发布。GitHub Actions 仍保持不主动触发。
 
 ## 5. 2026-11-04 验收范围纠偏
 
@@ -73,3 +73,9 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - 撤销误加的 `tools/prepare_s08_wheelhouse.py` 与 `tests/test_prepare_s08_wheelhouse.py`，不要求使用者为 S08 额外安装软件。
 - S08 优先验证原始便携包直接启动、既有安全回归以及旧更新源覆盖风险；不以可选安装脚本的 pip 验证作为阶段 PR 的合并门槛。
 - 对尚未运行的 Windows/跨模块测试如实标记，不虚报通过；可以按已验证的阶段性范围合并 PR，最终发布验收另行判定。
+
+## 6. 阶段收尾和证据边界（2026-11-04）
+
+- PR #11 已合并：`d6858396e2376b581c02afda1686097402a44e20`。内容为 S08 检查工具、测试与验收台账；不会修改画布业务代码。
+- PR #12 已合并：`94295d06bcd9f67da621ce579e3f58c3d9359b97`。内容为 GitHub 更新仓库 URL、静态回归测试及说明；后续收尾核查发现 `GITHUB_BRANCH` 未同步，已在收尾 PR 中修复为 `main`。ModelScope 上游 fallback 继续禁用。
+- **完成定义**：S00–S08 代码阶段及这些 PR 合并完成；**未核验定义**：真实 Windows 免安装启动、完整 Python/Node、浏览器与设备、旧客户端安全迁移不得标记为通过。**不追加 pip 安装任务**。

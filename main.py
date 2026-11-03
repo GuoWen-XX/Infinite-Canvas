@@ -403,7 +403,7 @@ APP_VERSION = "2026.06.03"
 # 若更新源仍指向原上游仓库，点一次更新就会把 fork 的功能覆盖回上游版本，且不可逆。
 # 因此更新源必须指向本 fork 自己的仓库。
 GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"
-GITHUB_BRANCH = "zcode/iteration-01"
+GITHUB_BRANCH = "main"
 GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"
 GITHUB_TREE_URL = f"https://api.github.com/repos/GuoWen-XX/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"
 GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}"

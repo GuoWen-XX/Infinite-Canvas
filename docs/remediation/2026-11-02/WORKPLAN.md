@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IN_PROGRESS / RELEASE_BLOCKED`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / DEVICE_VALIDATION_PENDING`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -29,7 +29,7 @@
 | S05 | MERGED / DEFERRED VALIDATION | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | MERGED / DEFERRED VALIDATION | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
 | S07 | MERGED / DEFERRED VALIDATION | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
-| S08 | IN_PROGRESS / RELEASE_BLOCKED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
+| S08 | IMPLEMENTATION_MERGED / DEVICE_VALIDATION_PENDING | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
 
 优先级解释：安全 P0 首先修；画布数据丢失 R1 在 S04 专项完整解决；每阶段风险以隔离环境复现结果重新评定，不能仅靠既往静态结论。
 
@@ -227,13 +227,13 @@
 
 ### S08 — 完成验收
 
-- [x] 检查 `requirements.txt`、`packages/` 与自带 `python/`：自带 `python310.dll`，22 个 wheel 中包含 `cp314-win_amd64`，8 项直接锁定依赖只有 2 项文件名匹配；**离线依赖安装门禁 FAIL**。PyYAML==6.0.3 缺 wheel，FastAPI/Uvicorn/Requests/python-multipart/Pillow 均版本不符，传递依赖 pydantic-core/charset-normalizer 含错误 Python ABI。不得盲目降级 `requirements.txt`。
+- [x] 检查 `requirements.txt`、`packages/` 与自带 `python/`：自带 `python310.dll`，22 个 wheel 中包含 `cp314-win_amd64`，8 项直接锁定依赖只有 2 项文件名匹配；**仅可选手动安装脚本的离线缓存不匹配（不阻断免安装画布或阶段合并）**。PyYAML==6.0.3 缺 wheel，FastAPI/Uvicorn/Requests/python-multipart/Pillow 均版本不符，传递依赖 pydantic-core/charset-normalizer 含错误 Python ABI。不得盲目降级 `requirements.txt`。
 - [x] 新增无网络、零额度 `tools/check_s08_wheelhouse.py` 静态检查器及 `tests/test_s08_wheelhouse.py` 6 项合成测试。本地 Python 3.13 对代码等价本地版本运行 **6/6 PASS**；按 GitHub 当前目录清单重建**文件名镜像**运行工具得到 6 个直接依赖问题，**不能称真实 wheel 文件内容已安装/验证**。
 - [x] 完整发布门禁及剩余测试逐项列在 [S08_RELEASE_GATE.md](S08_RELEASE_GATE.md)，包括原生 Python/Node、Windows/UNC、Chrome/PS/LAN/ModelScope、Skill A→B→C 与 Codex 媒体、真实自动更新渠道。
 - [ ] 没有 Windows 隔离副本/完整可执行 repo checkout；全量 Python/Node、安装、浏览器和插件联调均 **NOT_RUN**。在补齐之前 S08 **RELEASE_BLOCKED**；不得借阶段合并豁免宣布最终验收或发布。GitHub Actions 按维护者约束未触发。
 
 
-- [x] S08 发现 updater 发布源一致性阻断：`main.py` 仍指向 `benkwok1983-cmd/Infinite-Canvas@zcode/iteration-01`，与此仓库修复目标 `GuoWen-XX/Infinite-Canvas@main` 不同；已新增 `tools/check_s08_release_source.py` 和 4 项静态模拟测试，本地等价实现执行 **4/4 PASS**，对现有仓库常量静态判断 **FAIL**。不擅自改分支/发布源，必须另行验证安全更新迁移。
+- [x] S08 已发现并修复新版 updater 源错配：PR #12 已合并 `main@94295d06bcd9f67da621ce579e3f58c3d9359b97` 修复 GitHub URL；后续复核发现 `GITHUB_BRANCH` 尚为旧分支，已在本阶段收尾 PR 补充改为 `main`，共同确保新版更新源指向 `GuoWen-XX/Infinite-Canvas@main`，旧版已安装客户端不会因本次提交自动更改其来源；真实旧客户端升级仍未经测试。`tools/check_s08_release_source.py` 与源码静态回归测试已提交，原基线静态 FAIL 为修复前记录。
 - [ ] 完整 Python unittest discover、JS 语法与浏览器用例、Windows 启动器实际运行。
 - [ ] LAN/Chrome/Photoshop/ModelScope 与纯本机模式回归。
 - [ ] 版本、自动更新源、安装流程和权限说明核对。
@@ -335,5 +335,17 @@ Final merge SHA:
 - [x] 取消将 `packages/` 缓存 wheel 版本不符作为 S08 阶段合并的阻断。该问题仅对用户主动使用的可选依赖修复流程有影响，留作非阻断维护事项。
 - [x] 撤销误加的 wheelhouse 下载工具及测试，不给用户增加安装负担。
 - [ ] 聚焦原本范围：无需安装的 Windows 启动验证、S00–S07 必要安全与功能回归，以及自动更新渠道覆盖安全修复的实际风险。
-- [ ] PR #11 已验证的阶段成果可独立评审和合并，不再强行绑定最终发布全部验收；尚未进行的测试必须如实注明，不能写作 PASS。
-- [ ] 自动更新渠道不一致仍为独立发布风险，但不等于可选依赖缓存文件的问题。
+- [x] PR #11 阶段成果已合并 `main@d6858396e2376b581c02afda1686097402a44e20`；未执行的设备/集成测试仍标记 NOT_RUN，不冒充 PASS。
+- [x] PR #12 已修改 GitHub 更新仓库 URL，后续源分支常量修正在本轮收尾 PR 提交；旧客户端仍可保留旧配置，尚未做真实迁移验证，该限制属于发布残余风险。
+
+
+### 2026-11-04 S08 阶段代码收尾（与正式发布验证严格区分）
+
+- [x] PR #11（S08 静态检查工具、测试及证据台账）已合并，`main@d6858396e2376b581c02afda1686097402a44e20`。
+- [x] PR #12（修复新版 GitHub 更新仓库 URL）已合并，`main@94295d06bcd9f67da621ce579e3f58c3d9359b97`。源分支常量 `GITHUB_BRANCH` 遗留旧值，已在本轮收尾 PR 补改为 `main`；ModelScope 上游更新回退保持禁用。
+- [x] 免安装交付路径确认：`run.bat` 直接运行随包 Python，不自动 pip install；可选 `安装依赖.bat` 缓存版本问题不构成项目启动/阶段合并失败证据。
+- [x] S00–S08 **计划内代码修复与阶段 PR 已合并到 main**；此项指代码阶段完结，而非声称发布前设备验收通过。
+- [ ] **正式发布验收状态：NOT_VERIFIED**。本会话无 Windows 原生设备/完整仓库 checkout，未运行真实 Windows 启动、全量 Python/Node、双浏览器/LAN/Photoshop/Chrome/ModelScope 端到端测试；旧客户端升级来源迁移亦未验证。保留缺失证据，不填 PASS，不追加安装任务，不触发 GitHub Actions。
+- [ ] 后续若准备正式公开发布，必须先在实际运行环境验证上述必要项目；本次阶段性合并无需将未运行测试编造成通过。
+
+- [x] S08 收尾复核捕获并修正 PR #12 遗漏的 `GITHUB_BRANCH = "zcode/iteration-01"`：已改为 `main`。源码静态门禁需以包含此修正的最终 main HEAD 核查，不能把 PR #12 合并视为整条更新链已独立验收。
