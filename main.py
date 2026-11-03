@@ -20384,7 +20384,7 @@ except Exception:
 class SkillVariantItem(BaseModel):
     label: str = Field(min_length=1, max_length=80)
     prompt: str = Field(default="", max_length=2000)
-    id: str = ""
+    id: str = Field(default="", max_length=160)
 
 
 class SkillCreateRequest(BaseModel):
@@ -20411,10 +20411,12 @@ def normalize_skill_variant_items(items, *, allowed_ids=None):
         prompt = str(item.prompt or "").strip()[:2000]
         if not label:
             continue
-        supplied_id = str(item.id or "").strip()
+        supplied_id = str(item.id or "")
         if supplied_id:
-            if not SKILL_ID_RE.fullmatch(supplied_id):
-                raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不合法：{supplied_id[:80]}")
+            if supplied_id != supplied_id.strip() or any(ord(ch) < 32 or ord(ch) == 127 for ch in supplied_id):
+                raise HTTPException(status_code=422, detail="Skill 变体 ID 包含不允许的空白或控制字符")
+            # ID is an opaque identity, not a slug derived from the label:
+            # preserve case, punctuation and custom author-chosen identifiers.
             vid = supplied_id
             if allowed_ids is not None and vid not in allowed_ids:
                 raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在，无法修改：{vid}")
@@ -20572,7 +20574,10 @@ def skill_entry_from_dir(dir_path, source, readonly=False, include_body=False):
                 for item in raw_variants:
                     if not isinstance(item, dict):
                         continue
-                    vid = normalize_skill_id(str(item.get("id") or item.get("label") or ""))[:60]
+                    raw_id = str(item.get("id") or "").strip()
+                    if raw_id and (len(raw_id) > 160 or any(ord(ch) < 32 or ord(ch) == 127 for ch in raw_id)):
+                        continue
+                    vid = raw_id or normalize_skill_id(str(item.get("label") or ""))
                     label = str(item.get("label") or vid).strip()[:80]
                     vprompt = str(item.get("prompt") or "").strip()[:2000]
                     if not vid or vid in seen_ids:
@@ -21380,6 +21385,25 @@ SKILL_LLM_SYSTEM_PROMPT = (
     "3) 直接输出最终提示词本身，不要任何解释、前后缀或列表。"
 )
 
+def resolve_skill_variant(variants, selected_id):
+    """Resolve stable raw IDs, with one unambiguous legacy-normalized alias.
+
+    Prior versions normalized arbitrary IDs before sending them to canvases.
+    Keep those existing references usable, but do not silently ignore missing
+    or ambiguous IDs.
+    """
+    requested = str(selected_id or "").strip()
+    if not requested:
+        return None
+    exact = next((v for v in variants if str(v.get("id") or "") == requested), None)
+    if exact is not None:
+        return exact
+    aliases = [v for v in variants if normalize_skill_id(v.get("id")) == requested]
+    if len(aliases) == 1:
+        return aliases[0]
+    raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在或不唯一：{requested[:80]}")
+
+
 async def compile_skill_prompt(selection, user_prompt):
     """按 Skill 编译最终提示词（fast=确定性拼接；llm=LLM 改写+缓存）。"""
     source = str(selection.source or "custom").strip().lower()
@@ -21393,9 +21417,7 @@ async def compile_skill_prompt(selection, user_prompt):
         raise HTTPException(status_code=400, detail=f"Skill 缺少 SKILL.md，无法编译：{selection.id}")
     entry = skill_entry_from_dir(dir_path, source, include_body=True)
     variants = entry.get("variants") or []
-    variant = next((v for v in variants if str(v.get("id") or "") == str(selection.variant or "").strip()), None)
-    if str(selection.variant or "").strip() and variant is None:
-        raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在：{str(selection.variant)[:80]}")
+    variant = resolve_skill_variant(variants, selection.variant)
     snapshot = skill_content_snapshot(dir_path)
     skill_used = {
         "id": entry["id"],
@@ -21453,9 +21475,7 @@ def skill_diff_for_preview(selection, user_prompt):
         raise HTTPException(status_code=400, detail=f"Skill 缺少 SKILL.md，无法预览：{selection.id}")
     entry = skill_entry_from_dir(dir_path, source, include_body=True)
     variants = entry.get("variants") or []
-    variant = next((v for v in variants if str(v.get("id") or "") == str(selection.variant or "").strip()), None)
-    if str(selection.variant or "").strip() and variant is None:
-        raise HTTPException(status_code=422, detail=f"Skill 变体 ID 不存在：{str(selection.variant)[:80]}")
+    variant = resolve_skill_variant(variants, selection.variant)
     mode = str(selection.mode or "fast").strip().lower()
     if mode == "fast":
         return {"mode": "fast", "compiled_prompt": compose_skill_prompt_fast(entry.get("body") or "", user_prompt, variant)}
