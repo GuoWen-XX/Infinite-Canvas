@@ -63,3 +63,14 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 ## 4. 状态结论
 
 当前：`S08 IN_PROGRESS / RELEASE_BLOCKED`。**S00–S07 阶段已合并，不等于最终验收。** 本仓库缺少能运行完整 checkout 的环境；GitHub Actions 不自动运行也不手动触发。必须保留未执行项目的真实状态，禁止填写“全绿”。
+
+## 5. 2026-11-03 依赖修复推进：隔离下载方案已提交（未发布）
+
+- [x] 新增 `tools/prepare_s08_wheelhouse.py`：使用 `pip download --only-binary=:all: --implementation cp --python-version 3.10 --abi cp310 --platform win_amd64`，包含传递依赖，输出只能是仓库外全新/空目录，拒绝写入现有 `packages/`。
+- [x] 新增 `tests/test_prepare_s08_wheelhouse.py` 的 5 个合成测试；在独立本机目录以 Python unittest 执行 **5/5 PASS**。仅验证命令和失败保护，未下载真实 wheel。
+- [ ] 在联网的可信构建环境运行 `python tools/prepare_s08_wheelhouse.py --output <仓库外空目录>`；不要在开发者现有 Python 或正式安装目录直接修改依赖。
+- [ ] 下载成功后人工清点、校验 wheel 完整性，并在隔离的 Windows Python 3.10 环境使用 `python -m pip install --no-index --find-links=<候选目录> -r requirements.txt` 及 `python -m pip check`，记录完整执行日志。
+- [ ] 若依赖不存在对应 Windows cp310 wheel，则**记录失败并提出明确的锁定版本/运行时升级方案**；禁止以静态检查通过替代完整安装。
+- [ ] 既有更新渠道仍与修复目标不一致，且 S08 原有跨模块/设备测试仍未完成；PR #11 保持 draft，不得据此合并或发布。
+
+此工具是**复现和修复手段**，不是实际准备完成的 wheelhouse；发布判断仍为 `RELEASE_BLOCKED`。
