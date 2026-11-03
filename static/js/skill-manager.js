@@ -159,14 +159,16 @@ function openEditor(item) {
     if (item) {
         api(`/api/skills/custom/${encodeURIComponent(item.id)}`).then(detail => {
             document.getElementById('skillEditContent').value = detail.body || '';
-            (detail.variants || []).forEach(v => addVariantRow(v.label || '', v.prompt || ''));
+            (detail.variants || []).forEach(v => addVariantRow(v.label || '', v.prompt || '', v.id || ''));
         }).catch(error => toast(error.message));
     }
 }
-function addVariantRow(label = '', prompt = '') {
+function addVariantRow(label = '', prompt = '', id = '') {
     const list = document.getElementById('skillVariantsList');
     const row = document.createElement('div');
     row.className = 'skill-variant-row';
+    // Keep the immutable ID even when the visible label changes.
+    row.dataset.variantId = String(id || '');
     row.innerHTML = `
         <input class="skill-input v-label" type="text" maxlength="80" placeholder="样板名（如：单墨 · 钴蓝）" value="${escapeHtml(label)}">
         <input class="skill-input v-prompt" type="text" maxlength="2000" placeholder="该样板的追加指令（墨色/纹理/构图约束）" value="${escapeHtml(prompt)}">
@@ -176,6 +178,7 @@ function addVariantRow(label = '', prompt = '') {
 }
 function collectVariants() {
     return [...document.querySelectorAll('#skillVariantsList .skill-variant-row')].map(row => ({
+        id: row.dataset.variantId || '',
         label: row.querySelector('.v-label').value.trim(),
         prompt: row.querySelector('.v-prompt').value.trim(),
     })).filter(v => v.label);
@@ -188,7 +191,7 @@ async function saveEditor() {
     try {
         const variants = collectVariants();
         if (editingId) {
-            await api(`/api/skills/custom/${encodeURIComponent(editingId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, variants }) });
+            await api(`/api/skills/custom/${encodeURIComponent(editingId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, variants, content_format: 'body' }) });
             toast('已保存');
         } else {
             const name = document.getElementById('skillEditName').value.trim();
