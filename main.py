@@ -6117,23 +6117,50 @@ async def generate_codex_provider_image_via_gpt_image_2_skill(prompt, size, mode
         }
     raise HTTPException(status_code=502, detail=f"GPT Image 2 Skill 调用失败：{last_message[:1200]}")
 
+def codex_scoped_local_reference_path(ref_url):
+    """Resolve a local Codex reference only inside operator-selected media roots.
+
+    In particular, arbitrary file:// and absolute filesystem paths must not
+    grant the Codex subprocess read access to unrelated local private files.
+    """
+    text = str(ref_url or "").strip()
+    if text.startswith("file://"):
+        parsed = urllib.parse.urlsplit(text)
+        if parsed.query or parsed.fragment or parsed.username is not None or parsed.password is not None:
+            return None
+        if os.name == "nt":
+            path = urllib.request.url2pathname(parsed.path)
+            if parsed.netloc and parsed.netloc.lower() != "localhost":
+                path = "\\\\" + parsed.netloc + path.replace("/", "\\\\")
+        else:
+            if parsed.netloc and parsed.netloc.lower() != "localhost":
+                return None
+            path = urllib.parse.unquote(parsed.path)
+    else:
+        path = text
+    if not os.path.isabs(path):
+        return None
+    for root in (OUTPUT_OUTPUT_DIR, OUTPUT_INPUT_DIR, LOCAL_UPLOAD_DIR, ASSETS_DIR, OUTPUT_DIR):
+        resolved = storage_contained_realpath(root, path)
+        if resolved and os.path.isfile(resolved):
+            return resolved
+    return None
+
+
 async def codex_prepare_local_media(ref_url):
     text = str(ref_url or "").strip()
     if not text:
         return "", []
-    if text.startswith(("/output/", "/assets/")):
+    if text.startswith(("/output/", "/assets/", "/api/storage-files/")):
         path = output_file_from_url(text)
+        if path and os.path.isfile(path):
+            return path, []
+        raise HTTPException(status_code=404, detail=f"OpenAI CLI 参考素材不存在或越过许可存储根：{text[:120]}")
+    if text.startswith("file://") or os.path.isabs(text):
+        path = codex_scoped_local_reference_path(text)
         if path:
             return path, []
-        raise HTTPException(status_code=404, detail=f"OpenAI CLI 参考素材不存在：{text}")
-    if text.startswith("file://"):
-        path = urllib.parse.unquote(urllib.parse.urlparse(text).path)
-        if os.name == "nt" and re.match(r"^/[A-Za-z]:/", path):
-            path = path[1:]
-        if os.path.isfile(path):
-            return path, []
-    if os.path.isfile(text):
-        return text, []
+        raise HTTPException(status_code=400, detail="OpenAI CLI 参考素材不在当前配置的媒体目录中")
     temp_paths = []
     suffix = ".png"
     if text.startswith("data:"):
