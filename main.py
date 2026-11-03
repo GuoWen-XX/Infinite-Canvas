@@ -20744,7 +20744,7 @@ def compose_skill_updated_markdown(current_text, content, variants=None, content
         raise HTTPException(status_code=422, detail="content_format 仅支持 body 或 markdown")
     if _skill_yaml is None:
         raise HTTPException(status_code=503, detail="缺少 PyYAML，不能安全编辑 Skill frontmatter")
-    pattern = r"^---[ \\t]*\\r?\\n(.*?)\\r?\\n---[ \\t]*\\r?\\n?"
+    pattern = r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n?"
     current_match = re.match(pattern, current_text, flags=re.S)
     original_meta = {}
     original_header = ""
@@ -20776,7 +20776,7 @@ def compose_skill_updated_markdown(current_text, content, variants=None, content
         return original_header + clean_content
     updated_meta = dict(original_meta)
     updated_meta["variants"] = updated_variants
-    return "---\\n" + _skill_yaml.safe_dump(updated_meta, allow_unicode=True, sort_keys=False, width=120) + "---\\n" + clean_content
+    return "---\n" + _skill_yaml.safe_dump(updated_meta, allow_unicode=True, sort_keys=False, width=120) + "---\n" + clean_content
 
 
 def atomic_write_skill_markdown(path, text):
@@ -20784,7 +20784,7 @@ def atomic_write_skill_markdown(path, text):
     parent = os.path.dirname(os.path.abspath(path))
     fd, temporary_path = tempfile.mkstemp(prefix=".skill-", suffix=".md", dir=parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\\n") as stream:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
