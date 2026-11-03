@@ -9,28 +9,71 @@ from pathlib import Path
 
 
 def updater_constants(source: str) -> dict[str, str]:
+    """Evaluate only literal strings and f-strings referencing audited constants."""
     tree = ast.parse(source, filename="main.py")
+    wanted = {
+        "GITHUB_REPO_URL", "GITHUB_BRANCH", "GITHUB_VERSION_URL",
+        "GITHUB_TREE_URL", "GITHUB_RAW_ROOT",
+    }
     found: dict[str, str] = {}
+
+    def literal(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name):
+            return found.get(node.id)
+        if isinstance(node, ast.JoinedStr):
+            parts = []
+            for part in node.values:
+                if isinstance(part, ast.FormattedValue):
+                    value = literal(part.value)
+                else:
+                    value = literal(part)
+                if value is None:
+                    return None
+                parts.append(value)
+            return "".join(parts)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = literal(node.left), literal(node.right)
+            return left + right if left is not None and right is not None else None
+        return None
+
     for node in tree.body:
         if not isinstance(node, ast.Assign):
             continue
         for target in node.targets:
-            if isinstance(target, ast.Name) and target.id in {"GITHUB_REPO_URL", "GITHUB_BRANCH"}:
-                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    found[target.id] = node.value.value
+            if isinstance(target, ast.Name) and target.id in wanted:
+                value = literal(node.value)
+                if value is None:
+                    found.pop(target.id, None)
+                else:
+                    found[target.id] = value
     return found
 
 
 def audit(path: Path, expected_repo: str, expected_branch: str) -> dict:
     values = updater_constants(path.read_text(encoding="utf-8-sig"))
-    expected_url = "https://github.com/" + expected_repo.strip().strip("/")
-    actual_url = values.get("GITHUB_REPO_URL")
-    actual_branch = values.get("GITHUB_BRANCH")
-    matches = actual_url == expected_url and actual_branch == expected_branch
+    repo = expected_repo.strip().strip("/")
+    expected_url = "https://github.com/" + repo
+    expected = {
+        "GITHUB_REPO_URL": expected_url,
+        "GITHUB_BRANCH": expected_branch,
+        "GITHUB_VERSION_URL": f"https://raw.githubusercontent.com/{repo}/{expected_branch}/VERSION",
+        "GITHUB_TREE_URL": f"https://api.github.com/repos/{repo}/git/trees/{expected_branch}?recursive=1",
+        "GITHUB_RAW_ROOT": f"https://raw.githubusercontent.com/{repo}/{expected_branch}",
+    }
+    mismatches = {
+        key: {"actual": values.get(key), "expected": value}
+        for key, value in expected.items() if values.get(key) != value
+    }
     return {
-        "passed": matches, "repo_url": actual_url, "branch": actual_branch,
-        "expected_repo_url": expected_url, "expected_branch": expected_branch,
-        "reason": "" if matches else "Updater points to a different repository/branch; release may overwrite this fork",
+        "passed": not mismatches,
+        "repo_url": values.get("GITHUB_REPO_URL"),
+        "branch": values.get("GITHUB_BRANCH"),
+        "expected_repo_url": expected_url,
+        "expected_branch": expected_branch,
+        "mismatches": mismatches,
+        "reason": "" if not mismatches else "Updater download endpoints differ from the approved repository/branch",
     }
 
 
