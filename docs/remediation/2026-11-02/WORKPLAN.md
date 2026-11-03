@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 IN_PROGRESS`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IN_PROGRESS / RELEASE_BLOCKED`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -28,8 +28,8 @@
 | S04 | MERGED / DEFERRED VALIDATION | 画布 409 覆盖 R1、元数据回滚 R6 | `static/js/canvas.js`、`main.py`、画布测试 | 双页面增/改/删、改名均不丢数据，草稿可恢复 |
 | S05 | MERGED / DEFERRED VALIDATION | Skill 编辑 frontmatter R2、variant ID R7 | `main.py`、`static/js/skill-manager.js`、Skill 测试 | 保存不丢元数据、不改稳定 ID、旧画布引用有效 |
 | S06 | MERGED / DEFERRED VALIDATION | PyYAML 正式依赖 R4、GitHub Skill tracking ref R3 | `requirements.txt`、安装脚本、`main.py`、Skill 测试 | 全新环境正确安装；A→B→C 升级可跟踪；缺依赖无半次写 |
-| S07 | IN_PROGRESS | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
-| S08 | NOT_STARTED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
+| S07 | MERGED / DEFERRED VALIDATION | Codex 自定义存储参考图 R5 | `main.py`、Codex 测试 | 默认/自定义路径均可解析，非法引用拒绝 |
+| S08 | IN_PROGRESS / RELEASE_BLOCKED | 跨模块回归、Windows/LAN/插件联调与发布质量门 | 本地/隔离测试、文档、最小必要的修复文件 | 完整回归、发布报告及残余风险列表 |
 
 优先级解释：安全 P0 首先修；画布数据丢失 R1 在 S04 专项完整解决；每阶段风险以隔离环境复现结果重新评定，不能仅靠既往静态结论。
 
@@ -223,7 +223,15 @@
 
 **2026-11-03 S07 有限隔离执行记录：** 本机 Python 3.13 使用从 PR #10 目标函数摘录的实现和模拟存储根/远程下载器运行 12 项临时 fixture，**12/12 PASS**（默认根、自定义存储 URL、file URI、越权路径、外链软链接、私有/公共远端 mock、data URL、非法 base64、路径穿越）。此测试仅验证被摘录函数和模拟依赖，**不是 `main.py` 完整导入、14 项仓库测试实际执行或 Windows UNC 实测**。准确 S07 变更、完整仓库测试和独立审查仍须分阶段风险记录及 S08 发布前补验；未触发 Actions，未调用真实 Codex/计费服务。
 
+**2026-11-03 S07 合并并启动 S08：** PR #10 已合入 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`；本地 Codex 路径安全、远程 SSRF 共享校验和 data URL 限制已实现。14 项回归代码已编写，Python 3.13 摘录函数的 12 项离线 fixture 通过，但并非 `main.py` 集成/Windows 实测。合并风险见 PR #10，S08 前禁止发布。新分支 `fix/S08-release-validation`。
+
 ### S08 — 完成验收
+
+- [x] 检查 `requirements.txt`、`packages/` 与自带 `python/`：自带 `python310.dll`，22 个 wheel 中包含 `cp314-win_amd64`，8 项直接锁定依赖只有 2 项文件名匹配；**离线依赖安装门禁 FAIL**。PyYAML==6.0.3 缺 wheel，FastAPI/Uvicorn/Requests/python-multipart/Pillow 均版本不符，传递依赖 pydantic-core/charset-normalizer 含错误 Python ABI。不得盲目降级 `requirements.txt`。
+- [x] 新增无网络、零额度 `tools/check_s08_wheelhouse.py` 静态检查器及 `tests/test_s08_wheelhouse.py` 6 项合成测试。本地 Python 3.13 对代码等价本地版本运行 **6/6 PASS**；按 GitHub 当前目录清单重建**文件名镜像**运行工具得到 6 个直接依赖问题，**不能称真实 wheel 文件内容已安装/验证**。
+- [x] 完整发布门禁及剩余测试逐项列在 [S08_RELEASE_GATE.md](S08_RELEASE_GATE.md)，包括原生 Python/Node、Windows/UNC、Chrome/PS/LAN/ModelScope、Skill A→B→C 与 Codex 媒体、真实自动更新渠道。
+- [ ] 没有 Windows 隔离副本/完整可执行 repo checkout；全量 Python/Node、安装、浏览器和插件联调均 **NOT_RUN**。在补齐之前 S08 **RELEASE_BLOCKED**；不得借阶段合并豁免宣布最终验收或发布。GitHub Actions 按维护者约束未触发。
+
 
 - [ ] 完整 Python unittest discover、JS 语法与浏览器用例、Windows 启动器实际运行。
 - [ ] LAN/Chrome/Photoshop/ModelScope 与纯本机模式回归。
