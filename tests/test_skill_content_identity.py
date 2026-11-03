@@ -107,6 +107,18 @@ class SkillContentIdentityTests(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 422)
         self.assertEqual(self.source(), original)
 
+    def test_bom_prefixed_frontmatter_is_preserved(self):
+        original = "\ufeff" + self.source()
+        with open(self.skill_md, "w", encoding="utf-8") as file:
+            file.write(original)
+        self.update("# New body after BOM")
+        updated = self.source()
+        self.assertTrue(updated.startswith("\ufeff---\n"))
+        metadata, body = main.parse_skill_markdown_text(updated)
+        self.assertEqual(metadata["name"], "Ink Skill")
+        self.assertEqual(metadata["x-artist"]["school"], "sumi-e")
+        self.assertEqual(body, "# New body after BOM")
+
     def test_malformed_original_yaml_refuses_destructive_update(self):
         broken = "---\nname: [unterminated\n---\n# Protected body\n"
         with open(self.skill_md, "w", encoding="utf-8") as f:
