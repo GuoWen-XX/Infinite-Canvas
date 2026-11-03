@@ -21,10 +21,10 @@ class ReleaseSourceGateTests(unittest.TestCase):
     @staticmethod
     def valid_source():
         return (
-            'GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\\n'
-            'GITHUB_BRANCH = "main"\\n'
-            'GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"\\n'
-            'GITHUB_TREE_URL = f"https://api.github.com/repos/GuoWen-XX/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"\\n'
+            'GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\n'
+            'GITHUB_BRANCH = "main"\n'
+            'GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}/VERSION"\n'
+            'GITHUB_TREE_URL = f"https://api.github.com/repos/GuoWen-XX/Infinite-Canvas/git/trees/{GITHUB_BRANCH}?recursive=1"\n'
             'GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}"\n'
         )
 
