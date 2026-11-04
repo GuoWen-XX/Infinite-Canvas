@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static release gate: verify updater origin without importing or running main.py."""
+"""Check updater URLs without importing or executing the application."""
 from __future__ import annotations
 
 import argparse
@@ -8,29 +8,96 @@ import json
 from pathlib import Path
 
 
-def updater_constants(source: str) -> dict[str, str]:
+UPDATER_NAMES = frozenset({
+    "GITHUB_REPO_URL", "GITHUB_BRANCH", "GITHUB_VERSION_URL",
+    "GITHUB_TREE_URL", "GITHUB_RAW_ROOT", "GITHUB_UPDATE_NOTES_URL",
+})
+
+
+def _assigned_names(target: ast.expr) -> set[str]:
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return set().union(*(_assigned_names(child) for child in target.elts))
+    return set()
+
+
+def _literal_expression(node: ast.expr, known: dict[str, str]) -> str | None:
+    """Support only strings, references, safe f-strings and concatenation."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return known.get(node.id)
+    if isinstance(node, ast.JoinedStr):
+        parts = []
+        for part in node.values:
+            if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                parts.append(part.value)
+            elif (isinstance(part, ast.FormattedValue) and part.conversion == -1
+                  and part.format_spec is None and isinstance(part.value, ast.Name)
+                  and part.value.id in known):
+                parts.append(known[part.value.id])
+            else:
+                return None
+        return "".join(parts)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _literal_expression(node.left, known)
+        right = _literal_expression(node.right, known)
+        return left + right if left is not None and right is not None else None
+    return None
+
+
+def updater_constants(source: str) -> tuple[dict[str, str], list[str]]:
     tree = ast.parse(source, filename="main.py")
-    found: dict[str, str] = {}
+    values: dict[str, str] = {}
+    encountered: set[str] = set()
+    violations: list[str] = []
     for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id in {"GITHUB_REPO_URL", "GITHUB_BRANCH"}:
-                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    found[target.id] = node.value.value
-    return found
+        if isinstance(node, ast.Assign):
+            targets = set().union(*(_assigned_names(t) for t in node.targets))
+            for name in targets & UPDATER_NAMES:
+                if name in encountered:
+                    violations.append(f"duplicate assignment to {name}")
+                encountered.add(name)
+                value = _literal_expression(node.value, values)
+                if value is None:
+                    violations.append(f"dynamic/unsupported value for {name}")
+                else:
+                    values[name] = value
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            for name in _assigned_names(node.target) & UPDATER_NAMES:
+                violations.append(f"unsupported assignment to {name}")
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                for name in _assigned_names(target) & UPDATER_NAMES:
+                    violations.append(f"deletion of {name}")
+    return values, violations
 
 
 def audit(path: Path, expected_repo: str, expected_branch: str) -> dict:
-    values = updater_constants(path.read_text(encoding="utf-8-sig"))
-    expected_url = "https://github.com/" + expected_repo.strip().strip("/")
-    actual_url = values.get("GITHUB_REPO_URL")
-    actual_branch = values.get("GITHUB_BRANCH")
-    matches = actual_url == expected_url and actual_branch == expected_branch
+    values, violations = updater_constants(path.read_text(encoding="utf-8-sig"))
+    slug = expected_repo.strip().strip("/")
+    branch = expected_branch.strip()
+    expected = {
+        "GITHUB_REPO_URL": f"https://github.com/{slug}",
+        "GITHUB_BRANCH": branch,
+        "GITHUB_VERSION_URL": f"https://raw.githubusercontent.com/{slug}/{branch}/VERSION",
+        "GITHUB_TREE_URL": f"https://api.github.com/repos/{slug}/git/trees/{branch}?recursive=1",
+        "GITHUB_RAW_ROOT": f"https://raw.githubusercontent.com/{slug}/{branch}",
+        "GITHUB_UPDATE_NOTES_URL": f"https://raw.githubusercontent.com/{slug}/{branch}/static/update-notes.json",
+    }
+    problems = violations + [
+        f"{name} differs from expected source"
+        for name, value in expected.items() if values.get(name) != value
+    ]
     return {
-        "passed": matches, "repo_url": actual_url, "branch": actual_branch,
-        "expected_repo_url": expected_url, "expected_branch": expected_branch,
-        "reason": "" if matches else "Updater points to a different repository/branch; release may overwrite this fork",
+        "passed": not problems,
+        "repo_url": values.get("GITHUB_REPO_URL"),
+        "branch": values.get("GITHUB_BRANCH"),
+        "expected_repo_url": expected["GITHUB_REPO_URL"],
+        "expected_branch": expected["GITHUB_BRANCH"],
+        "problems": problems,
+        "reason": "" if not problems else "Updater source/branch or derived URLs are inconsistent",
     }
 
 
@@ -48,8 +115,8 @@ def main() -> int:
         print("Update source:", "PASS" if result["passed"] else "FAIL")
         print(f"Actual: {result['repo_url']} @ {result['branch']}")
         print(f"Target: {result['expected_repo_url']} @ {result['expected_branch']}")
-        if result["reason"]:
-            print(result["reason"])
+        for problem in result["problems"]:
+            print("-", problem)
     return 0 if result["passed"] else 1
 
 
