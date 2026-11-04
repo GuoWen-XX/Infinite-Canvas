@@ -56,7 +56,7 @@ def wheel_compatible(wheel: dict, target_python: str, platform="win_amd64") -> b
     platforms = wheel["platform_tag"].split(".")
     # Pure-Python wheels tagged for older 3.x minors can run on Python 3.10.
     older_pure = (major == "3" and "none" in abis and any(
-        re.fullmatch(r"py3(\\d+)", tag) and int(tag[3:]) <= int(minor)
+        re.fullmatch(r"py3(\d+)", tag) and int(tag[3:]) <= int(minor)
         for tag in tags
     ))
     python_ok = (f"py{major}" in tags or f"py{major}{minor}" in tags
