@@ -17,6 +17,8 @@ UPDATER_NAMES = frozenset({
 def _assigned_names(target: ast.expr) -> set[str]:
     if isinstance(target, ast.Name):
         return {target.id}
+    if isinstance(target, ast.Starred):
+        return _assigned_names(target.value)
     if isinstance(target, (ast.Tuple, ast.List)):
         return set().union(*(_assigned_names(child) for child in target.elts))
     return set()
@@ -55,10 +57,17 @@ def updater_constants(source: str) -> tuple[dict[str, str], list[str]]:
     for node in tree.body:
         if isinstance(node, ast.Assign):
             targets = set().union(*(_assigned_names(t) for t in node.targets))
+            # Do not treat unpacking or chained targets as direct assignments.
+            # Their runtime values can differ from the raw right-hand side.
+            unsupported_target = (len(node.targets) != 1
+                                  or not isinstance(node.targets[0], ast.Name))
             for name in targets & UPDATER_NAMES:
                 if name in encountered:
                     violations.append(f"duplicate assignment to {name}")
                 encountered.add(name)
+                if unsupported_target:
+                    violations.append(f"unsupported destructuring/chained assignment to {name}")
+                    continue
                 value = _literal_expression(node.value, values)
                 if value is None:
                     violations.append(f"dynamic/unsupported value for {name}")
