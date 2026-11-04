@@ -64,6 +64,28 @@ class ReleaseSourceGateTests(unittest.TestCase):
         self.assertFalse(self.audit(source().replace(
             'GITHUB_UPDATE_NOTES_URL = GITHUB_RAW_ROOT + "/static/update-notes.json"', ''))["passed"])
 
+    def test_tuple_unpacking_cannot_bypass_branch_gate(self):
+        result = self.audit(source().replace(
+            'GITHUB_BRANCH = "main"', 'GITHUB_BRANCH, *_ = "main"'))
+        self.assertFalse(result["passed"])
+        self.assertIn("unsupported destructuring/chained assignment to GITHUB_BRANCH",
+                      result["problems"])
+
+    def test_list_unpacking_cannot_bypass_branch_gate(self):
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_BRANCH = "main"', '[GITHUB_BRANCH] = ["main"]'))["passed"])
+
+    def test_starred_branch_target_fails_closed(self):
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_BRANCH = "main"', '*GITHUB_BRANCH, other = "main"'))["passed"])
+
+    def test_chained_assignment_cannot_bypass_branch_gate(self):
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_BRANCH = "main"', 'GITHUB_BRANCH = branch_alias = "main"'))["passed"])
+
+    def test_unrelated_unpacking_does_not_block_valid_source(self):
+        self.assertTrue(self.audit(source() + 'dummy, other = "ab"\n')["passed"])
+
     def test_live_main_file_uses_safe_github_urls(self):
         path = Path(__file__).resolve().parents[1] / "main.py"
         self.assertTrue(checker.audit(path, "GuoWen-XX/Infinite-Canvas", "main")["passed"])
