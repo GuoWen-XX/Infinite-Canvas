@@ -1,4 +1,4 @@
-"""S08 release-source gate: no updater execution or real downloads."""
+"""Pure Python release-source checks; never execute updater or contact network."""
 import ast
 import importlib.util
 import tempfile
@@ -11,6 +11,15 @@ checker = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(checker)
 
 
+def source(repo="GuoWen-XX/Infinite-Canvas", branch="main"):
+    return (f'GITHUB_REPO_URL = "https://github.com/{repo}"\n'
+            f'GITHUB_BRANCH = "{branch}"\n'
+            f'GITHUB_VERSION_URL = f"https://raw.githubusercontent.com/{repo}/{{GITHUB_BRANCH}}/VERSION"\n'
+            f'GITHUB_TREE_URL = f"https://api.github.com/repos/{repo}/git/trees/{{GITHUB_BRANCH}}?recursive=1"\n'
+            f'GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/{repo}/{{GITHUB_BRANCH}}"\n'
+            'GITHUB_UPDATE_NOTES_URL = GITHUB_RAW_ROOT + "/static/update-notes.json"\n')
+
+
 class ReleaseSourceGateTests(unittest.TestCase):
     def audit(self, content):
         with tempfile.TemporaryDirectory(prefix="s08_updater_") as root:
@@ -19,47 +28,46 @@ class ReleaseSourceGateTests(unittest.TestCase):
             return checker.audit(path, "GuoWen-XX/Infinite-Canvas", "main")
 
     def test_matching_fork_source_passes(self):
-        result = self.audit('GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\n'
-                            'GITHUB_BRANCH = "main"\n')
-        self.assertTrue(result["passed"])
+        self.assertTrue(self.audit(source())["passed"])
 
     def test_upstream_repo_source_fails_even_if_branch_matches(self):
-        result = self.audit('GITHUB_REPO_URL = "https://github.com/benkwok1983-cmd/Infinite-Canvas"\n'
-                            'GITHUB_BRANCH = "main"\n')
-        self.assertFalse(result["passed"])
+        self.assertFalse(self.audit(source(repo="benkwok1983-cmd/Infinite-Canvas"))["passed"])
 
     def test_wrong_branch_fails_even_if_repo_matches(self):
-        result = self.audit('GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"\n'
-                            'GITHUB_BRANCH = "zcode/iteration-01"\n')
-        self.assertFalse(result["passed"])
+        self.assertFalse(self.audit(source(branch="zcode/iteration-01"))["passed"])
 
     def test_nonconstant_source_fails_closed(self):
-        result = self.audit('GITHUB_REPO_URL = get_repo_from_env()\nGITHUB_BRANCH = "main"\n')
-        self.assertFalse(result["passed"])
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_REPO_URL = "https://github.com/GuoWen-XX/Infinite-Canvas"',
+            'GITHUB_REPO_URL = get_repo_from_env()'))["passed"])
+
+    def test_duplicate_later_override_fails_closed(self):
+        self.assertFalse(self.audit(source()+'GITHUB_BRANCH = "zcode/iteration-01"\n')["passed"])
+
+    def test_unsupported_augmented_assignment_fails_closed(self):
+        self.assertFalse(self.audit(source()+'GITHUB_BRANCH += "-unsafe"\n')["passed"])
+
+    def test_derived_version_url_wrong_repo_fails(self):
+        self.assertFalse(self.audit(source().replace(
+            'raw.githubusercontent.com/GuoWen-XX', 'raw.githubusercontent.com/other', 1))["passed"])
+
+    def test_wrong_tree_ref_fails(self):
+        self.assertFalse(self.audit(source().replace(
+            '/git/trees/{GITHUB_BRANCH}', '/git/trees/zcode'))["passed"])
+
+    def test_non_literal_derived_url_fails(self):
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_RAW_ROOT = f"https://raw.githubusercontent.com/GuoWen-XX/Infinite-Canvas/{GITHUB_BRANCH}"',
+            'GITHUB_RAW_ROOT = get_override()'))["passed"])
+
+    def test_missing_update_notes_url_fails(self):
+        self.assertFalse(self.audit(source().replace(
+            'GITHUB_UPDATE_NOTES_URL = GITHUB_RAW_ROOT + "/static/update-notes.json"', ''))["passed"])
 
     def test_live_main_file_uses_safe_github_urls(self):
         path = Path(__file__).resolve().parents[1] / "main.py"
         self.assertTrue(checker.audit(path, "GuoWen-XX/Infinite-Canvas", "main")["passed"])
-        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
-        paths = {"GITHUB_VERSION_URL", "GITHUB_TREE_URL", "GITHUB_RAW_ROOT"}
-        checked = set()
-        for node in tree.body:
-            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
-                continue
-            target = node.targets[0]
-            if not isinstance(target, ast.Name) or target.id not in paths:
-                continue
-            self.assertIsInstance(node.value, ast.JoinedStr)
-            literals = "".join(part.value for part in node.value.values
-                               if isinstance(part, ast.Constant) and isinstance(part.value, str))
-            self.assertIn("GuoWen-XX/Infinite-Canvas", literals)
-            self.assertNotIn("benkwok1983-cmd/Infinite-Canvas", literals)
-            self.assertTrue(any(isinstance(part, ast.FormattedValue)
-                                and isinstance(part.value, ast.Name)
-                                and part.value.id == "GITHUB_BRANCH"
-                                for part in node.value.values))
-            checked.add(target.id)
-        self.assertEqual(checked, paths)
+        ast.parse(path.read_text(encoding="utf-8-sig"))
 
 
 if __name__ == "__main__":
