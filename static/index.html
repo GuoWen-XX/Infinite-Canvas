@@ -2776,7 +2776,7 @@ let updateSource = localStorage.getItem('studio_update_source') === 'modelscope'
                 let best = null;
                 let reachable = false;
                 let serverChecked = false;
-                // 优先走后端检测：服务端用系统代理同时检测 GitHub 和 ModelScope，避免浏览器跨域/被墙
+                // 优先通过后端检测当前允许的更新源，避免浏览器跨域和无效的上游版本提醒
                 try {
                     const r = await fetch('/api/check-update', { cache:'no-store' });
                     if(r.ok) {
@@ -2787,12 +2787,11 @@ let updateSource = localStorage.getItem('studio_update_source') === 'modelscope'
                         if(d.latest?.version) best = {source:d.latest.source, version:d.latest.version, update_notes:d.latest.update_notes || d.update_notes || null};
                     }
                 } catch(e) {}
-                // 兜底：旧后端无 /api/check-update 时，浏览器直接拉取双源 VERSION
+                // 旧后端无检查接口时，浏览器仅从当前允许的 GitHub 源获取 VERSION
                 if(!serverChecked) {
                     const sources = appInfo.sources || {};
                     const candidates = [
                         {source:'github', url:sources.github?.version_url || appInfo.version_url || ''},
-                        {source:'modelscope', url:sources.modelscope?.version_url || ''},
                     ].filter(item => item.url);
                     for(const item of candidates) {
                         try {
@@ -2814,7 +2813,7 @@ let updateSource = localStorage.getItem('studio_update_source') === 'modelscope'
                     } else if(reachable) {
                         alert(isEn ? `You are on the latest version (${versionLabel(current)}).` : `已是最新版本（${versionLabel(current)}）。`);
                     } else {
-                        alert(isEn ? 'Could not reach GitHub or ModelScope. Check your network/proxy and try again.' : '无法连接 GitHub 或 ModelScope 更新源，请检查网络或代理后重试。');
+                        alert(isEn ? 'Could not reach GitHub. Check your network/proxy and try again.' : '无法连接 GitHub 更新源，请检查网络或代理后重试。');
                     }
                 }
             } catch(e) {
