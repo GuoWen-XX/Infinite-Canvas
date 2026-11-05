@@ -101,3 +101,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **S03 POSIX/Linux 原生回归 PASS**：GitHub 连接器取得 `storage_guard.py` 和 `tests/test_storage_handles.py`，本地逐文件 `git hash-object` 与 `main` Blob SHA 完全一致（分别 `df2f8c48b3ad2fb85b19ddfc43dc39eb424d2ffa` 和 `a9283409768c5e75eb81e973d676cd31cca1b00c`）。在 Linux/Python 3.13 执行 `PYTHONPATH=. python -m unittest discover -s tests -p test_storage_handles.py -v`：**13/13 PASS，0 FAIL，0 SKIP**。测试范围包括真实 FD、符号链接/根目录竞态、FIFO、删除句柄和受限目录可达性；Windows UNC 路径规范化/句柄比较只在该环境运行了纯函数模拟，**Windows UNC/junction 实机测试仍 NOT_RUN**。
 - **S02/macOS 启动脚本隔离 PASS**：GitHub 原始 `mac-启动服务.sh` 和 `tests/test_mac_launcher.py` 均通过本地 Git Blob SHA 精确校验（`33dc6f9f28577e68238ef45fb44ff853b4f37b61`、`e3d42c6c3d2ab22a2e6727dc010ed2d95d257c3b`）。Python 3.13 原生测试 **2/2 PASS**，包含 bash 语法和 Mock LAN 地址下仍打开 `127.0.0.1:3000`；**macOS 实机启动及 S02 LAN/Chrome/Photoshop 真正集成仍 NOT_RUN**。
 - 本记录只补充已经真正运行的原生测试，不把它们冒充完整仓库回归或 S08 正式 ACCEPTED。没有触发 GitHub Actions、安装依赖或读取真实用户数据。
+
+## 10. 2026-11-06 旧更新器首次升级兼容导入（隔离测试）
+
+- 从 `main.py` 读取真实 `storage_guard` → `static.storage_guard` 兼容导入代码；两份模块的 Git Blob SHA 均为 `df2f8c48b3ad2fb85b19ddfc43dc39eb424d2ffa`。`tests/test_s03_legacy_updater.py` 原始 Git Blob SHA 校验一致：`dac191652e81737cb925433b0792b072df80120f`。
+- 在仅包含该真实导入代码块与上述原始文件的最小 Linux/Python 3.13 fixture 执行仓库既有 `unittest`：**3/3 PASS**，包括字节一致性、旧更新器静态文件白名单、独立进程导入兼容副本。
+- 这确认有限的向后兼容导入机制，不是完整旧客户端真实升级、重启、下载、回滚或迁移测试；上述端到端操作仍 **NOT_RUN**。另外对 SHA 校验一致的 `static/js/canvas-conflict-recovery.js` 执行 `node --check`：**PASS**，不代表所有应用 JavaScript 都已完成语法检查。
+- 本轮未运行 GitHub Actions、没有依赖安装、没有真实用户数据或发布操作；**S08 SYSTEM ACCEPTANCE 尚未完成**。
