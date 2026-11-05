@@ -2350,7 +2350,7 @@ def version_gt(a: str, b: str) -> bool:
 def check_update():
     """仅从当前允许的更新源检测版本，避免旧上游版本触发误导性更新提示。"""
     current = current_app_version()
-    # 并发检测两个源，避免串行 8s+8s 拖慢首屏更新提示
+    # 只检测允许的更新源；禁用源不能影响版本提示或产生额外网络请求。
     holder: Dict[str, Dict[str, Any]] = {}
     def _probe(key: str, url: str):
         item = fetch_remote_version(url, timeout=5.0)
