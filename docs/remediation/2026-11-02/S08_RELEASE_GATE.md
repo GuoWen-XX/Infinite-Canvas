@@ -88,3 +88,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **修复及回归（隔离 PASS）**：在失败路径使用已创建的 `rollback_safety` 快照恢复现行 `static/` 和根文件；正常成功路径不改变。故障注入测试 `tests/test_s08_rollback_safety.py` **3/3 PASS**，本地提取函数的 `py_compile` PASS。属于实际文件 I/O 的隔离回归，不是 Windows 原生发布包测试。
 - **仍为 NOT_RUN**：完整仓库 Python unittest、所有 Node CJS、Windows `run.bat`、真实浏览器/Photoshop/LAN/ModelScope 联调、旧客户端迁移和下载校验端到端演练。当前容器具备 Python/Node，但无完整 checkout，直接访问 GitHub 域名时 DNS 失败。不得把上述隔离结果冒充全量通过。
 - **Actions**：未手动触发；不添加依赖、不执行 `pip install`、不使用生产画布/真实 Key，不修改默认分支或正式发布。
+
+## 8. 2026-11-06 S08 GitHub 更新包完整性回归
+
+- **发现缺陷（已隔离复现）**：既有 `github_update_file_list` 不拒绝 GitHub Tree `truncated=true`，缺少 `main.py`/`VERSION` 时会凭空补列；`download_github_update_files` 未比对 GitHub Tree 提供的每个 Blob SHA。由此，截断清单可能导致替换成不完整的 `static/`，分支下载内容漂移或 HTTP 200 错误页也可能进入暂存。无需触及用户数据即可用 Mock 复现。
+- **先测后修**：新增 `tests/test_s08_github_update_integrity.py`，从 `main.py` AST 提取实际两项函数，Python 3.13 原生 `unittest`，修改前 **1 PASS / 5 FAIL**；修改后 **6/6 PASS**。覆盖正常完整下载、截断 Tree、缺必要根文件、缺 Blob SHA、分支漂移和 HTTP 成功但内容损坏。
+- **修复**：要求 Tree 完整且具备必要文件、有效 Blob SHA；按 Git Blob 内容哈希验证每个下载文件，异常时拒绝暂存并由现有更新入口中止安装。Github 分支在 Tree 与 raw 之间发生变动时将安全失败，用户可稍后重试；本修复不声称已取得固定提交的端到端在线下载证据。
+- **证据边界**：本轮 Python 模拟回归通过，真实 GitHub 在线全量下载、原生全仓库 Python/Node 和 Windows 完整发布升级仍 **NOT_RUN**。不触发 GitHub Actions、不添加依赖、不修改默认分支。
