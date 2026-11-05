@@ -79,3 +79,12 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - PR #11 已合并：`d6858396e2376b581c02afda1686097402a44e20`。内容为 S08 检查工具、测试与验收台账；不会修改画布业务代码。
 - PR #12 已合并：`94295d06bcd9f67da621ce579e3f58c3d9359b97`。内容为 GitHub 更新仓库 URL、静态回归测试及说明；后续收尾核查发现 `GITHUB_BRANCH` 未同步，已在收尾 PR 中修复为 `main`。ModelScope 上游 fallback 继续禁用。
 - **完成定义**：S00–S08 代码阶段及这些 PR 合并完成；**未核验定义**：真实 Windows 免安装启动、完整 Python/Node、浏览器与设备、旧客户端安全迁移不得标记为通过。**不追加 pip 安装任务**。
+
+## 7. 2026-11-06 S08 原生隔离回归与回滚故障修复
+
+- **GitHub 状态复核**：开始本轮时 `main@fd1a86ebf28e46b23d9cd9d61890d0263cf369c8`，打开的 PR 为 0；默认分支仍为 `zcode/iteration-01`，修复目标为 `main`。
+- **真实文件校验和 Node 原生测试（PASS）**：GitHub 连接器取得 `static/js/canvas-conflict-recovery.js` 和 `tests/test_canvas_conflict_recovery.cjs`，重建的两份文件通过 `git hash-object` 与 GitHub Blob SHA 精确比对（`e38769e819ba7a4a0622574c5023a8b0b1bfbcd0` / `8b806f84a02eb30e5e220eeac22de358e7efac34`）；Node v22.16.0 原生 `node --test tests/test_canvas_conflict_recovery.cjs`：**8/8 PASS**。只覆盖这两个真实文件及其隔离模拟，不是全量 CJS、Chrome 双标签或系统验收。
+- **发现实际回滚故障**：从 `main.py` 的 `rollback_update` 函数提取并在 Python 3.13 的独立临时目录模拟复制失败和根文件替换失败。原版测试 **2 FAIL / 1 PASS**：`static/` 复制失败后现行页面文件消失；根文件失败后留下旧/新混合内容与临时文件。
+- **修复及回归（隔离 PASS）**：在失败路径使用已创建的 `rollback_safety` 快照恢复现行 `static/` 和根文件；正常成功路径不改变。故障注入测试 `tests/test_s08_rollback_safety.py` **3/3 PASS**，本地提取函数的 `py_compile` PASS。属于实际文件 I/O 的隔离回归，不是 Windows 原生发布包测试。
+- **仍为 NOT_RUN**：完整仓库 Python unittest、所有 Node CJS、Windows `run.bat`、真实浏览器/Photoshop/LAN/ModelScope 联调、旧客户端迁移和下载校验端到端演练。当前容器具备 Python/Node，但无完整 checkout，直接访问 GitHub 域名时 DNS 失败。不得把上述隔离结果冒充全量通过。
+- **Actions**：未手动触发；不添加依赖、不执行 `pip install`、不使用生产画布/真实 Key，不修改默认分支或正式发布。
