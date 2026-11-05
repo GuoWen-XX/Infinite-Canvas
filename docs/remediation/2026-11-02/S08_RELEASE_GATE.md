@@ -95,3 +95,9 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **先测后修**：新增 `tests/test_s08_github_update_integrity.py`，从 `main.py` AST 提取实际两项函数，Python 3.13 原生 `unittest`，修改前 **1 PASS / 5 FAIL**；修改后 **6/6 PASS**。覆盖正常完整下载、截断 Tree、缺必要根文件、缺 Blob SHA、分支漂移和 HTTP 成功但内容损坏。
 - **修复**：要求 Tree 完整且具备必要文件、有效 Blob SHA；按 Git Blob 内容哈希验证每个下载文件，异常时拒绝暂存并由现有更新入口中止安装。Github 分支在 Tree 与 raw 之间发生变动时将安全失败，用户可稍后重试；本修复不声称已取得固定提交的端到端在线下载证据。
 - **证据边界**：本轮 Python 模拟回归通过，真实 GitHub 在线全量下载、原生全仓库 Python/Node 和 Windows 完整发布升级仍 **NOT_RUN**。不触发 GitHub Actions、不添加依赖、不修改默认分支。
+
+## 9. 2026-11-06 S03 存储句柄及 S02 启动脚本原生回归
+
+- **S03 POSIX/Linux 原生回归 PASS**：GitHub 连接器取得 `storage_guard.py` 和 `tests/test_storage_handles.py`，本地逐文件 `git hash-object` 与 `main` Blob SHA 完全一致（分别 `df2f8c48b3ad2fb85b19ddfc43dc39eb424d2ffa` 和 `a9283409768c5e75eb81e973d676cd31cca1b00c`）。在 Linux/Python 3.13 执行 `PYTHONPATH=. python -m unittest discover -s tests -p test_storage_handles.py -v`：**13/13 PASS，0 FAIL，0 SKIP**。测试范围包括真实 FD、符号链接/根目录竞态、FIFO、删除句柄和受限目录可达性；Windows UNC 路径规范化/句柄比较只在该环境运行了纯函数模拟，**Windows UNC/junction 实机测试仍 NOT_RUN**。
+- **S02/macOS 启动脚本隔离 PASS**：GitHub 原始 `mac-启动服务.sh` 和 `tests/test_mac_launcher.py` 均通过本地 Git Blob SHA 精确校验（`33dc6f9f28577e68238ef45fb44ff853b4f37b61`、`e3d42c6c3d2ab22a2e6727dc010ed2d95d257c3b`）。Python 3.13 原生测试 **2/2 PASS**，包含 bash 语法和 Mock LAN 地址下仍打开 `127.0.0.1:3000`；**macOS 实机启动及 S02 LAN/Chrome/Photoshop 真正集成仍 NOT_RUN**。
+- 本记录只补充已经真正运行的原生测试，不把它们冒充完整仓库回归或 S08 正式 ACCEPTED。没有触发 GitHub Actions、安装依赖或读取真实用户数据。
