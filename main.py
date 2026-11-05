@@ -2449,12 +2449,19 @@ def github_bytes(url: str) -> bytes:
     resp = github_get(url, headers={"User-Agent": "Infinite-Canvas-Updater"}, timeout=60)
     return resp.content
 
-def download_github_update_files(files: List[str], staging_root: str) -> None:
+def download_github_update_files(files: List[str], staging_root: str,
+                                 expected_blobs: Dict[str, str]) -> None:
     staging_root_abs = os.path.abspath(staging_root)
     for rel in files:
         safe_update_target(rel)
+        expected_sha = expected_blobs.get(rel)
+        if not expected_sha:
+            raise RuntimeError(f"GitHub Tree 缺少文件校验值：{rel}")
         raw_url = f"{GITHUB_RAW_ROOT}/{urllib.parse.quote(rel, safe='/')}"
         data = github_bytes(raw_url)
+        actual_sha = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+        if actual_sha != expected_sha:
+            raise RuntimeError(f"GitHub 更新文件校验失败（下载与 Tree 不一致）：{rel}")
         stage_path = os.path.abspath(os.path.join(staging_root_abs, *rel.split("/")))
         if os.path.commonpath([staging_root_abs, stage_path]) != staging_root_abs:
             raise ValueError(f"更新暂存路径不安全：{rel}")
@@ -2604,28 +2611,35 @@ class UpdateRequest(BaseModel):
     source: str = "github"
     fallback: bool = True
 
-def github_update_file_list() -> Tuple[List[str], List[str], List[str]]:
+def github_update_file_list() -> Tuple[List[str], List[str], List[str], Dict[str, str]]:
     tree_data = github_json(GITHUB_TREE_URL, use_etag_cache=True)
+    if tree_data.get("truncated"):
+        raise RuntimeError("GitHub Tree 文件列表不完整，已取消更新")
     entries = tree_data.get("tree") or []
     static_files = []
     root_files = []
+    expected_blobs: Dict[str, str] = {}
     for entry in entries:
         path = str(entry.get("path") or "").replace("\\", "/")
         if entry.get("type") == "blob" and update_allowed_file(path):
+            sha = str(entry.get("sha") or "")
+            if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                raise RuntimeError(f"GitHub Tree 缺少有效 Blob SHA：{path}")
+            if path in expected_blobs and expected_blobs[path] != sha:
+                raise RuntimeError(f"GitHub Tree 重复且冲突的路径：{path}")
+            expected_blobs[path] = sha
             if path.startswith("static/"):
                 static_files.append(path)
             else:
                 root_files.append(path)
-    if "main.py" not in root_files:
-        root_files.append("main.py")
-    if "VERSION" not in root_files:
-        root_files.append("VERSION")
+    if "main.py" not in root_files or "VERSION" not in root_files:
+        raise RuntimeError("GitHub Tree 缺少 main.py 或 VERSION，已取消更新")
     static_files = sorted(set(static_files))
     root_files = sorted(set(root_files))
     files = root_files + static_files
     if not static_files:
         raise RuntimeError("GitHub 未返回 static 文件，已取消更新")
-    return root_files, static_files, files
+    return root_files, static_files, files, expected_blobs
 
 def staged_update_file_list(staging_root: str) -> Tuple[List[str], List[str], List[str]]:
     root_files = []
@@ -2679,8 +2693,8 @@ def stage_update_from_source(source: str, staging_root: str) -> Tuple[List[str],
     if source == "modelscope":
         download_modelscope_update_files(staging_root)
         return staged_update_file_list(staging_root)
-    root_files, static_files, files = github_update_file_list()
-    download_github_update_files(files, staging_root)
+    root_files, static_files, files, expected_blobs = github_update_file_list()
+    download_github_update_files(files, staging_root, expected_blobs)
     return root_files, static_files, files
 
 def validate_staged_update(staging_root: str, root_files: List[str], static_files: List[str]) -> None:
