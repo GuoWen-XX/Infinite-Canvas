@@ -2010,8 +2010,9 @@ def fetch_update_notes_with_fallback(preferred_source: str, version: str, timeou
         "github": GITHUB_UPDATE_NOTES_URL,
         "modelscope": MODELSCOPE_UPDATE_NOTES_URL,
     }
-    preferred = preferred_source if preferred_source in urls else "github"
-    order = [preferred, "modelscope" if preferred == "github" else "github"]
+    enabled_sources = ("github", "modelscope") if ALLOW_MODELSCOPE_UPDATE_SOURCE else ("github",)
+    preferred = preferred_source if preferred_source in enabled_sources else "github"
+    order = [preferred] + [key for key in enabled_sources if key != preferred]
     notes_by_source: Dict[str, Any] = {}
     best_notes: Dict[str, Any] = {"version": version, "items": []}
     for source in order:
@@ -2025,7 +2026,8 @@ def fetch_update_notes_with_fallback(preferred_source: str, version: str, timeou
         if source not in notes_by_source:
             notes_by_source[source] = {
                 "ok": False,
-                "error": "未尝试：已有更新说明可用" if best_notes.get("items") else "未尝试",
+                "error": ("更新源已禁用" if source not in enabled_sources
+                          else "未尝试：已有更新说明可用" if best_notes.get("items") else "未尝试"),
                 "url": url,
                 "source": source,
                 "version": version,
@@ -2346,7 +2348,7 @@ def version_gt(a: str, b: str) -> bool:
 
 @app.get("/api/check-update")
 def check_update():
-    """服务端检测 GitHub 与 ModelScope 两个源的远端版本（走系统代理，避免浏览器跨域/被墙）。"""
+    """仅从当前允许的更新源检测版本，避免旧上游版本触发误导性更新提示。"""
     current = current_app_version()
     # 并发检测两个源，避免串行 8s+8s 拖慢首屏更新提示
     holder: Dict[str, Dict[str, Any]] = {}
@@ -2354,18 +2356,24 @@ def check_update():
         item = fetch_remote_version(url, timeout=5.0)
         item["source"] = key
         holder[key] = item
-    threads = [
-        Thread(target=_probe, args=("github", GITHUB_VERSION_URL), daemon=True),
-        Thread(target=_probe, args=("modelscope", MODELSCOPE_VERSION_URL), daemon=True),
-    ]
+    threads = [Thread(target=_probe, args=("github", GITHUB_VERSION_URL), daemon=True)]
+    if ALLOW_MODELSCOPE_UPDATE_SOURCE:
+        threads.append(Thread(target=_probe, args=("modelscope", MODELSCOPE_VERSION_URL), daemon=True))
     for t in threads:
         t.start()
     for t in threads:
         t.join(timeout=5.5)
     github = holder.get("github") or {"version": "", "ok": False, "error": "检测超时（超过 5s）", "url": GITHUB_VERSION_URL, "source": "github"}
-    modelscope = holder.get("modelscope") or {"version": "", "ok": False, "error": "检测超时（超过 5s）", "url": MODELSCOPE_VERSION_URL, "source": "modelscope"}
+    modelscope = holder.get("modelscope") or {
+        "version": "", "ok": False,
+        "error": ("检测超时（超过 5s）" if ALLOW_MODELSCOPE_UPDATE_SOURCE
+                  else MODELSCOPE_UPDATE_SOURCE_DISABLED_HINT),
+        "url": MODELSCOPE_VERSION_URL, "source": "modelscope",
+        "disabled": not ALLOW_MODELSCOPE_UPDATE_SOURCE,
+    }
     best: Dict[str, Any] = {}
-    for item in (github, modelscope):
+    candidates = (github, modelscope) if ALLOW_MODELSCOPE_UPDATE_SOURCE else (github,)
+    for item in candidates:
         if item["ok"] and item["version"]:
             if not best or version_gt(item["version"], best["version"]):
                 best = {"source": item["source"], "version": item["version"]}
@@ -2382,7 +2390,7 @@ def check_update():
         "update_notes": best.get("update_notes") if best else {},
         "update_notes_sources": notes_by_source,
         "update_available": update_available,
-        "reachable": bool(github["ok"] or modelscope["ok"]),
+        "reachable": any(item["ok"] for item in candidates),
     }
 
 def update_allowed_file(path: str) -> bool:
