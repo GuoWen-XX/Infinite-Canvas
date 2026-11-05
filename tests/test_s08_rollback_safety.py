@@ -46,7 +46,8 @@ class RollbackSafetyTests(unittest.TestCase):
         funcs = [node for node in tree.body if isinstance(node, ast.FunctionDef)
                  and node.name in {"rollback_update", "restore_failed_rollback"}]
         self.assertEqual(len(funcs), 2)
-        funcs[0].decorator_list = []
+        for fn in funcs:
+            fn.decorator_list = []
         code = compile(ast.fix_missing_locations(ast.Module(body=funcs, type_ignores=[])),
                        str(ROOT / "main.py"), "exec")
         # create_update_backup is a controlled stand-in; it snapshots the live files.
