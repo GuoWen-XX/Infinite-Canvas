@@ -116,3 +116,11 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **修复**：仅允许单级真实备份目录名；拒绝 `.`、`..`、斜杠、反斜杠、NUL 和符号链接目录，且保留原有备份存在性、清单状态和锁机制。
 - **回归**：新增 `tests/test_s08_rollback_selector.py`，独立 AST 提取 `main.py` 中的真实 `rollback_update` 函数，使用临时目录和桩函数阻止磁盘恢复写入。Linux/Python 3.13：原入口校验的隔离复现 **6 FAIL / 6 PASS**；修复后 **12/12 PASS**。测试文件已用本地 `git hash-object` 与 PR 分支 GitHub Blob SHA `a85e5da98c2f1f5c56c956a766bb1028dd081575` 精确核对。
 - 这是路径选择前置校验的隔离测试，不是全量 Python、Windows 实机、真实回滚/重启 PASS；这些项目仍为 **NOT_RUN**。无安装任务、无 GitHub Actions、无真实用户画布、无正式发布。
+
+
+## 12. 2026-11-06 S04 智能画布：网络失败与浏览器存储同时失败
+
+- **发现并复现**：Smart Canvas 的 `saveCanvas` 在 5xx 或网络异常后调用 `persistSmartConflictDraft`；若 `localStorage.setItem` 因配额/隐私模式失败，虽然记录设置了 `persistence_error`，原 UI 仍显示「本地草稿已保留」并且不显示可导出的恢复面板。旧逻辑的新增故障用例 **2 FAIL / 5 PASS**。
+- **修复**：两条暂时性保存失败路径统一调用 `preserveSmartFailedSaveDraft`，存储成功时保持原提示；存储失败时用内存中的记录弹出已有 CanvasConflictRecovery 导出/副本 UI，明确警告刷新可能丢失修改。更新 `static/smart-canvas.html` 的 JS 缓存版本。
+- **隔离 Node.js 回归 PASS**：原仓库 `tests/test_smart_canvas_save_serialization.cjs` 新增 503+localStorage 不可写及网络异常+localStorage 不可写两项；更新后 **7/7 PASS**。原仓库 `tests/test_smart_canvas_remote_merge.cjs` **6/6 PASS**，同批 `tests/test_index_update_fallback.cjs` **3/3 PASS**、`tests/test_canvas_metadata_routes.cjs` **3/3 PASS**。测试文件逐个 `git hash-object` 校验与 Github Blob SHA 一致；执行时源 JS 使用从 `main` GitHub 文件提取的相关真实函数片段，并非完整 800–950 KB 文件，故属原生 Node 隔离回归，不能冒称全仓库原生运行。
+- **剩余 NOT_RUN**：正式 Windows 包、完整仓库全部 Python/Node 测试、浏览器真实 quota/private-mode、双标签/LAN/Photoshop、旧版更新重启恢复。未运行 Actions，未安装依赖，未使用真实 Key/画布。
