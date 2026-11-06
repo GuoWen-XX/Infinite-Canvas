@@ -10,7 +10,7 @@ const end = source.indexOf('function imageMetaFromNode(', start);
 assert.ok(start >= 0 && end > start, 'expected real Smart Canvas save functions');
 const handlers = source.slice(start, end);
 
-function fixture(){
+function fixture({storageFailure=false}={}){
     const calls = [], pending = [], drafts = [], timers = [], panels = [], toasts = [];
     const ctx = {
         canvasId:'smart-one',
@@ -24,7 +24,7 @@ function fixture(){
         settingsForStorage:x=>x,
         canvasForStorage:()=>JSON.parse(JSON.stringify({...ctx.canvas,nodes:ctx.nodes})),
         clearTimeout(){}, setTimeout(fn){timers.push(fn);return 1;},
-        localStorage:{setItem(key,value){drafts.push({key,record:JSON.parse(value)});}},
+        localStorage:{setItem(key,value){if(storageFailure) throw Error('quota');drafts.push({key,record:JSON.parse(value)});}},
         window:{CanvasConflictRecovery:{show(details){panels.push(details);}}},
         toast(message){toasts.push(message);}, tr:x=>x,
         fetch(url,opts){
@@ -96,4 +96,25 @@ test('transport failure leaves a local recovery draft',async()=>{
     assert.equal(x.drafts.length,1);
     assert.equal(x.ctx.smartCanvasConflictPending,false,'transient failure should permit retry');
     assert.equal(x.ctx.smartCanvasLocalDirty,true,'failed save must not clear dirty state');
+});
+
+test('5xx plus unavailable local storage exposes in-memory draft and export warning',async()=>{
+    const x=fixture({storageFailure:true});
+    const first=x.saveCanvas();
+    x.pending[0]({ok:false,status:503});
+    await first;
+    assert.equal(x.drafts.length,0);
+    assert.equal(x.ctx.smartCanvasLocalDirty,true);
+    assert.equal(x.panels.length,1,'recovery panel needed because localStorage failed');
+    assert.equal(x.panels[0].record.persistence_error,true);
+    assert.match(x.toasts.at(-1),/本地存储失败|导出/);
+});
+test('network error plus unavailable local storage offers immediate recovery',async()=>{
+    const x=fixture({storageFailure:true});
+    const first=x.saveCanvas();
+    x.pending[0](Promise.reject(Error('offline')));
+    await first;
+    assert.equal(x.panels.length,1);
+    assert.equal(x.panels[0].record.persistence_error,true);
+    assert.match(x.toasts.at(-1),/本地存储失败|导出/);
 });

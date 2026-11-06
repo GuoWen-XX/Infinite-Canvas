@@ -6107,6 +6107,17 @@ function persistSmartConflictDraft(snapshot=null){
     }
     return record;
 }
+function preserveSmartFailedSaveDraft(){
+    const record = persistSmartConflictDraft();
+    if(record?.persistence_error){
+        // A blocked localStorage write is not a persisted backup. Keep the
+        // in-memory record accessible through the recovery panel for export.
+        window.CanvasConflictRecovery?.show({id:canvasId,kind:'smart',record,storageKey:'smart_canvas_conflict_draft_' + canvasId});
+        toast('画布保存失败且本地存储失败：请立即导出本地草稿 JSON，刷新可能丢失修改');
+    } else {
+        toast('画布保存失败：本地草稿已保留，请稍后重试');
+    }
+}
 function scheduleSave(){
     smartCanvasLocalDirty = true;
     clearTimeout(saveTimer);
@@ -6178,13 +6189,11 @@ async function saveCanvas(){
                 ? '画布版本冲突：请导出本地草稿或保存为独立副本'
                 : '服务器中的画布已被删除：本地编辑已保留，可保存为独立副本');
         } else {
-            persistSmartConflictDraft();
-            toast('画布保存失败：本地草稿已保留，请稍后重试');
+            preserveSmartFailedSaveDraft();
         }
     } catch(e) {
         if(canvasId === saveTargetId){
-            persistSmartConflictDraft();
-            toast('画布保存失败：本地草稿已保留，请稍后重试');
+            preserveSmartFailedSaveDraft();
         }
     } finally {
         canvasSyncInFlight = false;
