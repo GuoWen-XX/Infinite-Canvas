@@ -108,3 +108,11 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - 在仅包含该真实导入代码块与上述原始文件的最小 Linux/Python 3.13 fixture 执行仓库既有 `unittest`：**3/3 PASS**，包括字节一致性、旧更新器静态文件白名单、独立进程导入兼容副本。
 - 这确认有限的向后兼容导入机制，不是完整旧客户端真实升级、重启、下载、回滚或迁移测试；上述端到端操作仍 **NOT_RUN**。另外对 SHA 校验一致的 `static/js/canvas-conflict-recovery.js` 执行 `node --check`：**PASS**，不代表所有应用 JavaScript 都已完成语法检查。
 - 本轮未运行 GitHub Actions、没有依赖安装、没有真实用户数据或发布操作；**S08 SYSTEM ACCEPTANCE 尚未完成**。
+
+
+## 11. 2026-11-06 还原点路径选择安全回归
+
+- **根因**：现有 `/api/update-rollback` 仅检查 `abspath/commonpath`。传入 `.` 会将整个 `data/update_backups/` 当作备份点；嵌套路径、路径折叠和指向备份根以外目录的 symlink 也可通过检查，可能使回滚过程扫描非目标恢复点。
+- **修复**：仅允许单级真实备份目录名；拒绝 `.`、`..`、斜杠、反斜杠、NUL 和符号链接目录，且保留原有备份存在性、清单状态和锁机制。
+- **回归**：新增 `tests/test_s08_rollback_selector.py`，独立 AST 提取 `main.py` 中的真实 `rollback_update` 函数，使用临时目录和桩函数阻止磁盘恢复写入。Linux/Python 3.13：原入口校验的隔离复现 **6 FAIL / 6 PASS**；修复后 **12/12 PASS**。测试文件已用本地 `git hash-object` 与 PR 分支 GitHub Blob SHA `a85e5da98c2f1f5c56c956a766bb1028dd081575` 精确核对。
+- 这是路径选择前置校验的隔离测试，不是全量 Python、Windows 实机、真实回滚/重启 PASS；这些项目仍为 **NOT_RUN**。无安装任务、无 GitHub Actions、无真实用户画布、无正式发布。
