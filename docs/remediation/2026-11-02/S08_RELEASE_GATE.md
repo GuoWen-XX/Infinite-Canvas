@@ -124,3 +124,12 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **修复**：两条暂时性保存失败路径统一调用 `preserveSmartFailedSaveDraft`，存储成功时保持原提示；存储失败时用内存中的记录弹出已有 CanvasConflictRecovery 导出/副本 UI，明确警告刷新可能丢失修改。更新 `static/smart-canvas.html` 的 JS 缓存版本。
 - **隔离 Node.js 回归 PASS**：原仓库 `tests/test_smart_canvas_save_serialization.cjs` 新增 503+localStorage 不可写及网络异常+localStorage 不可写两项；更新后 **7/7 PASS**。原仓库 `tests/test_smart_canvas_remote_merge.cjs` **6/6 PASS**，同批 `tests/test_index_update_fallback.cjs` **3/3 PASS**、`tests/test_canvas_metadata_routes.cjs` **3/3 PASS**。测试文件逐个 `git hash-object` 校验与 Github Blob SHA 一致；执行时源 JS 使用从 `main` GitHub 文件提取的相关真实函数片段，并非完整 800–950 KB 文件，故属原生 Node 隔离回归，不能冒称全仓库原生运行。
 - **剩余 NOT_RUN**：正式 Windows 包、完整仓库全部 Python/Node 测试、浏览器真实 quota/private-mode、双标签/LAN/Photoshop、旧版更新重启恢复。未运行 Actions，未安装依赖，未使用真实 Key/画布。
+
+## 13. 2026-11-08 全套 CJS 隔离测试、JavaScript/HTML 语法及静态资源检查
+
+- **基线**：`main@706b4f449d79dc43ef0f8e746cb9f9aff2507f3b`（PR #25 已合并）；本轮全部从 GitHub `main` 的真实 Blob 内容读取测试和被测脚本，包括经典画布约 803 KB、智能画布约 953 KB 两份完整源码，读取时保留 GitHub 返回的 Blob SHA。
+- **全部 15 份 CJS 测试在 V8 隔离沙箱内执行：85/85 PASS**。使用 `node:test` 注册器、`node:assert/strict`、`node:fs`、`node:path`、`node:vm` 的轻量替身；首次双标签测试因沙箱缺失 `structuredClone` 无法执行，补齐兼容替身后 **3/3 PASS**，其余用例 **82/82 PASS**。这些结果说明现有真实测试函数在隔离上下文中通过，**不是原生 `node --test`**，不可作为完整 Node 发布门禁的 PASS。
+- **代码语法检查 PASS**：应用 `static/js/` 下全部 **22/22** 份 JS、Chrome/Photoshop 工具 `tools/` 下全部 **11/11** 份 JS，共 **33/33** 份第一方 JS，使用 V8 `new Function` 仅解析（不执行程序）。HTML **17/17** 个文件中的 **22/22** 段非 module 内联脚本语法解析 PASS。`lucide.js` 与 `tailwindcss-cdn.js` 2 个第三方经典脚本解析 PASS。`three-0.160.0.module.js` 为 ES module，GitHub 文件接口本轮未返回可解析内容（空内容）；不标 PASS。
+- **本地资源静态链接验证 PASS**：扫描仓库 17 个 HTML 的 `<script>/<link>/<img>` 字面量本地路径，**108/108 引用存在**；动态插值链接按运行时变量排除。新增无依赖 `tests/test_s08_static_asset_references.cjs`，可在完整 checkout 上执行 `node --test`；其真实源文件在 V8+虚拟 `fs/path`、真实 GitHub HTML/目录树中 **1/1 PASS**。这不是浏览器资源可加载性的端到端证明。
+- **更新路径静态核查 PASS（仅字面量）**：`main.py` 的 GitHub 仓库和分支均指向 `GuoWen-XX/Infinite-Canvas@main`；6 个更新源常量仅赋值一次、ModelScope 上游更新开关为 `False`；PR #24 的回滚路径名检查、PR #25 的草稿恢复 helper 和 HTML JS 缓存版本均存在。以上静态证据不取代 Python AST 门禁、真实在线更新或备份恢复测试。
+- **剩余 NOT_RUN**：完整仓库原生 Python unittest、原生 Node `--test`、Windows `run.bat`/完整便携包、真实双标签浏览器/LAN/Chrome/Photoshop、浏览器 localStorage 配额/私密模式和旧客户端升级回滚。当前测试容器 DNS 无法解析 GitHub 相关域名且无完整源码 checkout；未请求安装、未触发 GitHub Actions、未用真实用户文件/Key 或付费服务。
