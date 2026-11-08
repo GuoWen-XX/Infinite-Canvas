@@ -207,5 +207,79 @@ class UpdateStaticFailureTests(unittest.TestCase):
         self.assertEqual(self.current_files(), changed)
         self.assertFalse(self.lock.locked())
 
+    def test_root_copy_failure_removes_partial_temp_and_restores_previous_release(self):
+        previous = self.current_files()
+        original = shutil.copy2
+        faulted = False
+        def inject(src, dst, *args, **kwargs):
+            nonlocal faulted
+            if str(dst) == str(self.base / 'main.py.update_tmp') and not faulted:
+                faulted = True
+                self.write(dst, 'partial-root-content')
+                raise OSError('injected root-file temp copy failure')
+            return original(src, dst, *args, **kwargs)
+        with patch.object(shutil, 'copy2', side_effect=inject):
+            with self.assertRaises(HttpError):
+                self.perform_update()
+        self.assertTrue(faulted)
+        self.assertEqual(self.current_files(), previous)
+        self.assertFalse(self.lock.locked())
+
+    def test_new_root_module_is_removed_on_rollback_and_recovered_on_rollforward(self):
+        # The legacy installed build has no root storage_guard.py; a new
+        # upgrade adds it, rollback removes it, and roll-forward restores it.
+        original = self.current_files()
+        context = self.update.__globals__
+        previous_stage = context['stage_update_from_source']
+        def stage_with_module(candidate, directory):
+            roots, statics, files = previous_stage(candidate, directory)
+            self.write(Path(directory) / 'storage_guard.py', 'new-safe-guard')
+            roots.append('storage_guard.py')
+            files.append('storage_guard.py')
+            return roots, statics, files
+        context['stage_update_from_source'] = stage_with_module
+        update_result = self.perform_update()
+        self.assertTrue(update_result['ok'])
+        updated = self.current_files()
+        self.assertEqual((self.base / 'storage_guard.py').read_text(), 'new-safe-guard')
+
+        backups = iter(('rollback-safety-one', 'rollback-safety-two'))
+        context['next_update_backup_dir'] = lambda prefix='': str(
+            self.data / 'update_backups' / next(backups))
+        original_roots = {
+            'main.py': {'existed': True}, 'VERSION': {'existed': True},
+            'storage_guard.py': {'existed': False}}
+        safety_roots = {
+            'main.py': {'existed': True}, 'VERSION': {'existed': True},
+            'storage_guard.py': {'existed': True}}
+        context['read_update_backup_manifest'] = lambda path: {
+            'state': 'ready',
+            'root_files': safety_roots if Path(path).name.startswith('rollback-') else original_roots,
+            'static_snapshot': {'exists': True},
+        }
+        context['current_app_version'] = lambda: 'new-version'
+        context['update_allowed_file'] = lambda rel: rel in {
+            'main.py', 'VERSION', 'storage_guard.py'}
+        context['RollbackRequest'] = object
+        context['restore_failed_rollback'] = lambda *args: self.fail(
+            'unexpected safety restoration')
+        script = (ROOT / 'main.py').read_text(encoding='utf-8-sig')
+        function = next(n for n in ast.parse(script).body
+                        if isinstance(n, ast.FunctionDef) and n.name == 'rollback_update')
+        function.decorator_list = []
+        compiled = compile(ast.fix_missing_locations(
+            ast.Module(body=[function], type_ignores=[])), str(ROOT / 'main.py'), 'exec')
+        exec(compiled, context)
+        rollback = context['rollback_update']
+        result = rollback(SimpleNamespace(name='saved', auto_restart=False, restart_delay=3))
+        self.assertTrue(result['ok'])
+        self.assertEqual(self.current_files(), original)
+        self.assertFalse((self.base / 'storage_guard.py').exists())
+        second = rollback(SimpleNamespace(
+            name='rollback-safety-one', auto_restart=False, restart_delay=3))
+        self.assertTrue(second['ok'])
+        self.assertEqual(self.current_files(), updated)
+        self.assertFalse(self.lock.locked())
+
 if __name__ == '__main__':
     unittest.main()

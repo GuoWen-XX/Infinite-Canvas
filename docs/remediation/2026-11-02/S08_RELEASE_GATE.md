@@ -155,3 +155,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **单函数真实 I/O 组合测试 PASS**：复用 `tests/test_s08_update_static_failure.py` 的临时目录，提取 `main.py` 当前 `update_from_github` 及 `rollback_update` 两个真实 AST 函数。使用测试专用的下载/备份清单桩，依次执行成功安装、按备份恢复旧版本、再通过回滚安全备份恢复新版本；三次实际磁盘文件状态均精确一致。
 - **故障注入＋闭环共 5/5 PASS**：包含此前的静态删除中断、静态复制中断、根文件替换中断、正常安装；本轮新增版本往返测试 1 项。Python 3.13/Linux 独立临时目录，未修改用户数据、未访问网络或触发 Actions。
 - **证据边界**：这验证了两个真实函数的模拟下载及模拟备份清单组成的 I/O 过程，不代表完整应用/真实 GitHub 下载、Windows 原生更新、旧客户端在线升级/重启、真实备份持久化格式验证。后者仍 NOT_RUN。
+
+
+## 17. 2026-11-08 新增根模块跨版本回滚及复制失败清理
+
+- 在 `tests/test_s08_update_static_failure.py` 补充 2 项独立临时目录测试：① 旧版缺少 `storage_guard.py`，新版新增该根模块，执行更新→回滚会恢复旧版并删除新模块，随后回滚安全备份可将新版模块恢复；② 更新根文件的 `shutil.copy2` 写入一半失败时，`.update_tmp` 被清理，原版 `VERSION`、`main.py`、`static/` 全部保持原样。
+- **隔离原生 Python 3.13/Linux：7/7 PASS**（之前 5 项＋新增 2 项）。从 `main.py` 中抽取真实 `update_from_github` 和 `rollback_update` 函数代码进行临时目录 I/O；经函数长度和 FNV32 摘要与 GitHub `main` 对比确认本地提取函数逐字符一致（非完整 `main.py` checkout）。
+- 测试下载器及备份 manifest 仍使用受控桩，不涉及真实 GitHub 在线下载或旧客户端安装包；**旧版真实升级/Windows 启动、全量 Python/Node 仍 NOT_RUN**。未运行 Actions、未安装依赖、未使用生产画布/Key。
