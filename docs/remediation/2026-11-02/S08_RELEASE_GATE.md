@@ -133,3 +133,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **本地资源静态链接验证 PASS**：扫描仓库 17 个 HTML 的 `<script>/<link>/<img>` 字面量本地路径，**108/108 引用存在**；动态插值链接按运行时变量排除。新增无依赖 `tests/test_s08_static_asset_references.cjs`，可在完整 checkout 上执行 `node --test`；其真实源文件在 V8+虚拟 `fs/path`、真实 GitHub HTML/目录树中 **1/1 PASS**。这不是浏览器资源可加载性的端到端证明。
 - **更新路径静态核查 PASS（仅字面量）**：`main.py` 的 GitHub 仓库和分支均指向 `GuoWen-XX/Infinite-Canvas@main`；6 个更新源常量仅赋值一次、ModelScope 上游更新开关为 `False`；PR #24 的回滚路径名检查、PR #25 的草稿恢复 helper 和 HTML JS 缓存版本均存在。以上静态证据不取代 Python AST 门禁、真实在线更新或备份恢复测试。
 - **剩余 NOT_RUN**：完整仓库原生 Python unittest、原生 Node `--test`、Windows `run.bat`/完整便携包、真实双标签浏览器/LAN/Chrome/Photoshop、浏览器 localStorage 配额/私密模式和旧客户端升级回滚。当前测试容器 DNS 无法解析 GitHub 相关域名且无完整源码 checkout；未请求安装、未触发 GitHub Actions、未用真实用户文件/Key 或付费服务。
+
+## 14. 2026-11-08 Chromium 浏览器真实 DOM/下载隔离验证
+
+- **执行环境**：容器内 Chromium（`/usr/bin/chromium`）+ 已提供的 Python Playwright；没有安装依赖。Chromium 的网络与 `file://` 导航受宿主策略阻断，使用 `page.set_content` 在 `about:blank` 建立纯内存页面，不连接真实服务。
+- **被测代码**：从 PR #25 合并后的 GitHub `static/js/smart-canvas.js` 提取 `persistSmartConflictDraft`、`preserveSmartFailedSaveDraft`；从 `static/js/canvas-conflict-recovery.js` 提取 `button` 和 `show`，在浏览器执行；只替身化编辑器状态、保存请求上下文及 `createIndependentCopy`，不加载真实画布/Key/用户文件。
+- **3/3 PASS（真实 Chromium DOM 与下载）**：① 在 `about:blank` 浏览器存储不可用时，保存失败恢复流程显示带警告的可见面板和导出按钮；② 真实点击导出按钮并读取浏览器生成的 JSON，核实 `canvas_id=smart-one`、`persistence_error=true`，以及未保存节点 `local-unsaved-node` 未丢失；③ 将 `localStorage` 替换为可写内存模拟后，草稿记录成功且不误弹恢复面板。
+- **范围限制**：这验证了浏览器 DOM/Blob/download 交互和原始恢复函数的片段行为，但**不是**整页 Smart Canvas/真实浏览器多标签与后端 HTTP 409、真实 quota/private-mode 或 Windows 发布包验收。`about:blank` 的存储不可用来自页面 origin 限制，成功写入分支使用内存 mock；不得标记全部浏览器场景 PASS。真实环境仍保留 NOT_RUN。
