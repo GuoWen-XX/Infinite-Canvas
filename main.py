@@ -2946,9 +2946,9 @@ def update_from_github(req: UpdateRequest = UpdateRequest()):
             raise RuntimeError("GitHub static 暂存目录不存在，已取消更新")
         static_dir = safe_static_dir()
         backup_static_dir = os.path.join(backup_root, "static")
-        if os.path.isdir(static_dir):
-            shutil.rmtree(static_dir)
         try:
+            if os.path.isdir(static_dir):
+                shutil.rmtree(static_dir)
             shutil.copytree(staged_static_dir, static_dir)
         except Exception:
             if os.path.isdir(static_dir):
@@ -2964,8 +2964,13 @@ def update_from_github(req: UpdateRequest = UpdateRequest()):
                 target = safe_update_target(rel)
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 temp_path = f"{target}.update_tmp"
-                shutil.copy2(os.path.join(staging_root, *rel.split("/")), temp_path)
-                os.replace(temp_path, target)
+                try:
+                    shutil.copy2(os.path.join(staging_root, *rel.split("/")), temp_path)
+                    os.replace(temp_path, target)
+                finally:
+                    # Do not leave an incomplete executable/update temp behind.
+                    if os.path.isfile(temp_path):
+                        os.remove(temp_path)
                 replaced_root_files.append(rel)
                 updated.append(rel)
         except Exception:
