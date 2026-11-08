@@ -2,6 +2,7 @@
 
 > 基线：S07 已合并 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`。本文件记录**已核实证据与尚未执行的验证**。不等于发布许可。
 > 不运行 GitHub Actions；不访问真实 API Key、用户画布或付费模型。正式联调须在隔离副本中进行。
+> **最新交接与职责划分**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。已知代码修复完成，完整仓库原生 Python/Node 自动化仍为工程方 NOT_RUN；Windows/设备端真实联调属于真人验收。最终发布状态仍 **RELEASE_BLOCKED**。
 
 ## 1. 可选依赖安装脚本的 wheel 清单核查（不作为免安装画布发布阻断）
 
