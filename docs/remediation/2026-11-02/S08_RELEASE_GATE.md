@@ -171,3 +171,13 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **修复**：保留单级恢复点名称、`commonpath` 和 `islink` 检查，新增基于 `os.path.realpath` 的恢复点真实目录与可信备份根的直接子目录比对，且使用 `normcase` 兼容 Windows 大小写。将检测放在读取清单、创建安全备份及文件替换之前。
 - **回归**：在 `tests/test_s08_rollback_selector.py` 新增 `test_rejects_reparse_point_even_when_islink_reports_false`，用临时目录符号链接和 `unittest.mock.patch` 模拟 Windows junction 不被 `islink` 识别的情形。Linux/Python 3.13 使用与真实入口一致的前置校验语句在独立 fixture 运行：**4/4 PASS**（正常目录、非法路径、普通 symlink、`islink=False` 伪装的 junction）。修复前模拟可错误放行，修复后拒绝。
 - **范围**：4 项是使用源码校验语句的临时夹具，**不是**完整源文件上的原生 `unittest` 或 Windows junction 实机结果。实际 Windows reparse point/UNC、全量 Python/Node、设备端到端仍 `NOT_RUN`，未触发 GitHub Actions、安装依赖或读取用户数据。
+
+
+## 19. 2026-11-08 原生 Python 回归小批次：逐文件校验 Git Blob SHA
+
+- **网络诊断**：Linux 容器 `getent hosts github.com` 无记录，`git ls-remote` 和 `curl https://api.github.com` 因 DNS 失败；直接 `curl --resolve` 指定 GitHub IP 也被网络拒绝。GitHub MCP 连接器能正常读取 `main`，但与执行 Python/Node 的容器不共享完整 checkout。系运行环境的网络隔离，不是仓库无法访问。
+- **本轮原生 Python 测试 PASS：25/25，0 FAIL、0 ERROR、0 SKIP**。经 GitHub MCP 取得六份原文件并在 Linux/Python 3.13.5 临时目录逐字重建，逐一 `git hash-object` 对比 GitHub `main` Blob SHA 全部一致，再用原生 unittest 执行：
+  - `tests/test_s08_wheelhouse.py`（`65e9bfca73f8e41ff56503c2debfe8ecb9b2e5a1`）与 `tools/check_s08_wheelhouse.py`（`1ff3bca244dfd553d6fd383264f308dfcbf9dbcc`）：**8/8 PASS**。
+  - `tests/test_s08_release_source.py`（`be018d7d5eae9e6ae16eff186476796b70249286`）与 `tools/check_s08_release_source.py`（`d97d70b33eb0d80eeba63feb8301ea462f0787b5`）：**15/15 PASS**。其第 16 项 `test_live_main_file_uses_safe_github_urls` 依赖完整 `main.py`，本次**未执行**，没有以简化或虚构 main.py 冒充真实源码。
+  - `tests/test_mac_launcher.py`（`e3d42c6c3d2ab22a2e6727dc010ed2d95d257c3b`）与 `mac-启动服务.sh`（`33dc6f9f28577e68238ef45fb44ff853b4f37b61`）：**2/2 PASS**，Mock 外部命令，没有真实启动服务器。
+- **证据边界**：这是真正的 Python 3.13.5 + unittest 原生测试，不是 V8 模拟；但是只覆盖 25 个不依赖完整后端代码的用例，不是全仓 24 Python 模块的原生 `unittest discover`。16 个 CJS 文件原生 `node --test`、Windows/浏览器/LAN/插件/旧版在线升级仍为 `NOT_RUN`。本轮没有运行 GitHub Actions、pip 安装、付费服务或真实用户内容。
