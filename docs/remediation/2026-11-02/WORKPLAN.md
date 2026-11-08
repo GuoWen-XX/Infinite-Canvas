@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / DEVICE_VALIDATION_PENDING`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / NATIVE_REGRESSION_BLOCKED / DEVICE_VALIDATION_PENDING`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -226,6 +226,8 @@
 **2026-11-03 S07 合并并启动 S08：** PR #10 已合入 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`；本地 Codex 路径安全、远程 SSRF 共享校验和 data URL 限制已实现。14 项回归代码已编写，Python 3.13 摘录函数的 12 项离线 fixture 通过，但并非 `main.py` 集成/Windows 实测。合并风险见 PR #10，S08 前禁止发布。新分支 `fix/S08-release-validation`。
 
 ### S08 — 完成验收
+
+> **2026-11-08 最新交接**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。所有已知代码修复合并，当前剩余原生 Python/Node 全仓测试属于工程方尚未执行的门禁，不转嫁为用户手工验收；Windows/浏览器/LAN/插件/旧版迁移需要实际设备。不得因合并了 PR 宣布正式系统验收通过。
 
 - [x] 检查 `requirements.txt`、`packages/` 与自带 `python/`：自带 `python310.dll`，22 个 wheel 中包含 `cp314-win_amd64`，8 项直接锁定依赖只有 2 项文件名匹配；**仅可选手动安装脚本的离线缓存不匹配（不阻断免安装画布或阶段合并）**。PyYAML==6.0.3 缺 wheel，FastAPI/Uvicorn/Requests/python-multipart/Pillow 均版本不符，传递依赖 pydantic-core/charset-normalizer 含错误 Python ABI。不得盲目降级 `requirements.txt`。
 - [x] 新增无网络、零额度 `tools/check_s08_wheelhouse.py` 静态检查器及 `tests/test_s08_wheelhouse.py` 6 项合成测试。本地 Python 3.13 对代码等价本地版本运行 **6/6 PASS**；按 GitHub 当前目录清单重建**文件名镜像**运行工具得到 6 个直接依赖问题，**不能称真实 wheel 文件内容已安装/验证**。
