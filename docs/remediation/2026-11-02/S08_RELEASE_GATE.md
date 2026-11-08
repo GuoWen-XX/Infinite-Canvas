@@ -140,3 +140,11 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **被测代码**：从 PR #25 合并后的 GitHub `static/js/smart-canvas.js` 提取 `persistSmartConflictDraft`、`preserveSmartFailedSaveDraft`；从 `static/js/canvas-conflict-recovery.js` 提取 `button` 和 `show`，在浏览器执行；只替身化编辑器状态、保存请求上下文及 `createIndependentCopy`，不加载真实画布/Key/用户文件。
 - **3/3 PASS（真实 Chromium DOM 与下载）**：① 在 `about:blank` 浏览器存储不可用时，保存失败恢复流程显示带警告的可见面板和导出按钮；② 真实点击导出按钮并读取浏览器生成的 JSON，核实 `canvas_id=smart-one`、`persistence_error=true`，以及未保存节点 `local-unsaved-node` 未丢失；③ 将 `localStorage` 替换为可写内存模拟后，草稿记录成功且不误弹恢复面板。
 - **范围限制**：这验证了浏览器 DOM/Blob/download 交互和原始恢复函数的片段行为，但**不是**整页 Smart Canvas/真实浏览器多标签与后端 HTTP 409、真实 quota/private-mode 或 Windows 发布包验收。`about:blank` 的存储不可用来自页面 origin 限制，成功写入分支使用内存 mock；不得标记全部浏览器场景 PASS。真实环境仍保留 NOT_RUN。
+
+
+## 15. 2026-11-08 S08 更新中途删除/替换故障自动恢复
+
+- **发现问题**：`update_from_github` 在 `shutil.rmtree(static_dir)` 返回前就删除了部分线上页面文件时抛出异常，而原恢复 `except` 仅覆盖后续 `copytree`，故当前 `static/` 可能缺失文件；此外根文件 `os.replace` 失败会留在应用目录中 `.update_tmp`。
+- **修复**：将删除旧 `static/` 纳入已有的异常恢复 `try`，确保失败时用完整备份恢复原静态目录；根文件的复制/原子替换使用 `finally` 清理失败遗留的 `.update_tmp`，避免部分代码文件堆积或被误用。
+- **回归证据**：在本地 Linux/Python 3.13 临时应用目录，通过 AST 提取当前 GitHub `main.py` 的 `update_from_github` 函数，并用受控网络/备份桩及真实 `shutil`/`os.replace` 模拟更新。覆盖正常安装、删除静态目录途中失败、静态复制途中失败、根文件原子替换失败；修复前 **2/4 PASS，2 FAIL**，修复后 **4/4 PASS**。已将回归测试纳入仓库 `tests/test_s08_update_static_failure.py`。
+- **范围边界**：属于完整更新入口的单函数 AST 隔离和真实文件 I/O 故障注入，非全仓库原生 unittest、真实在线下载、Windows 文件锁/ACL、旧客户端升级与重启验证。未运行 GitHub Actions、pip 安装或触碰实际用户画布和密钥；剩余实机任务仍为 NOT_RUN。
