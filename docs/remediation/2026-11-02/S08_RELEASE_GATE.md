@@ -162,3 +162,11 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - 在 `tests/test_s08_update_static_failure.py` 补充 2 项独立临时目录测试：① 旧版缺少 `storage_guard.py`，新版新增该根模块，执行更新→回滚会恢复旧版并删除新模块，随后回滚安全备份可将新版模块恢复；② 更新根文件的 `shutil.copy2` 写入一半失败时，`.update_tmp` 被清理，原版 `VERSION`、`main.py`、`static/` 全部保持原样。
 - **隔离原生 Python 3.13/Linux：7/7 PASS**（之前 5 项＋新增 2 项）。从 `main.py` 中抽取真实 `update_from_github` 和 `rollback_update` 函数代码进行临时目录 I/O；经函数长度和 FNV32 摘要与 GitHub `main` 对比确认本地提取函数逐字符一致（非完整 `main.py` checkout）。
 - 测试下载器及备份 manifest 仍使用受控桩，不涉及真实 GitHub 在线下载或旧客户端安装包；**旧版真实升级/Windows 启动、全量 Python/Node 仍 NOT_RUN**。未运行 Actions、未安装依赖、未使用生产画布/Key。
+
+
+## 18. 2026-11-08 回滚恢复点 Windows 联接点防护补强
+
+- **安全缺陷**：`os.path.islink()` 无法在所有捆绑 Python/Windows 版本上识别目录 junction/reparse point。单靠它阻止备份符号链接，仍可能通过 `name` 选中指向备份根外部的真实目录，在回滚时读取外部数据。
+- **修复**：保留单级恢复点名称、`commonpath` 和 `islink` 检查，新增基于 `os.path.realpath` 的恢复点真实目录与可信备份根的直接子目录比对，且使用 `normcase` 兼容 Windows 大小写。将检测放在读取清单、创建安全备份及文件替换之前。
+- **回归**：在 `tests/test_s08_rollback_selector.py` 新增 `test_rejects_reparse_point_even_when_islink_reports_false`，用临时目录符号链接和 `unittest.mock.patch` 模拟 Windows junction 不被 `islink` 识别的情形。Linux/Python 3.13 使用与真实入口一致的前置校验语句在独立 fixture 运行：**4/4 PASS**（正常目录、非法路径、普通 symlink、`islink=False` 伪装的 junction）。修复前模拟可错误放行，修复后拒绝。
+- **范围**：4 项是使用源码校验语句的临时夹具，**不是**完整源文件上的原生 `unittest` 或 Windows junction 实机结果。实际 Windows reparse point/UNC、全量 Python/Node、设备端到端仍 `NOT_RUN`，未触发 GitHub Actions、安装依赖或读取用户数据。

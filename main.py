@@ -3116,8 +3116,14 @@ def rollback_update(req: RollbackRequest):
         backup_dir = os.path.abspath(os.path.join(backup_root_abs, req.name))
         if os.path.commonpath([backup_root_abs, backup_dir]) != backup_root_abs:
             raise HTTPException(status_code=400, detail="备份路径不安全")
-        if os.path.islink(backup_dir):
-            raise HTTPException(status_code=400, detail="备份目录不能是符号链接")
+        # A Windows junction/reparse point may not be reported by islink()
+        # on the bundled Python. Resolve the immediate restore-point child,
+        # without following a link at that child, before reading its files.
+        canonical_root = os.path.realpath(backup_root_abs)
+        expected_child = os.path.normcase(os.path.join(canonical_root, req.name))
+        canonical_child = os.path.normcase(os.path.realpath(backup_dir))
+        if os.path.islink(backup_dir) or canonical_child != expected_child:
+            raise HTTPException(status_code=400, detail="备份目录不能是符号链接或联接点")
         if not os.path.isdir(backup_dir):
             raise HTTPException(status_code=404, detail="备份不存在")
         manifest = read_update_backup_manifest(backup_dir)
