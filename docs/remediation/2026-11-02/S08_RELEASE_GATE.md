@@ -148,3 +148,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **修复**：将删除旧 `static/` 纳入已有的异常恢复 `try`，确保失败时用完整备份恢复原静态目录；根文件的复制/原子替换使用 `finally` 清理失败遗留的 `.update_tmp`，避免部分代码文件堆积或被误用。
 - **回归证据**：在本地 Linux/Python 3.13 临时应用目录，通过 AST 提取当前 GitHub `main.py` 的 `update_from_github` 函数，并用受控网络/备份桩及真实 `shutil`/`os.replace` 模拟更新。覆盖正常安装、删除静态目录途中失败、静态复制途中失败、根文件原子替换失败；修复前 **2/4 PASS，2 FAIL**，修复后 **4/4 PASS**。已将回归测试纳入仓库 `tests/test_s08_update_static_failure.py`。
 - **范围边界**：属于完整更新入口的单函数 AST 隔离和真实文件 I/O 故障注入，非全仓库原生 unittest、真实在线下载、Windows 文件锁/ACL、旧客户端升级与重启验证。未运行 GitHub Actions、pip 安装或触碰实际用户画布和密钥；剩余实机任务仍为 NOT_RUN。
+
+
+## 16. 2026-11-08 更新→回滚→回滚安全备份反向恢复闭环
+
+- **单函数真实 I/O 组合测试 PASS**：复用 `tests/test_s08_update_static_failure.py` 的临时目录，提取 `main.py` 当前 `update_from_github` 及 `rollback_update` 两个真实 AST 函数。使用测试专用的下载/备份清单桩，依次执行成功安装、按备份恢复旧版本、再通过回滚安全备份恢复新版本；三次实际磁盘文件状态均精确一致。
+- **故障注入＋闭环共 5/5 PASS**：包含此前的静态删除中断、静态复制中断、根文件替换中断、正常安装；本轮新增版本往返测试 1 项。Python 3.13/Linux 独立临时目录，未修改用户数据、未访问网络或触发 Actions。
+- **证据边界**：这验证了两个真实函数的模拟下载及模拟备份清单组成的 I/O 过程，不代表完整应用/真实 GitHub 下载、Windows 原生更新、旧客户端在线升级/重启、真实备份持久化格式验证。后者仍 NOT_RUN。
