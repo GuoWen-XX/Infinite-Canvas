@@ -287,7 +287,7 @@ class SkillsApiTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn("Body", detail.json()["body"])
 
-        updated = self.client.put(f"/api/skills/custom/{skill_id}", json={"content": "---\nname: My Style\n---\n\nNew body\n"})
+        updated = self.client.put(f"/api/skills/custom/{skill_id}", json={"base_sha256": detail.json()["content_sha256"], "content_format": "markdown", "content": "---\nname: My Style\n---\n\nNew body\n"})
         self.assertEqual(updated.status_code, 200)
         self.assertIn("New body", md_path.read_text(encoding="utf-8"))
 
