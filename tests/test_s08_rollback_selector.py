@@ -10,6 +10,7 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +101,15 @@ class RollbackSelectorTests(unittest.TestCase):
         if not self.symlinks_supported:
             self.skipTest("symlinks unavailable on this filesystem")
         self.assert_rejected("linked")
+
+    def test_rejects_reparse_point_even_when_islink_reports_false(self):
+        # On bundled Python versions, Windows junctions/reparse points are not
+        # necessarily identified as symlinks. Their resolved target must stay
+        # the canonical immediate child, not escape through a junction.
+        if not self.symlinks_supported:
+            self.skipTest("directory links unavailable on this filesystem")
+        with patch.object(os.path, "islink", return_value=False):
+            self.assert_rejected("linked")
 
     def test_rejects_windows_separator(self):
         self.assert_rejected("valid\\subdir")
