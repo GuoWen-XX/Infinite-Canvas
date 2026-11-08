@@ -167,5 +167,45 @@ class UpdateStaticFailureTests(unittest.TestCase):
         self.assertEqual(self.current_files(), previous)
         self.assertFalse(self.lock.locked())
 
+    def test_update_then_rollback_then_roll_forward_restores_exact_bytes(self):
+        """Exercise actual update and rollback handlers with disposable on-disk files."""
+        original = self.current_files()
+        update_result = self.perform_update()
+        changed = self.current_files()
+        self.assertNotEqual(changed, original)
+        self.assertTrue(update_result['ok'])
+        backups = iter(('rollback-safety-one', 'rollback-safety-two'))
+        self.update.__globals__['next_update_backup_dir'] = lambda prefix='': str(
+            self.data / 'update_backups' / next(backups))
+        context = self.update.__globals__
+        context['read_update_backup_manifest'] = lambda path: {
+            'state': 'ready', 'from_version': 'old-version',
+            'root_files': {'main.py': {'existed': True}, 'VERSION': {'existed': True}},
+            'static_snapshot': {'exists': True},
+        }
+        context['current_app_version'] = lambda: 'new-version'
+        context['update_allowed_file'] = lambda path: path in {'main.py', 'VERSION'}
+        context['restore_failed_rollback'] = lambda *args: self.fail(
+            'unexpected rollback error; safety recovery was invoked')
+        script = (ROOT / 'main.py').read_text(encoding='utf-8-sig')
+        function = next(node for node in ast.parse(script).body
+                        if isinstance(node, ast.FunctionDef) and node.name == 'rollback_update')
+        function.decorator_list = []
+        code = compile(ast.fix_missing_locations(
+            ast.Module(body=[function], type_ignores=[])), str(ROOT / 'main.py'), 'exec')
+        context['RollbackRequest'] = object
+        exec(code, context)
+        rollback = context['rollback_update']
+        first = rollback(SimpleNamespace(name='saved', auto_restart=False, restart_delay=3))
+        self.assertTrue(first['ok'])
+        self.assertEqual(self.current_files(), original)
+        self.assertEqual((self.data / 'update_backups' / 'rollback-safety-one'
+                          / 'static' / 'index.html').read_text(), 'new-index')
+        second = rollback(SimpleNamespace(
+            name='rollback-safety-one', auto_restart=False, restart_delay=3))
+        self.assertTrue(second['ok'])
+        self.assertEqual(self.current_files(), changed)
+        self.assertFalse(self.lock.locked())
+
 if __name__ == '__main__':
     unittest.main()
