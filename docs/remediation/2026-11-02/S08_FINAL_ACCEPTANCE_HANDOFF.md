@@ -3,7 +3,7 @@
 > **代码状态：已知修复已全部合并。最终系统/发布状态：NOT_VERIFIED / RELEASE_BLOCKED。**
 > 目标仓库 `GuoWen-XX/Infinite-Canvas`，目标分支 `main`（仓库默认分支仍为 `zcode/iteration-01`）。
 > 记录基线：`main@15f04e22688390238d64de9492c3a81dcfa38b48`，当时未合并 PR **0**。后续 HEAD 变化时以最新 `main` 为准。
-> 2026-11-09 新增真实 Linux 全仓 Node/Python 原生测试证据，见 `S08_RELEASE_GATE.md` §20；最终 Windows/设备验收仍未通过，不等于已经正式发布。
+> 2026-11-09 已在 PR #36 **合并后的最新** `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 完成 Linux 全量原生复测：Python **310/310**、Node **87/87**，见 `S08_RELEASE_GATE.md` §22。Windows/设备端仍待验收，不等于正式发布。
 
 ## A. 已完成的工程工作（不要求用户重新操作）
 
@@ -18,9 +18,9 @@
 | 测试门禁 | 实际环境 | 真实执行结果 |
 | --- | --- | --- |
 | `python -m unittest discover -s tests -p 'test_*.py' -v` | Linux，Python 3.14.4，独立沙箱内锁定依赖；POSIX 权限用例按原设计降权 | **310/310 PASS，0 FAIL，0 ERROR，0 SKIP，退出码 0** |
-| `node --test tests/*.cjs` | Linux，Node v24.22.1，全部 16 个 CJS 文件 | **86/86 PASS，0 FAIL，0 SKIP，退出码 0** |
+| `node --test tests/*.cjs` | Linux，Node v24.22.1，全部 17 个 CJS 文件 | **87/87 PASS，0 FAIL，0 SKIP，退出码 0** |
 
-全部 24 个 Python 测试文件均在检出的完整 GitHub 源码上运行，不再依赖 AST 片段或 V8 shim。此前缺失的 `test_skill_upgrade_tracking.py` **13/13** 和 `test_storage_safety.py` **16/16** 均通过。初测发现旧 Skill API 测试缺 `base_sha256`，在对应测试中修正为使用 GET 返回的 `content_sha256`，修复文件 Git Blob SHA `812e3732f026dd1fef44db968f0a35874d8425b7`；非 root 运行器的 DAC_OVERRIDE 能力使搜索权限用例失真，按测试既有 root→nobody 路径执行后通过。完整证据和范围见 `S08_RELEASE_GATE.md` §20。
+全部 24 个 Python 测试文件均在检出的完整 GitHub 源码上运行，不再依赖 AST 片段或 V8 shim。此前缺失的 `test_skill_upgrade_tracking.py` **13/13** 和 `test_storage_safety.py` **16/16** 均通过。初测发现旧 Skill API 测试缺 `base_sha256`，在对应测试中修正为使用 GET 返回的 `content_sha256`，修复文件 Git Blob SHA `812e3732f026dd1fef44db968f0a35874d8425b7`；非 root 运行器的 DAC_OVERRIDE 能力使搜索权限用例失真，按测试既有 root→nobody 路径执行后通过。先前结果见 `S08_RELEASE_GATE.md` §20；PR #36 合并后重新运行的独立日志及完整结果见 §22。
 
 以上已完成工程方原生自动化的 Linux 范围，不等于嵌入 Windows Python 3.10、浏览器、PS 插件或 LAN 的实机通过；不得为免安装画布增加安装步骤。没有运行 GitHub Actions。
 ## C. 需要真人设备验收的事项（只在独立副本中操作）
@@ -35,7 +35,7 @@
 ## D. 放行规则
 
 - **代码修复阶段**：COMPLETE（已知问题全部合并，后续新发现问题例外）。
-- **全仓原生自动化**：Linux 原生 **PASS（Python 310/310、Node 86/86）**；嵌入式 Windows Python 3.10 与真实浏览器集成属于设备验收范围。
+- **全仓原生自动化**：最新 `main@98a1f705` Linux 原生 **PASS（Python 310/310、Node 87/87）**；嵌入式 Windows Python 3.10 与真实浏览器集成属于设备验收范围。
 - **Windows/设备/真实浏览器/旧版迁移**：PENDING HUMAN DEVICE ACCEPTANCE。
 - **整体 S08 正式系统验收/发布许可**：**NOT_VERIFIED / DEVICE_VALIDATION_PENDING**；Linux 全量自动化已通过，但 Windows/真实浏览器/插件/LAN/旧版安全升级尚未实机验收，不得提前标记 ACCEPTED。
 

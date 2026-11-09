@@ -227,6 +227,8 @@
 
 ### S08 — 完成验收
 
+> **2026-11-09 PR #36 合并后最终工程复测（最新）**：`main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 完整 checkout，24 个 Python 文件 **310/310 PASS**、17 个 CJS 文件 **87/87 PASS**，均原生命令、0 FAIL/ERROR/SKIP、exit 0；详见 [S08_RELEASE_GATE.md](S08_RELEASE_GATE.md) §22。**全仓 Linux 自动化的工程待办已完成**；实际 Windows 免安装启动、真实 Chrome 双标签、选用插件/LAN、旧客户端迁移仍需相应设备，整体发布许可仍 **DEVICE_VALIDATION_PENDING**。本更新没有修改业务代码、安装方式或触发 Actions。
+
 > **2026-11-09 原生测试门禁更新**：已在 `main@1fc1df6...` 的完整 checkout、加上提交的 Skill 测试协议修正后，运行 24 个 Python 测试文件 **310/310 PASS**、16 个 CJS **86/86 PASS**，均为原生命令、退出码 0；仅沙箱环境安装了 Python 依赖。初测失败原因及 root→nobody 权限测试说明见 [S08_RELEASE_GATE.md](S08_RELEASE_GATE.md) §20。原生 Linux 门禁已完成，设备及 Windows/插件集成仍 **NOT_VERIFIED**；旧的 `NOT_RUN` 条目作为历史记录保留，不应解释为最新状态。
 
 > **2026-11-08 历史交接（已被上述 2026-11-09 测试结果更新）**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。所有已知代码修复合并，当前剩余原生 Python/Node 全仓测试属于工程方尚未执行的门禁，不转嫁为用户手工验收；Windows/浏览器/LAN/插件/旧版迁移需要实际设备。不得因合并了 PR 宣布正式系统验收通过。
@@ -239,7 +241,7 @@
 
 
 - [x] S08 已发现并修复新版 updater 源错配：PR #12 已合并 `main@94295d06bcd9f67da621ce579e3f58c3d9359b97` 修复 GitHub URL；后续复核发现 `GITHUB_BRANCH` 尚为旧分支，已在本阶段收尾 PR 补充改为 `main`，共同确保新版更新源指向 `GuoWen-XX/Infinite-Canvas@main`，旧版已安装客户端不会因本次提交自动更改其来源；真实旧客户端升级仍未经测试。`tools/check_s08_release_source.py` 与源码静态回归测试已提交，原基线静态 FAIL 为修复前记录。
-- [x] 完整 Python unittest discover **310/310 PASS**、原生 Node.js CJS 回归 **86/86 PASS**；此前的 JS 语法静态检查证据仍有效。
+- [x] **PR #36 合并后的最新 main** 完整 Python unittest discover **310/310 PASS**、17 文件原生 Node.js CJS **87/87 PASS**（总计 397/397，均退出码 0）；此前 JS 语法静态检查证据仍有效。
 - [ ] 真实浏览器双标签与 Windows 启动器实机运行（Linux 原生测试不能替代）。
 - [ ] LAN/Chrome/Photoshop/ModelScope 与纯本机模式回归。
 - [ ] 版本、自动更新源、安装流程和权限说明核对。
