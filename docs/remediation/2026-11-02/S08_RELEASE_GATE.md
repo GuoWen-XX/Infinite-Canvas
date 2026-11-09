@@ -2,7 +2,7 @@
 
 > 基线：S07 已合并 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`。本文件记录**已核实证据与尚未执行的验证**。不等于发布许可。
 > 不运行 GitHub Actions；不访问真实 API Key、用户画布或付费模型。正式联调须在隔离副本中进行。
-> **最新交接与职责划分**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。已知代码修复完成，完整仓库原生 Python/Node 自动化仍为工程方 NOT_RUN；Windows/设备端真实联调属于真人验收。最终发布状态仍 **RELEASE_BLOCKED**。
+> **最新交接与职责划分**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。已知代码修复完成，完整仓库 Linux 原生 Python **310/310 PASS**、Node.js **86/86 PASS**（2026-11-09，PR #34，详见 §20）；Windows/设备端真实联调仍待验证。最终发布状态仍 **DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED**。
 
 ## 1. 可选依赖安装脚本的 wheel 清单核查（不作为免安装画布发布阻断）
 
@@ -36,8 +36,8 @@ python -m pip check
 - [x] 创建 `tools/check_s08_wheelhouse.py`：只读取文件名、版本、Python tag/ABI tag、bundled `python3xx.dll`；可输出 JSON，任一直接锁定项缺失、不符返回非零退出码。
 - [x] 创建 `tests/test_s08_wheelhouse.py`：6 项合成 fixture 测试（Python 3.10 检测、缺包、版本、cp314 ABI、不锁定依赖、兼容 ABI）。
 - [x] 在本机 Python 3.13 对该检查器的同等隔离版本执行 `python -m unittest -v /mnt/data/test_s08_wheelhouse.py`：**6/6 PASS**；并用来自仓库内容的镜像文件名执行静态审计，返回 FAIL（命中六个直接依赖问题）。**这些不是完整 repo checkout 上的测试**。
-- [ ] 从 S08 最新 HEAD 完整检出仓库执行 `python -m unittest discover -s tests -p 'test_*.py' -v` 并记录退出码与失败栈。
-- [ ] 原生 Node.js：`node --test tests/*.cjs`（应在真实仓库目录运行；若 Windows shell glob 不展开则使用脚本逐文件枚举）。
+- [x] 2026-11-09 已在完整 checkout 中运行 `python -m unittest discover -s tests -p 'test_*.py' -v`，24 个 Python 文件 **310/310 PASS**，退出码 0；修复测试夹具后对合并后的 `main` 复测通过，见 §20。
+- [x] 2026-11-09 在完整 checkout 原生执行 `node --test tests/*.cjs`，16 个 CJS 文件 **86/86 PASS**，退出码 0，见 §20；这不代表 Windows/真实浏览器已验收。
 - [ ] 免安装场景下在隔离 Windows 副本直接运行 `run.bat`，核实服务启动、页面访问与核心功能。`安装依赖.bat` 属于可选维护入口，不作为正常启动的必经测试，也不要求重新安装依赖。
 - [ ] 双标签 Chrome：画布增/改/删、元数据改名、409 草稿/恢复，智能画布并发保存、文件下载与 Range 断点续传。
 - [ ] LAN、Photoshop/Chrome 扩展、ModelScope Token 的授权/跨域场景在可控测试账号进行，禁止把真实用户 token 放入日志或测试夹。
