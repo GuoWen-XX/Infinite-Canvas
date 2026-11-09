@@ -116,7 +116,7 @@ function show({id,kind='classic',record,storageKey}){
     remoteLink.textContent = '在新标签页查看服务器版本';
     remoteLink.style.cssText = 'display:inline-block;padding:7px 0';
     actions.append(remoteLink);
-    actions.append(button('收起', () => { description.hidden = true; actions.hidden = true; status.hidden = true; title.style.cursor = 'pointer'; title.textContent = '有未处理的画布冲突 · 点击展开'; title.onclick = () => {description.hidden = false;actions.hidden = false;status.hidden = false;title.textContent = '画布保存冲突：未覆盖服务器内容';};}));
+    actions.append(button('收起', () => { description.hidden = true; actions.hidden = true; actions.style.display = 'none'; status.hidden = true; title.style.cursor = 'pointer'; title.textContent = '有未处理的画布冲突 · 点击展开'; title.onclick = () => {description.hidden = false;actions.hidden = false;actions.style.display = 'flex';status.hidden = false;title.textContent = '画布保存冲突：未覆盖服务器内容';};}));
     panel.append(title,description,actions,status);
     document.body.append(panel);
     return true;
