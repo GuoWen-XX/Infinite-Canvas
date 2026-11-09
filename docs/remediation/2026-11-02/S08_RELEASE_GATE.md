@@ -2,7 +2,7 @@
 
 > 基线：S07 已合并 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`。本文件记录**已核实证据与尚未执行的验证**。不等于发布许可。
 > 不运行 GitHub Actions；不访问真实 API Key、用户画布或付费模型。正式联调须在隔离副本中进行。
-> **最新交接与职责划分**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。已知代码修复完成，完整仓库 Linux 原生 Python **310/310 PASS**、Node.js **86/86 PASS**（2026-11-09，PR #34，详见 §20）；Windows/设备端真实联调仍待验证。最终发布状态仍 **DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED**。
+> **最新交接与职责划分**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。已知代码修复完成，最新合并后 `main@98a1f705` 原生 Python **310/310 PASS**、Node.js **87/87 PASS**（2026-11-09，详见 §22；此前历史见 §20）；Windows/设备端真实联调仍待验证。最终发布状态仍 **DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED**。
 
 ## 1. 可选依赖安装脚本的 wheel 清单核查（不作为免安装画布发布阻断）
 
@@ -200,3 +200,12 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **复测**：Linux 上的系统 Chromium + Playwright，在真实 DOM 和下载行为中运行 6 项隔离交互场景，修复后 **6/6 PASS**（独立副本不会 PUT 原画布、JSON 下载、内存草稿丢失警告与收起/展开、写副本失败留存草稿、属性 409 之后明确确认的 CAS 重试、智能画布恢复链接）。测试使用内存模拟的 localStorage 和请求返回；**不是完整画布页面、真实 HTTP 后端、两标签端到端或 Windows 验收**。
 - **无额外依赖回归**：新增 `tests/test_canvas_recovery_ui.cjs`，原始 JS 上 Node v22.16.0 **1 FAIL**；修复后真实 `node --test tests/test_canvas_recovery_ui.cjs` **1/1 PASS，退出码 0**，两份修改文件的 Git Blob SHA 均与本地执行副本一致；`node --check` PASS。此处新增 1 项测试不冒称重新执行全仓 `node --test tests/*.cjs`；此前完整 Linux 原生 86/86 证据仍以 PR #34 为准。
 - **发布边界**：Windows 免安装 `run.bat`、真实 Chrome 双标签、LAN/插件、旧客户端升级仍然 `DEVICE_VALIDATION_PENDING`。本轮没有 GitHub Actions、用户画布、真实 API Key、额外安装步骤或付费模型调用。
+
+## 22. 2026-11-09 PR #36 合并后的最新 main 全仓原生回归：工程方收尾完成
+
+- **唯一测试基线**：在原有 S08 测试用的独立云端 Linux 沙箱项目中，重新从公开 GitHub 仓库检出完整 `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6`（PR #36 合并提交）。`git rev-parse HEAD` 精确一致；真实 `tests/` 目录有 **24 个 Python 测试文件**和 **17 个 CJS 测试文件**。测试运行使用 Node v24.22.1、Python 3.14.4，不是 V8/AST 等价模拟。
+- **原生 Node.js**：在完整 checkout 执行 `node --test tests/*.cjs`，**87/87 PASS、0 FAIL、0 SKIP、exit 0**（实际日志 `/tmp/s08-node.log` 的 SHA-256：`0eaedd97c0979a4d28499bdc0a89abb5ae135732a99419a0e24535851e8b1abb`）；覆盖 PR #36 新增的 `tests/test_canvas_recovery_ui.cjs`。Python 测试运行后的 Node 再次执行也是 **87/87 PASS、exit 0**（日志 SHA-256：`d4659f07a762712c07c92b63ae96a4b33f7bf41d169e4323089bc43b5eb28804`）。
+- **原生 Python**：只在短时隔离沙箱临时安装 GitHub `requirements.txt` 锁定依赖，不更改用户现有免安装画布。实际执行 `sudo env PYTHONPATH="$(python -m site --user-site)" python -m unittest discover -s tests -p 'test_*.py' -v`，**310/310 PASS、0 FAIL、0 ERROR、0 SKIP、exit 0**；日志 `Ran 310 tests in 7.798s / OK`（SHA-256：`fd7c5ee85cd2d02b97bf94463b23b4259c7ba167478c608f723675753d123b55`）。其中 Skill upgrade tracking **13/13**，storage safety **16/16**，Skill library **29/29**。权限测试沿用现有 root→nobody 降权路线。
+- **工作树与副作用核查**：启动/导入后现有缓存版本同步逻辑改写测试 checkout 中 14 个 HTML 的资源 `?v=` 时间戳（不是本轮代码修改，也不是失败测试）。仅在一次性沙箱中将这些生成变动恢复为仓库原文，`git status --porcelain` 为空；没有向仓库提交它们，也没有动用户文件。
+- **工程结论**：最新 `main` 的全部原生 Linux Python/Node 自动化回归 **397/397 PASS**；PR #36 合并后的 87 项 Node 全量补验与 310 项 Python 全量复验均已完成，**工程方此项无遗留 NOT_RUN**。仅存 **Windows 自带 Python 3.10 便携启动、真实浏览器双标签、按实际使用的 LAN/PS/Chrome 插件及旧版在线迁移** 的设备端实测，依然 `DEVICE_VALIDATION_PENDING`，不宣称正式发布已通过。
+- **费用与约束**：没有 GitHub Actions、生产画布、真实凭据、付费 AI、或对用户的安装要求；只在临时 Linux 测试沙箱安装了必要锁定依赖，不修改 `run.bat`、安装流程或默认分支。
