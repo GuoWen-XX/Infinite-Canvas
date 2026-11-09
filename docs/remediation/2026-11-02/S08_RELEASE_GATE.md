@@ -181,3 +181,13 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
   - `tests/test_s08_release_source.py`（`be018d7d5eae9e6ae16eff186476796b70249286`）与 `tools/check_s08_release_source.py`（`d97d70b33eb0d80eeba63feb8301ea462f0787b5`）：**15/15 PASS**。其第 16 项 `test_live_main_file_uses_safe_github_urls` 依赖完整 `main.py`，本次**未执行**，没有以简化或虚构 main.py 冒充真实源码。
   - `tests/test_mac_launcher.py`（`e3d42c6c3d2ab22a2e6727dc010ed2d95d257c3b`）与 `mac-启动服务.sh`（`33dc6f9f28577e68238ef45fb44ff853b4f37b61`）：**2/2 PASS**，Mock 外部命令，没有真实启动服务器。
 - **证据边界**：这是真正的 Python 3.13.5 + unittest 原生测试，不是 V8 模拟；但是只覆盖 25 个不依赖完整后端代码的用例，不是全仓 24 Python 模块的原生 `unittest discover`。16 个 CJS 文件原生 `node --test`、Windows/浏览器/LAN/插件/旧版在线升级仍为 `NOT_RUN`。本轮没有运行 GitHub Actions、pip 安装、付费服务或真实用户内容。
+
+
+## 20. 2026-11-09 全仓原生 Node/Python 门禁已取得实际执行结果
+
+- **真实完整源码**：在单独的、短时云端 Linux 测试沙箱从公开 GitHub 仓库检出 `main@1fc1df6e48d7e453a11b7782f57dfbe08dc9fa5a`，核实 `tests/` 含 **24 个 Python `test_*.py`** 与 **16 个 Node `.cjs`**，不是文件片段/AST/V8 模拟；原始源码不涉及用户工作目录或 API Key。
+- **原生 Node.js PASS**：Node v24.22.1，运行 `node --test tests/*.cjs`，**86/86 PASS，0 FAIL，0 SKIP，退出码 0**，完整覆盖 16 个 CJS 测试文件。未使用 GitHub Actions。
+- **原生 Python 初测**：Python 3.14.4；在沙箱中临时安装仓库 `requirements.txt` 所锁定的依赖（仅隔离测试环境，不改变免安装画布），运行 `python -m unittest discover -s tests -p 'test_*.py' -v`，**310 项执行，2 FAIL，退出码 1**。第一项 `tests/test_skill_library.py::test_create_list_update_delete_flow` 没带 `base_sha256`，与当前安全版 Skill PUT 的既有乐观锁协议不符；第二项 POSIX 搜索权限目录在 Vercel 沙箱的 non-root 进程仍拥有 DAC override 能力，产生内核权限前提不成立的环境性假失败。
+- **真实修复与复测**：仅在 `tests/test_skill_library.py` 的 PUT 用例增加从 GET detail `content_sha256` 传入 `base_sha256`；该原始测试文件的新 Git blob 为 `812e3732f026dd1fef44db968f0a35874d8425b7`。已本地原生执行 `test_skill_library.py` **29/29 PASS**。权限测试按其既有设计在 root 主进程创建临时夹具、子进程主动降权至 nobody，再执行搜索权限检测；`test_storage_handles.py` **13/13 PASS**。没有为了绿灯修改任何生产代码，也没有对存储安全测试虚构成功。
+- **完整 Python 复测 PASS**：使用与 GitHub 提交完全一致的上述测试文件、新鲜临时依赖环境，在同一完整 checkout 执行 `sudo env PYTHONPATH=<sandbox user-site> python -m unittest discover -s tests -p 'test_*.py' -v`，**310/310 PASS，0 FAIL，0 ERROR，0 SKIP，退出码 0**。其中 `test_skill_upgrade_tracking.py` **13/13**、`test_storage_safety.py` **16/16**，两个此前无法下载的文件已在完整测试中通过。
+- **证据边界**：这是完整 Linux/Python 3.14 + Node 24 原生测试，但不是 Windows 自带 Python 3.10 的实机测试；Windows `run.bat` 便携启动、Chrome 双标签、LAN、PS/Chrome 插件、ModelScope 和旧客户端在线升级仍属 `DEVICE_VALIDATION_PENDING`。CI/Actions 仍未运行；安装依赖仅发生在一次性隔离沙箱，不要求用户安装任何程序。
