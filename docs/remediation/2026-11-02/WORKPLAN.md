@@ -1,7 +1,7 @@
 # Infinite-Canvas 修复工作计划（执行台账）
 
 > 建立：2026-11-02；执行目标：`main`。  
-> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / NATIVE_REGRESSION_BLOCKED / DEVICE_VALIDATION_PENDING`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
+> 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / NATIVE_REGRESSION_PASSED_LINUX / DEVICE_VALIDATION_PENDING`。S02/S03 正确版本全量与设备验证均必须在 S08 发布前补齐；S04 已记录有限风险阶段合并，缺失的独立审查/全量测试继续作为 S08 发布阻断项。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
 ## 一、工作规则（强制）
@@ -226,6 +226,8 @@
 **2026-11-03 S07 合并并启动 S08：** PR #10 已合入 `main@a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`；本地 Codex 路径安全、远程 SSRF 共享校验和 data URL 限制已实现。14 项回归代码已编写，Python 3.13 摘录函数的 12 项离线 fixture 通过，但并非 `main.py` 集成/Windows 实测。合并风险见 PR #10，S08 前禁止发布。新分支 `fix/S08-release-validation`。
 
 ### S08 — 完成验收
+
+> **2026-11-09 原生测试门禁更新**：已在 `main@1fc1df6...` 的完整 checkout、加上提交的 Skill 测试协议修正后，运行 24 个 Python 测试文件 **310/310 PASS**、16 个 CJS **86/86 PASS**，均为原生命令、退出码 0；仅沙箱环境安装了 Python 依赖。初测失败原因及 root→nobody 权限测试说明见 [S08_RELEASE_GATE.md](S08_RELEASE_GATE.md) §20。原生 Linux 门禁已完成，设备及 Windows/插件集成仍 **NOT_VERIFIED**；旧的 `NOT_RUN` 条目作为历史记录保留，不应解释为最新状态。
 
 > **2026-11-08 最新交接**：参见 [S08_FINAL_ACCEPTANCE_HANDOFF.md](S08_FINAL_ACCEPTANCE_HANDOFF.md)。所有已知代码修复合并，当前剩余原生 Python/Node 全仓测试属于工程方尚未执行的门禁，不转嫁为用户手工验收；Windows/浏览器/LAN/插件/旧版迁移需要实际设备。不得因合并了 PR 宣布正式系统验收通过。
 
