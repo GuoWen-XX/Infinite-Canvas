@@ -191,3 +191,12 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **真实修复与复测**：仅在 `tests/test_skill_library.py` 的 PUT 用例增加从 GET detail `content_sha256` 传入 `base_sha256`；该原始测试文件的新 Git blob 为 `812e3732f026dd1fef44db968f0a35874d8425b7`。已本地原生执行 `test_skill_library.py` **29/29 PASS**。权限测试按其既有设计在 root 主进程创建临时夹具、子进程主动降权至 nobody，再执行搜索权限检测；`test_storage_handles.py` **13/13 PASS**。没有为了绿灯修改任何生产代码，也没有对存储安全测试虚构成功。
 - **完整 Python 复测 PASS**：使用与 GitHub 提交完全一致的上述测试文件、新鲜临时依赖环境，在同一完整 checkout 执行 `sudo env PYTHONPATH=<sandbox user-site> python -m unittest discover -s tests -p 'test_*.py' -v`，**310/310 PASS，0 FAIL，0 ERROR，0 SKIP，退出码 0**。其中 `test_skill_upgrade_tracking.py` **13/13**、`test_storage_safety.py` **16/16**，两个此前无法下载的文件已在完整测试中通过。
 - **证据边界**：这是完整 Linux/Python 3.14 + Node 24 原生测试，但不是 Windows 自带 Python 3.10 的实机测试；Windows `run.bat` 便携启动、Chrome 双标签、LAN、PS/Chrome 插件、ModelScope 和旧客户端在线升级仍属 `DEVICE_VALIDATION_PENDING`。CI/Actions 仍未运行；安装依赖仅发生在一次性隔离沙箱，不要求用户安装任何程序。
+
+## 21. 2026-11-09 原生 Chromium 冲突恢复面板交互回归
+
+- **真实前端文件**：从 `main` 读取 `static/js/canvas-conflict-recovery.js`，`git hash-object` 核对修复前 Blob `e38769e819ba7a4a0622574c5023a8b0b1bfbcd0` 与 GitHub 完全一致；修复后 Blob 为 `f4b7b8d3959e45a307680f38badce847107f6faf`，并与 PR 文件核对。
+- **发现真实 UI 缺陷**：原“收起”仅设置 `actions.hidden = true`，但操作容器具有内联 `display:flex`，浏览器实际仍显示按钮；隔离 Chromium + Playwright 原始 JS 交互测试 **5/6 PASS，1 FAIL**（失败项为收起/展开）。
+- **最小修复**：收起时显式把 `actions.style.display` 改为 `none`，展开时恢复 `flex`；不改变冲突检测、保存 CAS、导出内容及更新器逻辑。
+- **复测**：Linux 上的系统 Chromium + Playwright，在真实 DOM 和下载行为中运行 6 项隔离交互场景，修复后 **6/6 PASS**（独立副本不会 PUT 原画布、JSON 下载、内存草稿丢失警告与收起/展开、写副本失败留存草稿、属性 409 之后明确确认的 CAS 重试、智能画布恢复链接）。测试使用内存模拟的 localStorage 和请求返回；**不是完整画布页面、真实 HTTP 后端、两标签端到端或 Windows 验收**。
+- **无额外依赖回归**：新增 `tests/test_canvas_recovery_ui.cjs`，原始 JS 上 Node v22.16.0 **1 FAIL**；修复后真实 `node --test tests/test_canvas_recovery_ui.cjs` **1/1 PASS，退出码 0**，两份修改文件的 Git Blob SHA 均与本地执行副本一致；`node --check` PASS。此处新增 1 项测试不冒称重新执行全仓 `node --test tests/*.cjs`；此前完整 Linux 原生 86/86 证据仍以 PR #34 为准。
+- **发布边界**：Windows 免安装 `run.bat`、真实 Chrome 双标签、LAN/插件、旧客户端升级仍然 `DEVICE_VALIDATION_PENDING`。本轮没有 GitHub Actions、用户画布、真实 API Key、额外安装步骤或付费模型调用。
