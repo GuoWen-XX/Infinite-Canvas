@@ -130,6 +130,13 @@
 
 **S03 合并/延期验证记录（2026-11-02）：** PR #6 已于 15:00:18 UTC 合并至 `main@081edae763ec73505bed9f82e4274bfeaabc16c3`，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65` 的 Codex 复审无新发现，14/14 review threads resolved。维护者在 PR 中公开有限风险例外；**45 项新增 S03 测试仍仅已编写，正确 HEAD 全量 unittest、Windows/UNC/junction、FFmpeg/Range/Streaming 与实际更新渠道均未完成验证**。本次合并不是 TEST_GATE_PASS，也不是发布许可；以上全部列为 S08 发布前阻断验收。GitHub Actions 本阶段 0 次主动运行。
 
+
+**S03 Linux 原生回归闭环补记（2026-11-09；仅更新验证状态，不改写 2026-11-02 合并时的风险例外）：**
+
+- 完整 checkout 的 `python -m unittest discover -s tests -p 'test_*.py' -v` 在 `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 实际执行 **310/310 PASS**；24 个 Python 测试文件全部纳入。S02 的 `test_access_boundary.py` 28 项，以及 S03 的 45 项（storage safety 16、storage handles 13、remote media 8、canvas ZIP budget 5、legacy updater 3）均包含在这次全量运行中，不再属于 Linux Python 单测的 NOT_RUN 项。
+- 同一完整 checkout 的原生 Node `node --test tests/*.cjs` **87/87 PASS**（17 个 CJS 文件）。当前 `main@cf488ab4347f4239cb391fff98befd7ea5774614` 是 PR #37 的 docs-only merge，第一父提交为上述 `98a1f705...`，没有应用代码/测试/依赖变化；因此 310/310 与 87/87 证据适用于当前代码树。
+- 这不撤销 S02/S03 合并时公开记录的延期风险，也不替代 Windows HANDLE/UNC/junction、FFmpeg/Range/Streaming、LAN/Chrome/Photoshop/ModelScope 和旧客户端升级/回滚的实机验收；整体 S08 仍为 `DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED`。
+
 ### S04 — 画布保存（R1/R6）
 
 **S04 元数据网络失败保护（2026-11-02）：** 在 PR #7 实际 `canvas.js::patchCanvasMeta`、`canvas-list.js::persistMeta` 隔离复现网络异常/503 时乐观更新未持久化、未出现恢复提示（四种失败场景）。已在本阶段 PR 同时修复：任意失败均保留 `canvas_meta_conflict_<id>` 草稿并展示显式确认后 CAS 重试，不静默覆盖远端。新增 `tests/test_canvas_meta_transport.cjs` 6 项；准确代码提交 `0cd5ecdeb879d627e943d231d3cec162f5c20213` 的真实 JS/CJS 在隔离 V8 + Node shim **6/6 PASS**，两份 JS 语法解析 **2/2 PASS**，不是原生 Node/浏览器/完整 Python PASS。`test_canvas_revision.py` 目前含 21 个已编写测试方法，完整项目未运行。S04 仍 DRAFT / REVIEW_BLOCKED / TEST_GATE_BLOCKED，S05 不启动，Actions NOT_RUN。
