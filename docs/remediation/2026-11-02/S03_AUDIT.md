@@ -1,5 +1,12 @@
 # S03 安全基线审计（SEC-03 / SEC-04 / SEC-05）
 
+> **当前状态（2026-11-10；优先于下方 2026-11-02 审计快照）**：S03 PR #6 已合并至 `main`，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65`，merge SHA `081edae763ec73505bed9f82e4274bfeaabc16c3`；Codex 对该 HEAD 的最终复审无重大问题，14/14 review threads resolved。合并时保留了公开的有限风险例外。
+>
+> S03 的 45 项 Python 回归（storage safety 16、storage handles 13、remote media 8、canvas ZIP budget 5、legacy updater 3）现均包含在完整仓库 24 个 Python 测试文件中；2026-11-09 在 `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 原生执行全量 unittest **310/310 PASS**。当前 `main@cf488ab4347f4239cb391fff98befd7ea5774614` 是 PR #37 docs-only merge，代码/测试树未改变，因此该 Linux 回归证据仍适用。S02 的 28 项 ASGI 回归也包含在同一 310 项运行中。
+>
+> **尚未由此关闭的事项**：Windows HANDLE/junction/UNC/外置盘真实行为、FFmpeg/Range/Streaming 的 Windows/实际客户端兼容、LAN/Chrome/Photoshop/ModelScope 联调和旧客户端真实升级/回滚。下文当时的“未执行”描述是 2026-11-02 的历史状态；仅其 Linux 全仓 Python 测试部分已被上述 2026-11-09 证据更新，不能据此标记 S08 发布通过。
+
+
 > 起点：S02 PR #5 合并提交 `main@ae042d816c7881005a6e180a8e38aeaa8f9f07f5`。独立分支 `fix/S03-storage-ssrf`；只做代码基线定位，不代表运行时验证。
 
 ## 范围与风险
