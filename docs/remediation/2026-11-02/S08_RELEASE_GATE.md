@@ -41,7 +41,9 @@ python -m pip check
 - [ ] 免安装场景下在隔离 Windows 副本直接运行 `run.bat`，核实服务启动、页面访问与核心功能。`安装依赖.bat` 属于可选维护入口，不作为正常启动的必经测试，也不要求重新安装依赖。
 - [ ] 双标签 Chrome：画布增/改/删、元数据改名、409 草稿/恢复，智能画布并发保存、文件下载与 Range 断点续传。
 - [ ] LAN、Photoshop/Chrome 扩展、ModelScope Token 的授权/跨域场景在可控测试账号进行，禁止把真实用户 token 放入日志或测试夹。
-- [ ] S02 28 项与 S03 45 项延期回归、Windows UNC/junction、Skill 版本追踪 A→B→C、Codex 自定义媒体路径真实 Windows 安全验收。
+- [x] S02 的 28 项 `test_access_boundary.py` 回归与 S03 的 45 项 Python 回归均已包含在 §22 的完整 `unittest discover`：S03 分项为 `test_storage_safety.py` 16、`test_storage_handles.py` 13、`test_remote_media_security.py` 8、`test_canvas_zip_budget.py` 5、`test_s03_legacy_updater.py` 3；24 个 Python 文件共 **310/310 PASS**。
+- [x] Skill tracking A→B→C 回归 `test_skill_upgrade_tracking.py` **13/13 PASS**，包含在同一次 310 项全量 Python 运行中。
+- [ ] Windows HANDLE/UNC/junction/外置盘真实行为、FFmpeg/Range/Streaming 实际客户端兼容、Windows 便携启动、Chrome 双标签、LAN/Photoshop/Chrome 扩展/ModelScope 联调、旧客户端在线升级与回滚仍待设备验收。
 - [x] 核对并修复本仓库新版 `main.py` 更新源：PR #12 更新 URL，收尾修复同步将分支更新为 `main`，共同使 GitHub 更新目标指向 `GuoWen-XX/Infinite-Canvas@main`。原安装中的旧客户端仍可能指向旧来源，**真实升级迁移 NOT_RUN**；未修改默认分支。
 - [ ] 必须有发布前残余风险报告；未消除的高风险失败或缺失的必要测试阻止发布。
 
@@ -209,3 +211,10 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - **工作树与副作用核查**：启动/导入后现有缓存版本同步逻辑改写测试 checkout 中 14 个 HTML 的资源 `?v=` 时间戳（不是本轮代码修改，也不是失败测试）。仅在一次性沙箱中将这些生成变动恢复为仓库原文，`git status --porcelain` 为空；没有向仓库提交它们，也没有动用户文件。
 - **工程结论**：最新 `main` 的全部原生 Linux Python/Node 自动化回归 **397/397 PASS**；PR #36 合并后的 87 项 Node 全量补验与 310 项 Python 全量复验均已完成，**工程方此项无遗留 NOT_RUN**。仅存 **Windows 自带 Python 3.10 便携启动、真实浏览器双标签、按实际使用的 LAN/PS/Chrome 插件及旧版在线迁移** 的设备端实测，依然 `DEVICE_VALIDATION_PENDING`，不宣称正式发布已通过。
 - **费用与约束**：没有 GitHub Actions、生产画布、真实凭据、付费 AI、或对用户的安装要求；只在临时 Linux 测试沙箱安装了必要锁定依赖，不修改 `run.bat`、安装流程或默认分支。
+
+## 23. 2026-11-10 当前 main 连续性核对
+
+- GitHub 实时 `main` 为 `cf488ab4347f4239cb391fff98befd7ea5774614`，即 PR #37 的 merge commit；其第一父提交为完整 Linux 回归基线 `98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6`，第二父提交为 PR #37 HEAD `1035290b2029d2242f771e82b940bf3b73778fbb`。
+- PR #37 仅修改三份 Markdown 证据/工作台账文件，没有应用代码、测试代码或依赖变更；因此 §22 的 Python **310/310**、Node **87/87** 原生结果适用于当前 main 的代码/测试树。当前无新的代码 PR；本次文档同步另行走 docs-only PR。
+- PR #37 的 Codex Review Summary 为 `completed / has_any_findings=false / has_unresolved_findings=false`；其正式 Reviews 与 inline threads 均为空。没有触发或重跑 GitHub Actions。
+- 以上只确认 Linux 自动化基线；Windows/设备/浏览器/LAN/插件/旧客户端迁移仍为 `DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED`。
