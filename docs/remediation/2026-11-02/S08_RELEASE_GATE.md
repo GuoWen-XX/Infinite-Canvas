@@ -218,3 +218,12 @@ python tools/check_s08_release_source.py --expected-repo GuoWen-XX/Infinite-Canv
 - PR #37 仅修改三份 Markdown 证据/工作台账文件，没有应用代码、测试代码或依赖变更；因此 §22 的 Python **310/310**、Node **87/87** 原生结果适用于当前 main 的代码/测试树。当前无新的代码 PR；本次文档同步另行走 docs-only PR。
 - PR #37 的 Codex Review Summary 为 `completed / has_any_findings=false / has_unresolved_findings=false`；其正式 Reviews 与 inline threads 均为空。没有触发或重跑 GitHub Actions。
 - 以上只确认 Linux 自动化基线；Windows/设备/浏览器/LAN/插件/旧客户端迁移仍为 `DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED`。
+
+
+## 24. 2026-11-11 PR #38 文档/证据同步合并记录
+
+- PR #38 以 `main@cf488ab4347f4239cb391fff98befd7ea5774614` 为 base，PR HEAD 为 `0bf8592f4de31e4085bb41c8828828cdd25b047c`，已合并至 `main@d7b6e261173c4385e6f7985967c0efee8b216268`。Merge commit 的第一父提交是原 main，第二父提交是 PR HEAD。
+- PR #38 仅修改 HANDOFF_NEXT_SESSION.md、S03_AUDIT.md、S03_TOCTOU_HANDLE_PLAN.md、S08_RELEASE_GATE.md、WORKPLAN.md 五份 Markdown；没有应用代码、测试、依赖或 workflow 变化。
+- Codex Review Summary 对精确 HEAD `0bf8592f` 为 `completed / has_any_findings=false / has_unresolved_findings=false`；inline threads 0。没有正式 Review 对象；维护者审查决定及 diff 核查依据记录在 [PR #38 comment](https://github.com/GuoWen-XX/Infinite-Canvas/pull/38#issuecomment-6788668579)。PR HEAD 没有状态检查记录。没有触发或重跑 GitHub Actions。
+- 因 PR #38 为 docs-only，未重跑 Python/Node；§22 的完整 Linux 原生 Python **310/310 PASS**、Node **87/87 PASS** 仍以 `98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 为测试基线。PR #37 与 #38 的第一父链均保留该代码/测试树。
+- PR #38 合并后开放 PR 为 0；仓库默认分支仍为 `zcode/iteration-01`。正式发布继续 `NOT_VERIFIED / DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED`，设备验收项目见 §3 和最终交接文档。

@@ -4,6 +4,8 @@
 > 当前状态：`S00 MERGED → S01 MERGED → S02 MERGED_WITH_DEFERRED_VALIDATION → S03 MERGED_WITH_DEFERRED_VALIDATION → S04 MERGED_WITH_DEFERRED_VALIDATION → S05 MERGED_WITH_DEFERRED_VALIDATION → S06 MERGED_WITH_DEFERRED_VALIDATION → S07 MERGED_WITH_DEFERRED_VALIDATION → S08 IMPLEMENTATION_MERGED / NATIVE_REGRESSION_PASSED_LINUX / DEVICE_VALIDATION_PENDING`。S02–S07 延期的全仓 Python/Node 回归已由 2026-11-09 S08 Linux 原生测试覆盖；真实 Windows/浏览器/LAN/插件验收尚未完成，历史独立审查缺口不因自动化通过而自动消失。
 > 本台账是长期执行清单；每推进一个阶段，必须随该阶段 PR 更新状态、测试证据、风险和回滚记录。
 
+**S08 文档/证据同步 PR #38 合并记录（2026-11-11）：** PR #38 已以 `main@cf488ab4347f4239cb391fff98befd7ea5774614` 为 base 合并；PR HEAD `0bf8592f4de31e4085bb41c8828828cdd25b047c`，merge SHA `d7b6e261173c4385e6f7985967c0efee8b216268`。仅修改 5 份 Markdown 文档。Codex Review Summary 对该 HEAD 为 `completed / 0 findings / 0 unresolved`、inline threads 0；没有正式 Review 对象，维护者审查决定记录于 [PR #38](https://github.com/GuoWen-XX/Infinite-Canvas/pull/38#issuecomment-6788668579)。PR #38 未改应用/测试/依赖且未重跑测试；PR #37/#38 均为 docs-only，故 §22 的 Linux Python **310/310**、Node **87/87** 基线仍适用。Windows/浏览器/LAN/插件/旧客户端设备验收仍阻止正式发布；Actions 0 次。
+
 ## 一、工作规则（强制）
 
 1. **单阶段、单实施分支、单 PR**。以已批准的上一个 `main` HEAD 为基础；不在未审查分支上继续叠加下一阶段代码。
