@@ -1,6 +1,19 @@
 # Infinite-Canvas 修复工程 · 新会话交接（Handoff）
 
-## 2026-11-03 S08 当前状态（本节优先于历史快照）
+## 2026-11-10 实时状态（本节为当前权威记录，覆盖下方旧快照）
+
+- **实时仓库状态**：目标分支为 `main`，HEAD `cf488ab4347f4239cb391fff98befd7ea5774614`。仓库默认分支仍为 `zcode/iteration-01`，没有修改默认分支。初次核查时开放 PR 为 0；PR #37 是最新已合并 PR，Codex Review Summary 对其 HEAD `1035290b2029d2242f771e82b940bf3b73778fbb` 显示 `completed / 0 findings / 0 unresolved`。
+- **当前阶段**：S00–S08 的计划内实施均已合并。S03 PR #6 已于 2026-11-02 合并，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65`，merge SHA `081edae763ec73505bed9f82e4274bfeaabc16c3`；该 HEAD 的 Codex 复审无重大问题，14/14 review threads 已 resolved。PR #6 的有限风险合并记录明确说明这不是 S03 测试 PASS 或发布许可。
+- **Linux 全仓原生回归**：S08 §22 记录的完整 checkout 基线为 `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6`，Python 24 个测试文件 **310/310 PASS**、Node 17 个 CJS 文件 **87/87 PASS**，0 FAIL/ERROR/SKIP、退出码 0。当前 `main@cf488ab` 是 PR #37 合并提交，其第一父提交正是 `98a1f705...`；PR #37 只改三份 Markdown 证据/台账文件，没有应用代码、测试代码或依赖变化，因此 §22 的 397 项 Linux 原生结果仍适用于当前代码/测试树。
+- **延期测试闭环**：S02 的 `tests/test_access_boundary.py` 28 项、S03 的 45 项 Python 回归均在上述 24 文件的 `unittest discover` 中执行；S03 组成是 storage safety 16、storage handles 13、remote media 8、canvas ZIP budget 5、legacy updater 3。Skill tracking A→B→C 的 `test_skill_upgrade_tracking.py` 13 项也在同一全量结果中通过。这关闭的是 Linux 原生自动化测试缺口，不代表 Windows/设备集成已通过。
+- **仍然阻止正式发布的事项**：Windows 自带 Python 3.10 免安装 `run.bat` 实机启动；Windows WinAPI HANDLE、UNC/junction/外置盘安全行为；真实 Chrome 双标签画布/智能画布冲突、草稿恢复、Range 下载；实际使用的 LAN 授权、Chrome 扩展、Photoshop 连接器、ModelScope Token 场景；旧客户端从其现有更新源升级、重启、回滚/反向恢复。FFmpeg 与真实流式媒体兼容也需按 Windows/实际平台验收。
+- **发布状态**：`NOT_VERIFIED / DEVICE_VALIDATION_PENDING / RELEASE_BLOCKED`。不因 S00–S08 代码合并或 Linux 397/397 通过而宣布发布。
+- **执行约束**：不运行或重跑 GitHub Actions；不触碰真实 Key、用户画布或生产配置；不调用计费 AI；不擅自修改默认分支。下一步应取得隔离设备验收证据，若验收发现新缺陷，再按单阶段、单分支、单 PR 修复。
+
+---
+
+
+## 历史快照：2026-11-03 S08 状态（已被 2026-11-10 实时状态取代）
 
 - S00–S07 均已 **合并到 main**，S07 PR #10 merge SHA `a8834ef0c9c8c8795b3fd73cc27427ea0912e5be`。历史 S04/S05/S06 的 DRAFT 字样均是过时快照，不要阻止 S08 工作。
 - 当前分支 `fix/S08-release-validation`，Draft [PR #11](https://github.com/GuoWen-XX/Infinite-Canvas/pull/11)，base main=S07 merge。必须先取 PR 实时 HEAD，再继续。
