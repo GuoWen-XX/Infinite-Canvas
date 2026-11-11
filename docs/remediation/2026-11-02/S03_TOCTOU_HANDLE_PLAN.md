@@ -1,6 +1,10 @@
 # S03 文件句柄 TOCTOU 修复说明与验证台账
 
-> PR #6 draft；记录 HEAD 时必须重新读取 GitHub。此文档不宣称已完成完整项目测试或跨平台验收。
+> 原始实现与验证计划写于 PR #6 draft 阶段。**当前状态（2026-11-10）**：PR #6 已合并，代码 HEAD `744a3a152cda8503f9ec2296d4217e5d48622b65`，merge SHA `081edae763ec73505bed9f82e4274bfeaabc16c3`；该 HEAD 的最终 Codex 复审无重大问题，14/14 review threads resolved。
+>
+> 后续全仓 Linux 验证已覆盖 S03 全部 45 项 Python 回归（16+13+8+5+3），并随完整 24 文件测试集在 `main@98a1f7054b6b8a642c9d8ee7b2be2c497f82bde6` 得到 **310/310 PASS**。当前 `main@cf488ab4347f4239cb391fff98befd7ea5774614` 是 docs-only PR #37 merge，代码/测试树相同。**本记录仍不宣称 Windows HANDLE、UNC/junction、FFmpeg、真实 Range/Streaming 客户端或旧客户端升级已验收**；整体发布继续 BLOCKED。
+>
+> 下方“尚需门禁”与 33 项测试数量属于早期设计时快照；后续测试扩展到 45 项，Linux 全仓执行结果以上述 S08 §22 为准，平台验收边界不变。
 
 ## 问题
 
